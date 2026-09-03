@@ -1,0 +1,5 @@
+# Conventional Commits, enforced.
+#
+# The history is part of what this repo demonstrates, so the format is checked
+# rather than merely intended.
+pnpm exec commitlint --edit "$1"

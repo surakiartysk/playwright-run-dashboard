@@ -1,0 +1,40 @@
+name: PR gate
+
+# The fast lane. Every pull request pays this cost, so it runs one Node version
+# rather than the matrix — the full run happens on merge (ci.yml).
+#
+# It is not much faster than CI here, because this repo's suite is genuinely
+# quick. When that stops being true, this is the file that should start
+# skipping things, not ci.yml.
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify

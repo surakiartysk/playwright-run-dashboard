@@ -1,0 +1,70 @@
+name: CI
+
+# The full run, on the branch that matters.
+#
+# Also the only place the Node matrix runs: a version incompatibility is worth
+# catching, but not worth paying for on every push to a feature branch.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false # one version failing should not hide the other's result
+      matrix:
+        node: [22, 24]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `verify` is the same command developers run locally — one definition of
+      # "green", so CI cannot drift from the laptop.
+      - name: Verify
+        run: pnpm verify
+
+  build:
+    name: The UI builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Type-checking is not the same as building. A Vite build catches what tsc
+    # does not — an unresolvable import, a bad asset reference — and this repo
+    # is meant to be cloned and run, so a broken build is a broken front door.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the UI
+        run: pnpm --filter @run-dashboard/ui build

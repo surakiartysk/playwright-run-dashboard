@@ -1,0 +1,8 @@
+# Formatting and lint on staged files only — under a second in practice.
+#
+# Deliberately not the test suite. The Worker tests boot workerd and the
+# simulator sleeps on purpose, so a full run is closer to a minute — and a
+# pre-commit hook that slow gets bypassed with --no-verify the first time
+# someone is in a hurry. A hook people routinely skip is worse than no hook.
+# Correctness is CI's job; this one only keeps mechanical noise out of the diff.
+pnpm exec lint-staged
