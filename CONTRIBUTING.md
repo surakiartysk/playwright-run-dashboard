@@ -32,7 +32,7 @@ and it only touches local state.
 
 | Command             | Runs                                                         |
 | ------------------- | ------------------------------------------------------------ |
-| `pnpm test`         | Both packages — 254 Worker tests, then 69 UI tests           |
+| `pnpm test`         | Both packages — 254 Worker tests, then 77 UI tests           |
 | `pnpm verify`       | Everything CI runs: format, lint, types, leak, tests, claims |
 | `pnpm check:leak`   | The vocabulary and branding tripwire alone                   |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale      |
@@ -111,7 +111,7 @@ cp /tmp/policy.bak src/policy.ts   # always restore
 pnpm exec vitest run               # confirm green again
 ```
 
-Seventy-five mutations have been run against this repo. The ones worth
+Seventy-seven mutations have been run against this repo. The ones worth
 repeating after any change to authorisation or signing:
 
 | Mutation                                                     | Must fail                     |

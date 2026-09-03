@@ -265,7 +265,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Seventy-five mutations were introduced
+**Every test here was proven able to fail.** Seventy-seven mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never

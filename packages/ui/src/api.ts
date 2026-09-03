@@ -36,6 +36,23 @@ export interface RolePolicy {
   sees: string
 }
 
+/**
+ * The gate's three settings. `window` is the only one carrying timestamps.
+ *
+ * Mirrors GateMode in the Worker's gate.ts — the two are separate declarations
+ * because the packages share no code, so a change on one side has to be made on
+ * the other. The API rejects an unknown mode rather than falling back.
+ */
+export type GateMode = 'open' | 'closed' | 'window'
+
+export interface GateStatus {
+  state: 'open' | 'closed'
+  /** Why it is in that state — `default` means no usable configuration. */
+  reason: 'manual' | 'window' | 'default'
+  opensAt: string | null
+  closesAt: string | null
+}
+
 /** Thrown for any non-2xx, carrying the status so callers can branch on 401. */
 export class ApiError extends Error {
   constructor(
@@ -93,14 +110,20 @@ export const api = {
 
   stopPreview: () => request<{ ok: true }>('/demo/stop-preview', { method: 'POST' }),
 
-  gate: () =>
-    request<{
-      state: 'open' | 'closed'
-      reason: 'manual' | 'window' | 'default'
-      opensAt: string | null
-      closesAt: string | null
-      appliesToYou: boolean
-    }>('/gate'),
+  gate: () => request<GateStatus & { appliesToYou: boolean }>('/gate'),
+
+  /**
+   * Admin only; the API rejects every other role.
+   *
+   * `window` is the only mode carrying timestamps, and the API validates them
+   * rather than falling back to open — see routes/gate.ts on why a silently
+   * ignored window is worse than a rejected request.
+   */
+  setGate: (input: { mode: GateMode; opensAt?: string; closesAt?: string }) =>
+    request<GateStatus>('/gate', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
 
   /**
    * `role` is always the caller's real, authenticated role; `viewAs` differs

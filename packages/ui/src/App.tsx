@@ -3,6 +3,7 @@ import { ApiError, api, isPending, type Role, type RolePolicy, type Run } from '
 import { Login } from './components/Login'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { RunTrigger } from './components/RunTrigger'
+import { GateControl } from './components/GateControl'
 import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
@@ -21,6 +22,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   // Bumped by the theme toggle so the header re-renders with the new icon.
   const [, setThemeTick] = useState(0)
+  // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
+  const [gateTick, setGateTick] = useState(0)
 
   // Restores an existing session on load, so a refresh is not a sign-out.
   useEffect(() => {
@@ -140,7 +143,25 @@ export function App() {
 
       {error && <div style={s.error}>{error}</div>}
 
-      {policy && <RunTrigger policy={policy} role={role} onStarted={() => void refresh()} />}
+      {/*
+        Keyed on the REAL role, never `viewingRole`. A demo session previewing
+        admin sees admin's read view; it must not be offered a write control the
+        server would refuse — the same real-role rule RunTrigger follows.
+
+        `gateTick` remounts RunTrigger after the gate changes, so its "runs are
+        paused" notice reflects the new state without a reload. RunTrigger reads
+        the gate on mount, so a key change is the honest way to make it re-read.
+      */}
+      {role === 'admin' && <GateControl onChanged={() => setGateTick((n) => n + 1)} />}
+
+      {policy && (
+        <RunTrigger
+          key={`${role}-${gateTick}`}
+          policy={policy}
+          role={role}
+          onStarted={() => void refresh()}
+        />
+      )}
 
       <RunStats runs={runs} />
 
