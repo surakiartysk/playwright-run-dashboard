@@ -544,6 +544,107 @@ once.
 
 ---
 
+## 15. Machine keys the dashboard issues, not GitHub tokens it hands out
+
+**Status: designed, not built.** Written down while the reasoning is fresh, so
+the shape is on record before anyone needs it. Nothing below exists in the code
+yet.
+
+**Context.** Everything here assumes a person at a browser: a session cookie, an
+eight-hour token, a form. The case it does not serve is the one that matters
+most in practice — a deploy pipeline that wants to verify an environment the
+moment it finishes deploying, at 03:00, with nobody watching.
+
+The obvious answer is to hand developers a GitHub personal access token so their
+pipeline can call `repository_dispatch` directly. That is worth examining, and
+then rejecting, because **GitHub's scopes cannot express the rule we already
+enforce**. A token that can dispatch a workflow needs `actions: write` on the
+repository, and that is the whole grant: it can start _any_ workflow, against
+_any_ ref, read Actions logs, and it keeps working until someone remembers it
+exists. There is no scope meaning "smoke, against `main`, four workers". We
+already have that rule, in `policy.ts`, and handing out a PAT routes around it.
+
+**Decision.** The dashboard issues its own keys, and a key is a credential whose
+authority is defined here rather than at GitHub. One `GITHUB_TOKEN` stays
+server-side, as it is today; a pipeline authenticates to _this_ API, and every
+rule already written applies to it unchanged.
+
+The seam already exists. `requireSession` accepts `Authorization: Bearer` today
+because a session token can be sent that way — a key is a second thing that
+header may carry, resolved to a role and a set of limits before any handler
+runs. `mayUseRef`, `maxWorkers` and the gate then work exactly as they do for a
+person, because by that point the request looks like one.
+
+```
+CREATE TABLE api_keys (
+  id           TEXT PRIMARY KEY,       -- the public half, in the key itself
+  hash         TEXT NOT NULL,          -- HMAC of the secret half; never the secret
+  label        TEXT NOT NULL,          -- 'checkout-service deploy pipeline'
+  role         TEXT NOT NULL,          -- the policy row it inherits
+  allowed_refs TEXT,                   -- narrower than the role, never wider
+  max_workers  INTEGER,                -- same
+  created_by   TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  last_used_at TEXT,                   -- what makes an unused key visible
+  revoked_at   TEXT                    -- kept, not deleted: history stays readable
+);
+```
+
+Four properties are doing the work:
+
+- **Only the hash is stored.** The key is shown once, at creation, and is
+  unrecoverable afterwards — the same reason passwords are not stored either.
+  The `id` prefix travels in the key so a lookup is one indexed read rather than
+  a scan comparing hashes.
+- **A key may narrow its role, never widen it.** `allowed_refs` on a key
+  intersects with the role's; the effective answer is the stricter of the two.
+  A key that could grant more than the role it names would be a second
+  permission system, and the first one would stop being the truth.
+- **`triggered_by` records the key, not just the role.** "Who ran this?" has to
+  survive being answered by a machine, and a run history where every automated
+  row says `dev` is a history that cannot answer it.
+- **Revocation is a column, not a delete.** A revoked key's runs stay
+  attributable. Deleting the row would orphan them.
+
+**The gate applies to keys.** A `dev`-level key is blocked during a freeze
+exactly as a developer is, and gets the same 503. This is the one that looks
+wrong at first: a pipeline is not a person, and blocking a deploy verification
+feels like collateral damage. It is not — the gate exists because a dozen runs
+against a shared environment during a release is noise at the worst possible
+moment, and an automated caller retrying every thirty seconds is _more_ of that
+problem, not less. A pipeline that must run during a freeze is asking for a
+`qa`-level key, and that should be a decision someone makes, not a default it
+inherits by being a machine.
+
+**Trade-offs.**
+
+This is a credential system, and the cost is that it never stops being one. It
+adds a table, a hashing path, a management screen, and a revocation story that
+has to actually work under pressure — at 02:00, when a key is leaking, by
+someone who did not build it. `wrangler secret` covers today's single token
+with none of that.
+
+It also moves this repository across a line. The dashboard currently holds one
+secret and authenticates humans against three passwords; after this it is
+issuing credentials to other systems, which is a category of thing that attracts
+requirements — expiry, rotation reminders, an audit trail someone will
+eventually want exported. None of that is hard. All of it is more surface than
+the thing it protects, which is the ability to run a test suite.
+
+And the honest limit: a key is only as narrow as the policy behind it. Every
+sharpening of what a key may do is a change in `policy.ts`, which means the
+answer to "can I have a key that only runs smoke on Tuesdays" is no, and stays
+no until someone extends the policy model. A key system does not make the
+permission model finer-grained; it only lets a machine use the one that exists.
+
+**Why write it down without building it.** The `repository_dispatch` seam in the
+companion repo works today, and a token issued to a machine — a deploy pipeline,
+kept in that pipeline's secret store — is a reasonable answer for one caller.
+This is the design for when there are five, and the day someone asks for a key
+per team is the day to build it, not before.
+
+---
+
 ## How to add a decision
 
 Write it when the reasoning is still fresh, and include the cost. If the
