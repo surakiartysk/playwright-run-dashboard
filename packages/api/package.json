@@ -1,0 +1,25 @@
+{
+  "name": "@run-dashboard/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker: accepts run requests, dispatches them, receives results, serves reports.",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "db:migrate": "wrangler d1 migrations apply run-dashboard --local",
+    "db:reset": "node -e \"require('fs').rmSync('.wrangler',{recursive:true,force:true})\" && pnpm db:migrate",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260827.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.124.0"
+  }
+}

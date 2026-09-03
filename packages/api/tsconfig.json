@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // `cloudflare:test` is a virtual module the pool provides at runtime; its
+    // types come from the package rather than from a file on disk.
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"],
+    "lib": ["ES2022"]
+  },
+  // vitest.config.ts is deliberately excluded: it runs in Node, not workerd,
+  // and type-checking it here would need Node's globals in a project whose
+  // whole point is that they are absent.
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

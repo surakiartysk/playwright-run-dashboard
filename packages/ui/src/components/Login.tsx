@@ -1,0 +1,376 @@
+import { useEffect, useState, type CSSProperties } from 'react'
+import { api, type Role } from '../api'
+import { brandPanelBackground, c } from '../theme'
+
+/**
+ * Sign in — a split panel: identity on the left, the form on the right.
+ *
+ * The left panel does no work beyond saying what this is, which is the point:
+ * a login screen that is only a centred box gives no sense of what you are
+ * signing into.
+ *
+ * In simulation the development passwords are printed on the form. They are in
+ * the source anyway, and a demo whose first screen is a password you have to go
+ * hunting for is a demo nobody sees.
+ */
+export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
+  const [password, setPassword] = useState('')
+  const [reveal, setReveal] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [hints, setHints] = useState<{
+    mode: 'full' | 'demo-only'
+    passwords: Record<string, string>
+  } | null>(null)
+
+  useEffect(() => {
+    api
+      .devCredentials()
+      .then((r) => setHints({ mode: r.mode, passwords: r.passwords }))
+      .catch(() => setHints(null))
+  }, [])
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      const { role } = await api.login(password)
+      onSignedIn(role)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sign-in failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={s.outer}>
+      <aside style={s.left}>
+        <div style={{ ...s.circle, width: 420, height: 420, top: -120, right: -120 }} />
+        <div style={{ ...s.circle, width: 300, height: 300, bottom: -80, left: -80 }} />
+        <div style={{ ...s.circle, width: 160, height: 160, bottom: 120, right: 40 }} />
+
+        <div style={s.leftInner}>
+          <div style={s.brandIcon}>
+            <FlaskIcon size={34} />
+          </div>
+
+          <h1 style={s.brandTitle}>Test Run Dashboard</h1>
+          <p style={s.brandSub}>QA Automation Dashboard</p>
+
+          <div style={s.divider} />
+
+          <p style={s.brandNote}>
+            Trigger the API suite against any branch and read the report — without waiting for QA or
+            digging through CI artifacts.
+          </p>
+
+          <div style={s.pill}>
+            <span style={s.pulseDot} />
+            Live run monitoring
+          </div>
+        </div>
+      </aside>
+
+      <main style={s.right}>
+        <form style={s.form} onSubmit={submit}>
+          <div style={s.formIcon}>
+            <FlaskIcon size={22} colour="var(--c-primary)" />
+          </div>
+
+          <h2 style={s.formTitle}>Welcome back</h2>
+          <p style={s.formSub}>Sign in to access the dashboard</p>
+
+          <label htmlFor="password" style={s.label}>
+            Password
+          </label>
+
+          <div style={s.inputWrap}>
+            <span style={s.lockIcon}>
+              <LockIcon />
+            </span>
+            <input
+              id="password"
+              type={reveal ? 'text' : 'password'}
+              value={password}
+              autoFocus
+              placeholder="Enter dashboard password"
+              onChange={(e) => setPassword(e.target.value)}
+              style={{
+                ...s.input,
+                borderColor: error ? '#fca5a5' : c.border,
+                background: error ? '#fff5f5' : c.input,
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setReveal((v) => !v)}
+              style={s.reveal}
+              aria-label={reveal ? 'Hide password' : 'Show password'}
+            >
+              <EyeIcon off={reveal} />
+            </button>
+          </div>
+
+          {error && <p style={s.error}>{error}</p>}
+
+          <button type="submit" disabled={busy || !password} style={s.submit}>
+            {busy ? (
+              <>
+                <span style={s.spinner} /> Signing in…
+              </>
+            ) : (
+              <>Sign in →</>
+            )}
+          </button>
+
+          {hints ? (
+            <div style={s.hint}>
+              <div style={s.hintTitle}>
+                {hints.mode === 'full' ? 'Simulation mode' : 'Try it — demo role'}
+              </div>
+              <div style={s.hintRows}>
+                {Object.entries(hints.passwords).map(([role, value]) => (
+                  <div key={role} style={s.hintRow}>
+                    <code style={s.code}>{value}</code>
+                    <span style={{ color: c.t5 }}>→</span>
+                    <span style={{ color: c.t3 }}>{role}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={s.hintNote}>
+                {hints.mode === 'full'
+                  ? 'Each role sees and may do different things.'
+                  : 'This deployment is real — demo always simulates its runs, and cannot see or affect anyone else’s.'}
+              </p>
+            </div>
+          ) : (
+            <p style={s.restricted}>Access restricted to authorised team members</p>
+          )}
+        </form>
+      </main>
+    </div>
+  )
+}
+
+function FlaskIcon({ size = 32, colour = 'rgba(255,255,255,0.95)' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
+      <line x1="11" y1="7" x2="21" y2="7" stroke={colour} strokeWidth="2.5" strokeLinecap="round" />
+      <path
+        d="M13 7v8L7 23a2 2 0 0 0 1.6 3.2h14.8A2 2 0 0 0 25 23l-6-8V7"
+        stroke={colour}
+        strokeWidth="2.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="19" cy="21" r="2" fill={colour} opacity="0.9" />
+    </svg>
+  )
+}
+
+const LockIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="2" />
+  </svg>
+)
+
+const EyeIcon = ({ off }: { off: boolean }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    />
+    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+    {off && <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="1.8" />}
+  </svg>
+)
+
+const s: Record<string, CSSProperties> = {
+  outer: { minHeight: '100vh', display: 'flex' },
+
+  left: {
+    width: '42%',
+    minWidth: 320,
+    background: brandPanelBackground,
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  // Oversized, low-opacity circles bleeding off the edges. Barely visible on
+  // their own; they stop the panel reading as a flat block.
+  circle: {
+    position: 'absolute',
+    borderRadius: '50%',
+    background: 'rgba(255,255,255,0.025)',
+    pointerEvents: 'none',
+  },
+  leftInner: { padding: '40px 48px', position: 'relative', zIndex: 1, maxWidth: 400 },
+
+  brandIcon: {
+    width: 68,
+    height: 68,
+    background: 'rgba(255,255,255,0.14)',
+    borderRadius: 20,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+  brandTitle: {
+    fontSize: 30,
+    fontWeight: 700,
+    color: '#fff',
+    lineHeight: 1.2,
+    letterSpacing: '-0.02em',
+  },
+  brandSub: { margin: '10px 0 0', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 300 },
+  divider: {
+    width: 48,
+    height: 3,
+    background: 'rgba(255,255,255,0.28)',
+    borderRadius: 2,
+    margin: '28px 0',
+  },
+  brandNote: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: 14,
+    lineHeight: 1.75,
+    fontWeight: 300,
+  },
+  pill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 9,
+    marginTop: 30,
+    padding: '10px 18px',
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+  },
+  pulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    background: '#4ade80',
+    animation: 'pulse-dot 1.6s ease-in-out infinite',
+  },
+
+  right: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    background: c.bg,
+  },
+  form: { width: '100%', maxWidth: 340, animation: 'fade-in 0.35s ease' },
+
+  formIcon: {
+    width: 46,
+    height: 46,
+    background: c.primaryLight,
+    border: `1px solid ${c.primaryBorder}`,
+    borderRadius: 12,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+  formTitle: { fontSize: 28, fontWeight: 700, color: c.t1, letterSpacing: '-0.02em' },
+  formSub: { margin: '6px 0 30px', color: c.t4, fontSize: 15, fontWeight: 300 },
+
+  label: { display: 'block', fontSize: 13, fontWeight: 500, color: c.t2, marginBottom: 8 },
+  inputWrap: { position: 'relative' },
+  lockIcon: {
+    position: 'absolute',
+    left: 13,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: c.t5,
+    display: 'flex',
+    pointerEvents: 'none',
+  },
+  input: {
+    width: '100%',
+    padding: '13px 42px 13px 38px',
+    border: `1.5px solid ${c.border}`,
+    borderRadius: 10,
+    color: c.t1,
+    font: 'inherit',
+    fontSize: 14.5,
+    outline: 'none',
+    transition: 'border-color 0.15s',
+  },
+  reveal: {
+    position: 'absolute',
+    right: 10,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    color: c.t5,
+    cursor: 'pointer',
+    display: 'flex',
+    padding: 4,
+  },
+  error: { color: '#dc2626', fontSize: 13, marginTop: 10 },
+
+  submit: {
+    width: '100%',
+    marginTop: 22,
+    padding: '13px 16px',
+    background: c.primary,
+    border: 'none',
+    borderRadius: 10,
+    color: '#fff',
+    font: 'inherit',
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    boxShadow: '0 2px 8px rgba(79,107,237,0.28)',
+  },
+  spinner: {
+    width: 15,
+    height: 15,
+    border: '2px solid rgba(255,255,255,0.35)',
+    borderTopColor: '#fff',
+    borderRadius: '50%',
+    animation: 'spin 0.7s linear infinite',
+    display: 'inline-block',
+  },
+
+  hint: {
+    marginTop: 26,
+    padding: '14px 16px',
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderLeft: `3px solid ${c.primary}`,
+    borderRadius: 10,
+  },
+  hintTitle: { fontSize: 13, fontWeight: 600, color: c.t1 },
+  hintRows: { display: 'flex', flexDirection: 'column', gap: 6, margin: '11px 0 0' },
+  hintRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13 },
+  code: {
+    background: c.surface,
+    border: `1px solid ${c.border}`,
+    borderRadius: 5,
+    padding: '2px 8px',
+    color: c.t1,
+    fontSize: 12.5,
+    fontFamily: 'ui-monospace, monospace',
+  },
+  hintNote: { margin: '11px 0 0', fontSize: 12, color: c.t5 },
+  restricted: { marginTop: 22, fontSize: 13, color: c.t5, textAlign: 'center' },
+}

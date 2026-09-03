@@ -1,0 +1,48 @@
+name = "run-dashboard-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-18"
+
+# ── Local development ────────────────────────────────────────────────────────
+#
+# Everything below has a local implementation in `wrangler dev`: D1 becomes a
+# real SQLite file under .wrangler/, R2 becomes a directory. No Cloudflare
+# account is needed to run or develop this — which is the difference between a
+# reader trying it in a minute and a reader closing the tab.
+#
+# `database_id` is read from the real D1 instance at deploy time; local
+# `wrangler dev` and `wrangler d1 migrations ... --local` resolve by
+# `database_name` instead, so this being a real id changes nothing locally.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "run-dashboard"
+database_id = "c9c2c906-5d17-4560-ab10-c2df3e34dfcf"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "REPORTS"
+bucket_name = "run-dashboard-reports"
+
+[vars]
+# The repository whose workflow gets dispatched. Overridden per environment —
+# set it to your own `owner/repo` before deploying. Only read when
+# SIMULATE_DISPATCH is false, so the placeholder is inert locally.
+GITHUB_REPO = "your-org/playwright-api-automation-patterns"
+GITHUB_WORKFLOW = "on-demand.yml"
+
+# With no GitHub token present the Worker simulates a dispatch instead of
+# making one, so the whole flow is exercisable offline. See src/github.ts.
+#
+# Committed as "true" on purpose, even though a real deployment exists. Both
+# vars are overridden at deploy time with `wrangler deploy --var`, which never
+# touches this file — so the tracked default stays the safe one this repo
+# argues for in decision 6, and a clone never inherits someone else's live
+# GITHUB_REPO by accident.
+SIMULATE_DISPATCH = "true"
+
+# Secrets — set with `wrangler secret put <NAME>` for a real deployment, or in
+# `.dev.vars` locally. Defaults exist for all of them so a clone runs as-is:
+#   GITHUB_TOKEN     dispatches the workflow
+#   WEBHOOK_SECRET   signs the result callback
+#   TOKEN_SECRET     signs report-access links
+#   ADMIN_PASSWORD   the single login
