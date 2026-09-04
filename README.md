@@ -10,6 +10,11 @@ trigger a real one, which is what makes its password safe to publish rather
 than hand out privately. The interesting part is not the Run button — it is
 _who may run what, and who may then see the result_.
 
+**Version 1.0.0** — complete against the brief it was written for: four roles,
+the run gate, signed callbacks and scoped report links, all deployed and in use.
+The deployment reports its own version at `GET /health`, so "which one is
+running?" is answerable without signing in.
+
 Start with [`docs/decisions.md`](docs/decisions.md) if you have five minutes and
 want the reasoning rather than the code.
 
@@ -115,6 +120,30 @@ wrangler secret put ADMIN_PASSWORD
 wrangler secret put QA_PASSWORD
 wrangler secret put DEV_PASSWORD
 ```
+
+### The order matters
+
+Migrations first, then the Worker, then the UI:
+
+```bash
+wrangler d1 migrations apply run-dashboard --remote   # 1. schema
+wrangler deploy --var GITHUB_REPO:<owner/repo> \
+                --var GITHUB_WORKFLOW:on-demand.yml \
+                --var SIMULATE_DISPATCH:false        # 2. the Worker
+pnpm --filter @run-dashboard/ui build                 # 3. the UI
+wrangler pages deploy dist --project-name <project>
+```
+
+Deploying the Worker before its migration gives a **500 on every callback** —
+the new code selects a column the database does not have yet, and the only
+visible symptom is runs that never leave `running`. That is not hypothetical:
+it is what happened when 0004 was added and the Worker was restarted first.
+
+**Pass the vars on the command line, not by editing `wrangler.toml`.** The
+tracked file deliberately holds `SIMULATE_DISPATCH = "true"` and a placeholder
+`GITHUB_REPO` (see [decision 6](docs/decisions.md#6-simulation-is-the-default-and-one-flag-governs-it)),
+so a plain `wrangler deploy` silently reverts a live deployment to simulating —
+the dashboard keeps working, and quietly stops dispatching anything real.
 
 Then in `wrangler.toml`: set `database_id` to a real D1 database, `GITHUB_REPO`
 to the repository whose workflow you are dispatching, and `SIMULATE_DISPATCH`
