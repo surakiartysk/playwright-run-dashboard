@@ -62,7 +62,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests
-pnpm test          # 341 tests — 264 in the Worker, 77 in the UI
+pnpm test          # 384 tests — 307 in the Worker, 77 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -71,7 +71,7 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. Eighty-one deliberate mutations — deleting the
+Every test was proven able to fail. Eighty-five deliberate mutations — deleting the
 privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
 behaviour. Two real bugs came out of writing them:
