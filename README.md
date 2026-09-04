@@ -121,6 +121,21 @@ wrangler secret put QA_PASSWORD
 wrangler secret put DEV_PASSWORD
 ```
 
+### Routing
+
+The Worker and the UI share one hostname: Pages serves the static site, and
+Worker routes claim the API paths in front of it. Those routes are configured
+in the Cloudflare dashboard rather than here, so **adding an endpoint means
+adding its route** — otherwise the SPA answers instead, and the symptom is a
+`405` on a path that exists and works locally.
+
+The paths the Worker must own:
+
+```
+/auth/*   /demo/*   /runs   /runs/*   /gate   /keys   /keys/*
+/webhook  /reports/*   /health
+```
+
 ### The order matters
 
 Migrations first, then the Worker, then the UI:
