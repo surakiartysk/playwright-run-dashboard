@@ -36,12 +36,22 @@ export const POLICIES: Record<Role, RolePolicy> = {
   // the runs it started itself. See decision 12.
   demo: { allowedRefs: ['main'], maxWorkers: 2, canDelete: false },
 
-  // Pinned to main: a developer verifying that their merge is healthy does not
-  // need to point the suite at arbitrary branches, and allowing it turns the
-  // dashboard into a way to run untrusted code on the runner.
+  // `ref` is a branch of the TEST SUITE, not of the product under test.
+  //
+  // That distinction is the whole reason these two rows differ, and reading it
+  // the other way makes both look arbitrary. `main` is the suite that has been
+  // reviewed and merged — the tests QA stands behind. `develop` is the suite
+  // QA is still writing.
+  //
+  // A developer gets `main` only: they want to know whether their change broke
+  // anything, and the answer has to come from tests that are themselves stable.
+  // A half-written spec failing tells them nothing about their code, and costs
+  // an afternoon before anyone works out the test was the problem.
   dev: { allowedRefs: ['main'], maxWorkers: 4, canDelete: false },
 
-  // QA drives release verification, so they need branches.
+  // QA also runs the suite they are writing, which is what `develop` is — the
+  // branch where a new spec lives until it is trusted enough to merge. Running
+  // it against a real environment is how it gets that trust.
   qa: { allowedRefs: ['main', 'develop', 'release'], maxWorkers: 8, canDelete: false },
 
   admin: { allowedRefs: ['*'], maxWorkers: 16, canDelete: true },

@@ -55,6 +55,11 @@ export function RunTrigger({
       .catch(() => setGate(null))
   }, [role])
 
+  // Branches of the SUITE, not of the product under test — `main` is the
+  // reviewed suite, `develop` is the one QA is still writing. Labelled
+  // "Suite branch" for that reason: "Branch" alone reads as the caller's own
+  // branch, which this has never been.
+  //
   // `*` means any branch; offer the common ones rather than a free-text field
   // nobody wants to type into.
   const refs = policy.allowedRefs.includes('*')
@@ -98,7 +103,7 @@ export function RunTrigger({
           </select>
         </Field>
 
-        <Field label="Branch">
+        <Field label="Suite branch">
           <select style={s.control} value={ref} onChange={(e) => setRef(e.target.value)}>
             {refs.map((v) => (
               <option key={v}>{v}</option>

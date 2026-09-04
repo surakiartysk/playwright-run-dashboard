@@ -24,6 +24,7 @@ interviewer should press on hardest.
 13. [A second, narrower cookie for looking at another role's view](#13-a-second-narrower-cookie-for-looking-at-another-roles-view)
 14. [One real Allure report, shared by every simulated run](#14-one-real-allure-report-shared-by-every-simulated-run)
 15. [Machine keys the dashboard issues, not GitHub tokens it hands out](#15-machine-keys-the-dashboard-issues-not-github-tokens-it-hands-out)
+16. [What can be switched off, and what the two repos agree on](#16-what-can-be-switched-off-and-what-the-two-repos-agree-on)
 
 ---
 
@@ -643,6 +644,114 @@ companion repo works today, and a token issued to a machine — a deploy pipelin
 kept in that pipeline's secret store — is a reasonable answer for one caller.
 This is the design for when there are five, and the day someone asks for a key
 per team is the day to build it, not before.
+
+---
+
+## 16. What can be switched off, and what the two repos agree on
+
+**Status: designed, not built.** The branch-naming half of this is corrected in
+the code today; the toggle model and the sync are written down, not implemented.
+
+**Context.** Two questions that look separate and are the same question.
+
+_The first:_ the only thing an operator can switch is the run gate, which is one
+boolean for one role. There is no way to say "the maintenance-logs service is
+being rewritten, stop offering it", or "nobody may use sixteen workers this
+week", without editing `policy.ts` and redeploying. A policy table is the right
+shape for rules that change when someone's job changes; it is the wrong shape
+for facts that change on a Tuesday afternoon.
+
+_The second:_ the dashboard offers a list of services and tags that is **copied
+by hand from the suite's workflow**, and it now lives in three places —
+`RunTrigger.tsx`, `WORKFLOW_ACCEPTS` in `integration-contract.test.ts`, and
+`on-demand.yml` itself. Adding a service to the suite means remembering all
+three. The contract test catches a mismatch between two of them; nothing catches
+the workflow drifting from both.
+
+Both are the same failure: **a fact about the suite is stored in the dashboard**,
+and the two go out of step because nothing makes them agree.
+
+**Decision — the toggle model.** Three tiers, distinguished by who owns the fact
+and how fast it changes. Merging them is the mistake to avoid: it is what turns
+a coordination switch into an authorisation bypass.
+
+| Tier                       | Owner                    | Lifetime                 | Fails  |
+| -------------------------- | ------------------------ | ------------------------ | ------ |
+| **Policy** (`policy.ts`)   | whoever grants access    | changes with a job title | closed |
+| **Gate** (D1, exists)      | whoever runs the release | hours or days            | open   |
+| **Availability** (D1, new) | whoever owns the suite   | a sprint                 | open   |
+
+Availability is the new tier, and it is deliberately not a permission. It
+answers "is this worth offering right now?" — a service mid-rewrite, a tag whose
+specs are all skipped, a worker ceiling lowered while the shared environment is
+fragile. It cannot grant anything: a service switched **on** that a role may not
+run is still refused by `policy.ts`, because availability narrows the offer and
+never widens it.
+
+```
+CREATE TABLE availability (
+  kind     TEXT NOT NULL,        -- 'service' | 'tag'
+  name     TEXT NOT NULL,
+  enabled  INTEGER NOT NULL DEFAULT 1,
+  note     TEXT,                 -- 'being rewritten, back after the 14th'
+  updated_at TEXT, updated_by TEXT,
+  PRIMARY KEY (kind, name)
+);
+```
+
+`note` is not decoration. A disabled option with no reason produces a message to
+whoever owns the dashboard; one that says why does not. The gate already proved
+this — it records `updated_by` for exactly that reason.
+
+It fails **open**, like the gate and unlike policy: an unknown service, a missing
+row, an unreachable table all resolve to available. A coordination tool whose bad
+data becomes an outage is worse than no coordination tool, and anything that must
+not be bypassed belongs in the policy table, which fails closed.
+
+**Decision — the sync.** The suite owns the list; the dashboard asks rather than
+remembers.
+
+`on-demand.yml`'s `options:` lists are already the single source of truth — they
+are what GitHub validates a dispatch against, so a value the dashboard invents is
+rejected at the boundary no matter what any local list says. The fix is to stop
+keeping a second copy:
+
+1. The suite publishes `suite-manifest.json` at a known path — services, tags,
+   styles, and the suite version — generated from the workflow in CI so it cannot
+   drift from the `options:` lists that validate the dispatch.
+2. The dashboard fetches it on a schedule, caches the result, and offers what it
+   found. `SERVICES` and `TAGS` stop being literals.
+3. The manifest is **cached, and the cache is authoritative when the fetch
+   fails**. A dashboard that cannot reach GitHub must still offer yesterday's
+   list rather than an empty dropdown — the suite has not changed just because
+   the network did.
+4. `WORKFLOW_ACCEPTS` in the contract test stays hand-copied **on purpose**.
+   Deriving it from the same manifest would make the test assert that a file
+   equals itself. Copying is what makes it a test.
+
+Availability then layers on top: the manifest says what exists, the table says
+what is being offered today, and the dropdown shows the intersection with an
+explanation for anything missing.
+
+**Trade-offs.**
+
+The manifest adds a network dependency to a form that currently has none, and a
+cache is a thing that can be stale in a way nobody notices — the failure mode
+moves from "the list is wrong because someone forgot" to "the list is wrong
+because a fetch failed quietly three weeks ago". That is a better failure, but it
+is not no failure, and it needs the staleness to be visible in the UI rather than
+inferred.
+
+The availability table is a third place to look when something is unexpectedly
+unavailable, after the policy and the gate. Three tiers is more than a
+three-role dashboard strictly needs, and the honest defence is only that merging
+any two of them makes a coordination switch and an authorisation rule the same
+object — which is the failure this repo already argues against in decision 11.
+
+And the sequencing cost: the manifest is worth building the moment a service is
+added or renamed, and not before. Today the list has been stable since the repo
+was written, so this would be infrastructure protecting against a change nobody
+has made yet.
 
 ---
 
