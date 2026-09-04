@@ -23,6 +23,7 @@ interviewer should press on hardest.
 12. [A fourth role that can never dispatch for real](#12-a-fourth-role-that-can-never-dispatch-for-real)
 13. [A second, narrower cookie for looking at another role's view](#13-a-second-narrower-cookie-for-looking-at-another-roles-view)
 14. [One real Allure report, shared by every simulated run](#14-one-real-allure-report-shared-by-every-simulated-run)
+15. [Machine keys the dashboard issues, not GitHub tokens it hands out](#15-machine-keys-the-dashboard-issues-not-github-tokens-it-hands-out)
 
 ---
 
@@ -265,7 +266,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Seventy-seven mutations were introduced
+**Every test here was proven able to fail.** Eighty-one mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never

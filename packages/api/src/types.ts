@@ -48,6 +48,9 @@ export interface RunRow {
   duration_ms: number | null
   report_path: string | null
   workflow_url: string | null
+  /** The suite that produced this result. Null until its callback arrives. */
+  suite_version: string | null
+  suite_sha: string | null
 }
 
 /** A run as the UI sees it — camelCase, with the report link resolved. */
@@ -67,6 +70,8 @@ export interface RunView {
   durationMs: number | null
   reportUrl: string | null
   workflowUrl: string | null
+  suiteVersion: string | null
+  suiteSha: string | null
 }
 
 export interface CreateRunRequest {
@@ -87,6 +92,9 @@ export interface WebhookPayload {
   durationMs?: number
   reportPath?: string
   workflowUrl?: string
+  /** Which suite ran. Optional: a workflow older than this field sends neither. */
+  suiteVersion?: string
+  suiteSha?: string
 }
 
 export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
@@ -105,4 +113,6 @@ export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   durationMs: row.duration_ms,
   reportUrl,
   workflowUrl: row.workflow_url,
+  suiteVersion: row.suite_version,
+  suiteSha: row.suite_sha,
 })

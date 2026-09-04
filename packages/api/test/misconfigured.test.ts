@@ -85,6 +85,12 @@ describe('a correctly configured deployment', () => {
     const response = await call(env, '/health')
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ status: 'ok' })
+    // Matched exactly rather than by property, so a field added to this
+    // response has to be considered rather than appearing unnoticed — which is
+    // how `version` was caught being added.
+    expect(await response.json()).toEqual({
+      status: 'ok',
+      version: expect.stringMatching(/^\d+\.\d+\.\d+$/),
+    })
   })
 })
