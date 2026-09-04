@@ -1,6 +1,6 @@
 {
   "name": "playwright-run-dashboard",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Self-service test running: a developer picks a slice, presses Run, and gets a link to the report — without waiting for QA.",

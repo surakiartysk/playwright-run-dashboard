@@ -1,6 +1,6 @@
 {
   "name": "@run-dashboard/ui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "The dashboard itself: sign in, pick a slice, run it, open the report.",

@@ -38,19 +38,46 @@ async function resolveViewRole(c: Context<HonoEnv>): Promise<Role> {
 }
 
 /**
- * `20260826-1430-items-k3f9` — sortable, readable, usable as an R2 prefix.
+ * `20260826-1430-items-k3f9qw` — sortable, readable, usable as an R2 prefix.
  *
  * The suffix is not decoration. Minute precision alone collides the moment two
  * people run the same service in the same minute, which is an ordinary Tuesday
  * rather than an edge case; the id is the PRIMARY KEY, so the second insert
- * fails and the caller gets a 500 for doing nothing wrong. Four random
- * characters make that vanishingly unlikely while keeping the id readable —
- * a UUID would need a second column to answer "when, and what did it cover?".
+ * fails and the caller gets a 500 for doing nothing wrong. The random tail
+ * makes that vanishingly unlikely while keeping the id readable — a UUID would
+ * need a second column to answer "when, and what did it cover?".
  */
-function makeRunId(service: string): string {
+export function makeRunId(service: string): string {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')
-  const suffix = Math.random().toString(36).slice(2, 6)
-  return `${stamp.slice(0, 8)}-${stamp.slice(8, 12)}-${service}-${suffix}`
+  return `${stamp.slice(0, 8)}-${stamp.slice(8, 12)}-${service}-${randomSuffix()}`
+}
+
+/**
+ * Six characters from a 32-symbol alphabet — about a billion possibilities.
+ *
+ * `crypto.getRandomValues` rather than `Math.random`: the id is not a secret,
+ * so this is not about guessability, but `Math.random` carries no uniformity
+ * guarantee at all and the cost of the real thing here is nothing. It is also
+ * the only one that stays sound if this id ever ends up somewhere that does
+ * care — which is exactly the kind of assumption that changes quietly.
+ *
+ * Crockford's alphabet: no `I`, `L`, `O` or `U`, so an id read off a screen and
+ * typed into a search box cannot become a different one. Lowercased to match
+ * the rest of the id.
+ *
+ * The suffix only has to be unique within one minute for one service, which the
+ * rest of the id already pins down. Across 32^6 ≈ 1.07 billion values that is
+ * about one in 24 million for ten runs in the same minute, and still one in
+ * 200,000 for a hundred — an unreachable rate for a dashboard someone presses
+ * by hand, and far past the point where the id is what fails first.
+ */
+export function randomSuffix(length = 6): string {
+  const ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'
+  const bytes = crypto.getRandomValues(new Uint8Array(length))
+
+  // The alphabet is 32 symbols, so five bits map onto it exactly and a
+  // modulo introduces no bias — every symbol is equally likely.
+  return Array.from(bytes, (byte) => ALPHABET[byte % 32]).join('')
 }
 
 const SERVICE_RE = /^[a-z][a-z0-9-]*$/

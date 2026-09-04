@@ -8,6 +8,21 @@ import { runRoutes } from './routes/runs'
 import { webhookRoutes } from './routes/webhook'
 import { reportRoutes } from './routes/reports'
 import { gateRoutes } from './routes/gate'
+import pkg from '../package.json'
+
+/**
+ * This deployment's version — how far along the dashboard itself is.
+ *
+ * Read from package.json rather than repeated here, because a version written
+ * in two places is a version that disagrees with itself. Distinct from the
+ * `suite_version` on a run row: that says which test suite produced a result,
+ * this says which dashboard is serving it.
+ *
+ * On /health so it is answerable without a session — the question "which
+ * version is deployed?" is usually asked by someone who cannot sign in, or by
+ * something that never could.
+ */
+const VERSION = pkg.version
 
 /**
  * The dashboard API.
@@ -89,8 +104,8 @@ app.use('/gate', cors({ origin: devOrigins, credentials: true }))
 app.get('/health', (c) => {
   const problems = c.get('configProblems')
   return problems.length > 0
-    ? c.json({ status: 'misconfigured', problems }, 503)
-    : c.json({ status: 'ok' })
+    ? c.json({ status: 'misconfigured', problems, version: VERSION }, 503)
+    : c.json({ status: 'ok', version: VERSION })
 })
 
 app.route('/auth', authRoutes)

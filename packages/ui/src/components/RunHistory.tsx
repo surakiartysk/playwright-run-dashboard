@@ -91,6 +91,39 @@ export function resultShares(run: Run): { passed: number; failed: number; other:
   }
 }
 
+/** The repository the suite version links back to. */
+const SUITE_REPO = 'https://github.com/surakiartysk/playwright-api-automation-patterns'
+
+/**
+ * Which suite produced a result, and a way back to the exact tree.
+ *
+ * Two facts rather than one because they answer different questions. The
+ * version is what someone quotes — "it broke in 0.2.0" — and it moves only on
+ * release, so most runs in a fortnight share one. The sha is the only thing
+ * that identifies what actually ran, which is what you need when the answer to
+ * "was this the same code?" has to be yes or no.
+ *
+ * Falls back to the version alone when there is no sha: a callback from a
+ * workflow older than that field sends one and not the other, and a chip that
+ * vanished for those runs would hide the version it does have.
+ */
+function SuiteChip({ version, sha }: { version: string; sha: string | null }) {
+  const label = `suite ${version}`
+  if (!sha) return <span style={s.chip}>{label}</span>
+
+  return (
+    <a
+      href={`${SUITE_REPO}/commit/${sha}`}
+      target="_blank"
+      rel="noreferrer"
+      style={s.suiteChip}
+      title={sha}
+    >
+      {label} · {sha.slice(0, 7)}
+    </a>
+  )
+}
+
 function ResultBar({ run }: { run: Run }) {
   if (isPending(run.status) || run.total === null) {
     return <span style={{ color: c.t5, fontSize: 13 }}>—</span>
@@ -196,6 +229,20 @@ export function RunHistory({
                       <span style={s.chip}>@{run.tags}</span>
                       <span style={s.chip}>{run.ref}</span>
                       {run.workers && <span style={s.chip}>{run.workers}w</span>}
+                      {/*
+                        Which suite produced this result, shown only once its
+                        callback has arrived. A queued or simulated run has no
+                        suite to name, and a chip reading "suite —" would be
+                        noise on most rows.
+
+                        Linked to the commit rather than the release: the
+                        version is what a person quotes, the sha is what they
+                        need when they go looking. `title` carries the full sha
+                        so the short form is never the only copy of it.
+                      */}
+                      {run.suiteVersion && (
+                        <SuiteChip version={run.suiteVersion} sha={run.suiteSha} />
+                      )}
                     </div>
                   </div>
 
@@ -312,6 +359,18 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${c.border}`,
     borderRadius: 5,
     padding: '2px 7px',
+  },
+  // A chip that is also a link: same shape as its neighbours so the row stays
+  // even, but coloured so it reads as clickable rather than as another label.
+  suiteChip: {
+    fontSize: 11.5,
+    color: c.primary,
+    background: c.surface,
+    border: `1px solid ${c.border}`,
+    borderRadius: 5,
+    padding: '2px 7px',
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
   },
 
   badge: {

@@ -1,6 +1,6 @@
 {
   "name": "@run-dashboard/api",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Cloudflare Worker: accepts run requests, dispatches them, receives results, serves reports.",

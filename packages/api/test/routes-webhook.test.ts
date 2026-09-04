@@ -177,4 +177,70 @@ describe('POST /webhook — what it accepts', () => {
 
     expect(row?.report_path).toBe('runs/keep/index.html')
   })
+
+  /**
+   * Which suite produced a result is the whole point of recording it — a run
+   * whose version was dropped is a result nobody can trace back to a tree.
+   */
+  it('records the suite version and sha the workflow reported', async () => {
+    const id = await seedRun()
+
+    await postWebhook({
+      runId: id,
+      status: 'passed',
+      total: 3,
+      passed: 3,
+      failed: 0,
+      suiteVersion: '1.2.0',
+      suiteSha: 'a'.repeat(40),
+    })
+
+    const row = await env.DB.prepare('SELECT suite_version, suite_sha FROM runs WHERE id = ?1')
+      .bind(id)
+      .first<{ suite_version: string; suite_sha: string }>()
+
+    expect(row).toMatchObject({ suite_version: '1.2.0', suite_sha: 'a'.repeat(40) })
+  })
+
+  /**
+   * The same COALESCE reasoning as `report_path` above, and the case that made
+   * it necessary: a workflow older than these fields sends neither, and a
+   * second callback from one would otherwise wipe the version a first callback
+   * had already recorded.
+   */
+  it('does not erase a recorded suite version when a later callback omits it', async () => {
+    const id = await seedRun()
+
+    await postWebhook({
+      runId: id,
+      status: 'passed',
+      suiteVersion: '1.2.0',
+      suiteSha: 'b'.repeat(40),
+    })
+    await postWebhook({ runId: id, status: 'failed', total: 1, passed: 0, failed: 1 })
+
+    const row = await env.DB.prepare('SELECT suite_version, status FROM runs WHERE id = ?1')
+      .bind(id)
+      .first<{ suite_version: string; status: string }>()
+
+    // The status moved, proving the second callback was applied — and the
+    // version survived it.
+    expect(row).toMatchObject({ suite_version: '1.2.0', status: 'failed' })
+  })
+
+  /**
+   * A run that was never told a version must read as unknown rather than as a
+   * version, so the UI can leave the chip off instead of inventing one.
+   */
+  it('leaves the suite version null when no callback reported one', async () => {
+    const id = await seedRun()
+
+    await postWebhook({ runId: id, status: 'passed', total: 1, passed: 1, failed: 0 })
+
+    const row = await env.DB.prepare('SELECT suite_version, suite_sha FROM runs WHERE id = ?1')
+      .bind(id)
+      .first<{ suite_version: string | null; suite_sha: string | null }>()
+
+    expect(row).toMatchObject({ suite_version: null, suite_sha: null })
+  })
 })

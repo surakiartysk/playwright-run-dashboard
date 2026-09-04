@@ -26,6 +26,9 @@ export interface Run {
   durationMs: number | null
   reportUrl: string | null
   workflowUrl: string | null
+  /** The suite that produced this result — null until its callback arrives. */
+  suiteVersion: string | null
+  suiteSha: string | null
 }
 
 export interface RolePolicy {

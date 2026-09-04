@@ -60,7 +60,9 @@ webhookRoutes.post('/', async (c) => {
         SET status = ?2, total = ?3, passed = ?4, failed = ?5,
             finished_at = ?6, duration_ms = ?7,
             report_path = COALESCE(?8, report_path),
-            workflow_url = COALESCE(?9, workflow_url)
+            workflow_url = COALESCE(?9, workflow_url),
+            suite_version = COALESCE(?10, suite_version),
+            suite_sha = COALESCE(?11, suite_sha)
       WHERE id = ?1`,
   )
     .bind(
@@ -73,6 +75,11 @@ webhookRoutes.post('/', async (c) => {
       payload.durationMs ?? null,
       payload.reportPath ?? null,
       payload.workflowUrl ?? null,
+      // COALESCEd like the two above: a workflow older than these fields sends
+      // neither, and overwriting a recorded version with null would lose the
+      // only record of what ran.
+      payload.suiteVersion ?? null,
+      payload.suiteSha ?? null,
     )
     .run()
 
