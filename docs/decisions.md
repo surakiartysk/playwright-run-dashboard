@@ -267,7 +267,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Eighty-one mutations were introduced
+**Every test here was proven able to fail.** Eighty-five mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -548,9 +548,8 @@ once.
 
 ## 15. Machine keys the dashboard issues, not GitHub tokens it hands out
 
-**Status: designed, not built.** Written down while the reasoning is fresh, so
-the shape is on record before anyone needs it. Nothing below exists in the code
-yet.
+**Status: built.** `apiKeys.ts`, `routes/keys.ts`, migrations 0005 and 0006.
+The design below is what was built, with one correction recorded at the end.
 
 **Context.** Everything here assumes a person at a browser: a session cookie, an
 eight-hour token, a form. The case it does not serve is the one that matters
@@ -639,11 +638,34 @@ answer to "can I have a key that only runs smoke on Tuesdays" is no, and stays
 no until someone extends the policy model. A key system does not make the
 permission model finer-grained; it only lets a machine use the one that exists.
 
-**Why write it down without building it.** The `repository_dispatch` seam in the
-companion repo works today, and a token issued to a machine — a deploy pipeline,
-kept in that pipeline's secret store — is a reasonable answer for one caller.
-This is the design for when there are five, and the day someone asks for a key
-per team is the day to build it, not before.
+**What building it changed.** One bug, and it is the one this shape invites.
+
+`DELETE /runs/:id` is guarded by `requireRole('admin')`, which checks the role
+and stops there — and a key _carries_ a role. So an admin-level key deleted a
+run, despite `effectivePolicy` refusing deletion to every key regardless of
+role. The guard and the rule disagreed, and the guard won.
+
+That is the cost of the central design choice. Making a key look like a person
+by the time a handler sees it is what lets `mayUseRef`, `maxWorkers` and the
+gate apply unchanged — and it means **any rule enforced by role alone silently
+extends to keys**. The fix is explicit at the delete handler; the lesson is that
+each new role-only guard has to decide about keys deliberately.
+
+Found by a test rather than by review, which is the only reason it is a
+paragraph here instead of an incident.
+
+**The endpoints.**
+
+```
+POST   /keys       mint one; returns the plaintext once, admin only
+GET    /keys       list, including revoked, never anything reconstructable
+DELETE /keys/:id   revoke; revoking twice is success, not an error
+```
+
+Authenticate with `Authorization: Bearer rdk_<id>_<secret>`. A key is refused
+with "API key is invalid or revoked" rather than falling through to session
+verification, so a pipeline debugging a 401 is not sent looking for a login
+problem that does not exist.
 
 ---
 

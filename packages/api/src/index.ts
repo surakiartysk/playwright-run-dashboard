@@ -8,6 +8,7 @@ import { runRoutes } from './routes/runs'
 import { webhookRoutes } from './routes/webhook'
 import { reportRoutes } from './routes/reports'
 import { gateRoutes } from './routes/gate'
+import { keyRoutes } from './routes/keys'
 import pkg from '../package.json'
 
 /**
@@ -113,6 +114,8 @@ app.route('/auth', authRoutes)
 app.route('/demo', demoRoutes)
 app.route('/runs', runRoutes)
 app.route('/gate', gateRoutes)
+// Admin-only throughout — see routes/keys.ts.
+app.route('/keys', keyRoutes)
 app.route('/webhook', webhookRoutes)
 app.route('/reports', reportRoutes)
 

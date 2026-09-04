@@ -2,6 +2,8 @@ import type { Context, Next } from 'hono'
 import type { HonoEnv, Role } from './types'
 import { hmacHex, verifyHmac } from './crypto'
 import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from './config'
+import type { RolePolicy } from './policy'
+import { effectivePolicy, looksLikeKey, parseKey, verifyKey, type ApiKeyRow } from './apiKeys'
 
 /**
  * Session tokens and the role they carry.
@@ -98,6 +100,15 @@ declare module 'hono' {
     sessionExpiresAt: number
     /** Set by the config check in index.ts; empty when the deployment is sound. */
     configProblems: string[]
+    /**
+     * The API key this request was made with, when it was made with one.
+     *
+     * Undefined for every request from a person. Handlers read it to attribute
+     * a run to the key rather than only to its role — five pipelines carrying
+     * dev-level keys would otherwise produce a history where every row says
+     * 'dev'. See decision 15.
+     */
+    apiKey?: { id: string; label: string; policy: RolePolicy }
   }
 }
 
@@ -180,9 +191,71 @@ export const previewRoleCookie = (token: string, maxAgeSeconds: number) =>
 export const clearPreviewRoleCookie = () =>
   `${PREVIEW_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
 
+/**
+ * Authenticates a request with an API key, or returns null if it is not one.
+ *
+ * Split out of `requireSession` so the two paths stay readable: this one hits
+ * the database, the session path does not, and conflating them would put a
+ * query on every request a person makes.
+ *
+ * `last_used_at` is written with `waitUntil` rather than awaited. It exists so
+ * an unused key is visible to whoever has to decide whether removing it is
+ * safe; that is worth a write, and worth nothing at all if it adds latency to
+ * a dispatch or fails one when D1 is briefly unhappy.
+ */
+async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<Role | null> {
+  const parsed = parseKey(presented)
+  if (!parsed) return null
+
+  const row = await c.env.DB.prepare(`SELECT * FROM api_keys WHERE id = ?1`)
+    .bind(parsed.id)
+    .first<ApiKeyRow>()
+
+  if (!(await verifyKey(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, row, parsed.secret))) {
+    return null
+  }
+
+  // Non-null: verifyKey returns false for a null row.
+  const key = row as ApiKeyRow
+
+  c.set('apiKey', { id: key.id, label: key.label, policy: effectivePolicy(key) })
+  c.executionCtx.waitUntil(
+    c.env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
+      .bind(key.id, new Date().toISOString())
+      .run(),
+  )
+
+  return key.role
+}
+
 /** Rejects anything without a valid session, and records the role. */
 export async function requireSession(c: Context<HonoEnv>, next: Next) {
   const bearer = c.req.header('Authorization')?.replace(/^Bearer /, '')
+
+  /*
+   * A key is checked before a session token, and only when it is shaped like
+   * one. The prefix makes that unambiguous rather than a guess: a session token
+   * has three dot-separated parts, a key three underscore-separated ones, so
+   * neither can be silently read as the other.
+   *
+   * A key that fails verification stops here rather than falling through to
+   * session verification. Falling through would turn a revoked key into
+   * "Sign in first", which sends whoever is debugging a pipeline looking for a
+   * login problem that does not exist.
+   */
+  if (bearer && looksLikeKey(bearer)) {
+    const role = await authenticateKey(c, bearer)
+    if (!role) return c.json({ error: 'API key is invalid or revoked' }, 401)
+
+    c.set('role', role)
+    // A key does not expire on a clock the way a session does; it lives until
+    // it is revoked. Zero means "no session expiry" — the preview cookie is the
+    // only reader, and it is a browser-only concept a key never reaches.
+    c.set('sessionExpiresAt', 0)
+    await next()
+    return undefined
+  }
+
   const token = bearer ?? readSessionCookie(c.req.header('Cookie'))
 
   if (!token) return c.json({ error: 'Sign in first' }, 401)

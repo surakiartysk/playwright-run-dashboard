@@ -105,6 +105,10 @@ const WORDS = {
   'Seventy-seven': 77,
   Eighty: 80,
   'Eighty-one': 81,
+  'Eighty-two': 82,
+  'Eighty-three': 83,
+  'Eighty-four': 84,
+  'Eighty-five': 85,
 }
 const toNumber = (word) => WORDS[word]
 

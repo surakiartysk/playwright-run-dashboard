@@ -87,7 +87,13 @@ const REF_RE = /^[a-zA-Z0-9._\-/]+$/
 // ── POST /runs ──────────────────────────────────────────────────────────────
 runRoutes.post('/', async (c) => {
   const role = c.get('role')
-  const policy = policyFor(role)
+  const apiKey = c.get('apiKey')
+
+  // A key's policy is its role's, already narrowed by its own limits — see
+  // effectivePolicy in apiKeys.ts. Reading it here rather than re-deriving the
+  // narrowing means the rule lives in one place, and a handler that forgets to
+  // ask gets the role's limits rather than something wrong.
+  const policy = apiKey?.policy ?? policyFor(role)
 
   const body = (await c.req.json().catch(() => null)) as CreateRunRequest | null
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
@@ -107,9 +113,17 @@ runRoutes.post('/', async (c) => {
 
   // 403, not 422: the request is well-formed, the caller simply may not make
   // it. A client can tell "fix your input" from "ask for access" by the status.
-  if (!mayUseRef(role, ref)) {
+  const refAllowed = apiKey
+    ? policy.allowedRefs.includes('*') || policy.allowedRefs.includes(ref)
+    : mayUseRef(role, ref)
+
+  if (!refAllowed) {
     return c.json(
-      { error: `Role '${role}' may only run against: ${policy.allowedRefs.join(', ')}` },
+      {
+        error: apiKey
+          ? `This key may only run against: ${policy.allowedRefs.join(', ') || '(nothing)'}`
+          : `Role '${role}' may only run against: ${policy.allowedRefs.join(', ')}`,
+      },
       403,
     )
   }
@@ -141,7 +155,14 @@ runRoutes.post('/', async (c) => {
       return c.json({ error: 'workers must be a positive integer' }, 422)
     }
     if (workers > policy.maxWorkers) {
-      return c.json({ error: `Role '${role}' may use at most ${policy.maxWorkers} workers` }, 403)
+      return c.json(
+        {
+          error: apiKey
+            ? `This key may use at most ${policy.maxWorkers} workers`
+            : `Role '${role}' may use at most ${policy.maxWorkers} workers`,
+        },
+        403,
+      )
     }
   }
 
@@ -151,10 +172,22 @@ runRoutes.post('/', async (c) => {
   // someone asked for, and it should be visible with its error rather than
   // vanishing.
   await c.env.DB.prepare(
-    `INSERT INTO runs (id, service, tags, workers, triggered_by, status, ref, started_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'queued', ?6, ?7)`,
+    `INSERT INTO runs (id, service, tags, workers, triggered_by, status, ref, started_at, api_key_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, 'queued', ?6, ?7, ?8)`,
   )
-    .bind(id, service, tags, workers ?? null, role, ref, new Date().toISOString())
+    .bind(
+      id,
+      service,
+      tags,
+      workers ?? null,
+      role,
+      ref,
+      new Date().toISOString(),
+      // Null for a person. `triggered_by` still holds the role either way, so
+      // an existing reader is unaffected; this only adds the answer to "which
+      // pipeline?" that the role alone cannot give.
+      apiKey?.id ?? null,
+    )
     .run()
 
   const dispatch = await dispatchWorkflow(c.env, id, role, { service, tags, workers, ref })
@@ -252,6 +285,23 @@ runRoutes.get('/:id', async (c) => {
 
 // ── DELETE /runs/:id ────────────────────────────────────────────────────────
 runRoutes.delete('/:id', requireRole('admin'), async (c) => {
+  /*
+   * `requireRole('admin')` checks the role and nothing else, and a key carries
+   * a role — so an admin-level key reached this handler and deleted a run.
+   *
+   * Caught by a test, not by review. It is the shape of bug this whole feature
+   * invites: a key is deliberately made to look like a person by the time a
+   * handler sees it, which is what keeps every other rule working unchanged —
+   * and it means a rule enforced by role alone silently applies to keys too.
+   *
+   * Deletion is destructive, irreversible, and has no automated use case, so
+   * `effectivePolicy` refuses it for every key regardless of role. This is
+   * where that refusal is enforced.
+   */
+  if (c.get('apiKey')) {
+    return c.json({ error: 'Keys may not delete runs — sign in to do that' }, 403)
+  }
+
   const id = c.req.param('id')
 
   const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()

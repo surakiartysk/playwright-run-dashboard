@@ -1,0 +1,12 @@
+-- Which key started a run, when a key did.
+--
+-- `triggered_by` holds the role, and for a person that is enough — there is one
+-- human behind each password. For machines it is not: five pipelines all
+-- carrying dev-level keys produce a history where every automated row says
+-- 'dev', and "who ran this?" has no answer.
+--
+-- NULL for every run a person started, which is most of them. Not a foreign key:
+-- a revoked key keeps its row (see 0005), but nothing here should stop an admin
+-- deleting one if they ever do — a run that outlives its key should still show
+-- the id it was started with rather than refusing to be read.
+ALTER TABLE runs ADD COLUMN api_key_id TEXT;
