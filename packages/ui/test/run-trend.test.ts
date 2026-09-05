@@ -78,7 +78,9 @@ describe('trendPoints', () => {
     expect(trendPoints([run('passed', { total: 0, passed: 0 })])).toEqual([])
   })
 
-  it('marks each point with whether that run passed, for the dot colour', () => {
+  // Not only the colour: a failed point is drawn larger and ringed, because
+  // green and red are the pair colour-vision deficiency flattens.
+  it('marks each point with whether that run passed, for how the dot is drawn', () => {
     const points = trendPoints([run('failed', { passed: 9 }), run('passed')])
     expect(points.map((p) => p.passed)).toEqual([true, false])
   })
