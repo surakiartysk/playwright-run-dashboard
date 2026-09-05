@@ -1,7 +1,8 @@
 # Test Run Dashboard
 
-Self-service test running: a developer picks a slice, presses **Run**, and gets
-a link to the report — without waiting for QA or digging through CI artifacts.
+Self-service test running: pick a slice, press **Run**, and get a link to the
+report — without waiting for someone else or digging through CI artifacts. A
+machine holding an API key can start one without opening the page at all.
 
 Four roles see four different dashboards. A `dev` is pinned to `main` and sees
 only main-branch runs; `qa` gets the release branches; `admin` gets everything
