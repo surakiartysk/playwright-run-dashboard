@@ -46,7 +46,7 @@ than vanish.
 
 ## The contract with the suite
 
-Two repositories, no shared code, meeting at exactly two points. Nothing but
+Two repositories, no shared code, meeting at exactly three points. Nothing but
 tests stops them drifting — and they had drifted: this dashboard sent a service
 name in a workflow input that only accepts package names, and the workflow had
 no callback step at all. Both repos' docs claimed the integration worked.
@@ -72,21 +72,34 @@ change on either side surfaces here rather than as a 422 from GitHub.
 {
   "runId": "…",
   "status": "passed",
-  "total": 92,
-  "passed": 92,
+  "total": 80,
+  "passed": 80,
   "failed": 0,
+  "suiteVersion": "1.0.0",
+  "suiteSha": "…",
+  "reportPath": "runs/…/index.html",
   "workflowUrl": "https://github.com/…/actions/runs/…"
 }
 ```
 
 Signed over `timestamp.body` with a shared secret, and the workflow sends it
 whether the suite passed or failed — a red run that never reports leaves the
-dashboard showing `running` forever. `reportPath` is absent: that workflow
-uploads its report as a GitHub artifact rather than into this bucket, so the
-run links to the Actions page instead.
+dashboard showing `running` forever.
+
+`suiteVersion` and `suiteSha` say which tree produced the result. The version is
+what someone quotes; the sha is the only thing that identifies what actually ran,
+and most runs happen between releases.
 
 The workflow skips the callback entirely when `run_id` is empty, which is what
 a hand-started run looks like. Nobody asked, so there is nobody to tell.
+
+**Report upload — the third crossing.** The workflow writes the built report
+straight into this deployment's R2 bucket under `runs/{run_id}/`, using a token
+scoped to that one bucket, and only then claims `reportPath` in the callback. It
+does not POST the bytes here: an endpoint accepting several megabytes needs a
+body limit, a parser and a signing scheme over something too big to buffer, all
+to reach a bucket the job can already write to. See
+[decision 14](decisions.md#14-one-real-allure-report-shared-by-every-simulated-run).
 
 ## Why each surface authenticates differently
 
