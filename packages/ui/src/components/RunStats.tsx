@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
-import { c, status as sc } from '../theme'
+import { c, mono, status as sc } from '../theme'
 
 /**
  * What the run list adds up to, above the list itself.
@@ -115,32 +115,42 @@ function Stat({
 }
 
 const s: Record<string, CSSProperties> = {
+  /*
+   * The summary reads as the page's masthead, not as another widget.
+   *
+   * It used to be a bordered, rounded card — the same treatment as the trigger
+   * form, the gate and every run below it. When each block is boxed identically
+   * nothing is louder than anything else, and the figures that answer "is
+   * everything all right?" had to compete with a form. Border, radius and fill
+   * each say "separate object"; spending them on all five blocks spends them on
+   * none. Here they are dropped entirely and a single rule separates the
+   * summary from the detail.
+   */
   wrap: {
     display: 'grid',
     // Wraps to two columns on a narrow screen rather than scrolling sideways.
     gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))',
-    gap: 1,
-    background: c.border,
-    border: `1px solid ${c.border}`,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 18,
+    gap: '4px 32px',
+    padding: '0 2px 20px',
+    borderBottom: `1px solid ${c.border}`,
+    marginBottom: 22,
   },
-  stat: { background: c.card, padding: '14px 18px 16px' },
+  stat: {},
   label: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: c.t5,
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.07em',
     fontWeight: 500,
   },
   value: {
-    fontSize: 24,
-    fontWeight: 650,
+    ...mono,
+    fontSize: 27,
+    fontWeight: 600,
     color: c.t1,
-    letterSpacing: '-0.02em',
-    margin: '6px 0 0',
-    lineHeight: 1.1,
+    letterSpacing: '-0.03em',
+    margin: '4px 0 0',
+    lineHeight: 1.05,
   },
-  note: { fontSize: 12, color: c.t5, marginTop: 3 },
+  note: { fontSize: 11.5, color: c.t5, marginTop: 4 },
 }

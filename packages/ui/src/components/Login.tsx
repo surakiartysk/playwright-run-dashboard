@@ -30,12 +30,11 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
       .catch(() => setHints(null))
   }, [])
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault()
+  async function signIn(secret: string) {
     setBusy(true)
     setError(null)
     try {
-      const { role } = await api.login(password)
+      const { role } = await api.login(secret)
       onSignedIn(role)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed')
@@ -43,6 +42,23 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
       setBusy(false)
     }
   }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    await signIn(password)
+  }
+
+  /*
+   * The demo password is published — in this repo's README, on the landing page,
+   * and in the panel below. Asking a visitor to read it and then type it back is
+   * a wall that stops nobody and costs everybody: whoever came to look at the
+   * work meets an empty form instead of the tool.
+   *
+   * So demo is a button. The password stays visible for anyone who wants to see
+   * that it is real rather than a bypass, and the field below is still the way
+   * in for a role that has one.
+   */
+  const demoPassword = hints?.passwords.demo ?? null
 
   return (
     <div style={s.outer}>
@@ -57,7 +73,7 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
           </div>
 
           <h1 style={s.brandTitle}>Test Run Dashboard</h1>
-          <p style={s.brandSub}>QA Automation Dashboard</p>
+          <p style={s.brandSub}>Self-service test running</p>
 
           <div style={s.divider} />
 
@@ -79,8 +95,28 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
             <FlaskIcon size={22} colour="var(--c-primary)" />
           </div>
 
-          <h2 style={s.formTitle}>Welcome back</h2>
-          <p style={s.formSub}>Sign in to access the dashboard</p>
+          <h2 style={s.formTitle}>Run the suite</h2>
+          <p style={s.formSub}>
+            Pick a slice, press Run, read the report. Four roles may do different amounts of that.
+          </p>
+
+          {demoPassword && (
+            <>
+              <button
+                type="button"
+                onClick={() => void signIn(demoPassword)}
+                disabled={busy}
+                style={s.demo}
+              >
+                Look around as demo →
+              </button>
+              <div style={s.or}>
+                <span style={s.orLine} />
+                <span style={s.orText}>or sign in</span>
+                <span style={s.orLine} />
+              </div>
+            </>
+          )}
 
           <label htmlFor="password" style={s.label}>
             Password
@@ -115,7 +151,17 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
 
           {error && <p style={s.error}>{error}</p>}
 
-          <button type="submit" disabled={busy || !password} style={s.submit}>
+          {/*
+            Quieter when demo is offered above it, because then this is the
+            path for the few people who hold a password, not the many who came
+            to look. Where there is no demo to offer, it is the only way in and
+            takes the emphasis back.
+          */}
+          <button
+            type="submit"
+            disabled={busy || !password}
+            style={demoPassword ? { ...s.submit, ...s.submitQuiet } : s.submit}
+          >
             {busy ? (
               <>
                 <span style={s.spinner} /> Signing in…
@@ -284,6 +330,29 @@ const s: Record<string, CSSProperties> = {
     justifyContent: 'center',
     marginBottom: 22,
   },
+  /* The way in for anyone who came to look rather than to work. */
+  demo: {
+    width: '100%',
+    padding: '11px 16px',
+    background: c.primary,
+    border: 'none',
+    borderRadius: 10,
+    color: '#fff',
+    font: 'inherit',
+    fontSize: 14.5,
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginBottom: 18,
+  },
+  submitQuiet: {
+    background: 'transparent',
+    border: `1px solid ${c.border}`,
+    color: c.t2,
+  },
+  or: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 },
+  orLine: { flex: 1, height: 1, background: c.border },
+  orText: { fontSize: 12, color: c.t5 },
+
   formTitle: { fontSize: 28, fontWeight: 700, color: c.t1, letterSpacing: '-0.02em' },
   formSub: { margin: '6px 0 30px', color: c.t4, fontSize: 15, fontWeight: 300 },
 
