@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+
 /**
  * Design tokens, as references to the CSS variables in index.html.
  *
@@ -56,16 +58,47 @@ export const status = {
   neutral: '#94a3b8',
 } as const
 
-export const THEME_KEY = 'rd_theme'
-
-export function currentTheme(): 'light' | 'dark' {
-  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+/**
+ * The typographic rule, as a value components can apply.
+ *
+ * Anything the machine produced wears it — run ids, counts, durations, refs,
+ * versions. Anything a person wrote stays in the UI face. The split is
+ * information design rather than decoration: a reader separates generated data
+ * from prose before reading either, and columns of figures line up because
+ * `tabular-nums` comes with it.
+ */
+export const mono: CSSProperties = {
+  fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+  fontVariantNumeric: 'tabular-nums',
 }
 
+export const THEME_KEY = 'rd_theme'
+
+/**
+ * What the viewer is actually looking at.
+ *
+ * Three states, not two: an explicit choice stamps the root element, and the
+ * default — no stamp — follows the operating system. Reading only the stamp
+ * reported 'light' to someone sitting in front of a dark page, which put the
+ * wrong icon on the toggle and offered to switch them to the theme they were
+ * already in.
+ */
+export function currentTheme(): 'light' | 'dark' {
+  const stamped = document.documentElement.getAttribute('data-theme')
+  if (stamped === 'dark' || stamped === 'light') return stamped
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+/**
+ * Always stamps, in both directions.
+ *
+ * Removing the attribute would hand the choice back to the operating system,
+ * so a viewer on a dark OS who asked for light would get dark again on the
+ * next paint — a toggle that appears not to work.
+ */
 export function toggleTheme(): 'light' | 'dark' {
   const next = currentTheme() === 'dark' ? 'light' : 'dark'
-  if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark')
-  else document.documentElement.removeAttribute('data-theme')
+  document.documentElement.setAttribute('data-theme', next)
   localStorage.setItem(THEME_KEY, next)
   return next
 }
@@ -80,7 +113,7 @@ export function toggleTheme(): 'light' | 'dark' {
  */
 export const brandPanelBackground = `
   repeating-linear-gradient(135deg, transparent 0px, transparent 80px, rgba(255,255,255,0.02) 80px, rgba(255,255,255,0.02) 81px),
-  radial-gradient(circle at 25% 20%, rgba(120,145,255,0.28) 0%, transparent 55%),
-  radial-gradient(circle at 80% 85%, rgba(120,145,255,0.15) 0%, transparent 50%),
-  linear-gradient(165deg, #0a1030 0%, #1a2358 45%, #2b3781 100%)
+  radial-gradient(circle at 25% 20%, var(--c-brand-glow) 0%, transparent 55%),
+  radial-gradient(circle at 80% 85%, var(--c-brand-glow-faint) 0%, transparent 50%),
+  linear-gradient(165deg, var(--c-brand-1) 0%, var(--c-brand-2) 45%, var(--c-brand-3) 100%)
 `

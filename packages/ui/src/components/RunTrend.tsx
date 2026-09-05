@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
-import { c, status as sc } from '../theme'
+import { c, mono, status as sc } from '../theme'
 
 /**
  * Pass rate over the recent runs, oldest to newest.
@@ -146,8 +146,17 @@ export function RunTrend({ runs }: { runs: Run[] }) {
             )}
           </p>
         </div>
-        <div style={{ ...s.latest, color: latest.passed ? sc.pass : sc.fail }}>
-          {Math.round(latest.rate)}%
+        {/*
+          Labelled, because the summary above also says "pass rate" and means
+          something else: that one is every run, this one is the newest. Two
+          unlabelled percentages a few centimetres apart, disagreeing, is a
+          reader's problem to solve rather than the page's to state.
+        */}
+        <div style={s.latestWrap}>
+          <div style={s.latestLabel}>Newest run</div>
+          <div style={{ ...s.latest, color: latest.passed ? sc.pass : sc.fail }}>
+            {Math.round(latest.rate)}%
+          </div>
         </div>
       </header>
 
@@ -172,12 +181,12 @@ export function RunTrend({ runs }: { runs: Run[] }) {
           strokeDasharray="2 2"
         />
 
-        <polygon points={area} fill={sc.pass} opacity="0.08" />
+        <polygon points={area} fill={sc.pass} opacity="0.15" />
         <polyline
           points={line}
           fill="none"
           stroke={sc.pass}
-          strokeWidth="1.5"
+          strokeWidth="2"
           // Non-scaling keeps the stroke even, despite the viewBox being
           // stretched by preserveAspectRatio="none".
           vectorEffect="non-scaling-stroke"
@@ -246,7 +255,21 @@ const s: Record<string, CSSProperties> = {
   },
   title: { fontSize: 15, fontWeight: 600, color: c.t1, margin: 0 },
   sub: { margin: '3px 0 0', fontSize: 12.5, color: c.t5 },
-  latest: { fontSize: 22, fontWeight: 650, letterSpacing: '-0.02em', lineHeight: 1 },
+  latestWrap: { textAlign: 'right' },
+  latestLabel: {
+    fontSize: 10.5,
+    color: c.t5,
+    textTransform: 'uppercase',
+    letterSpacing: '0.07em',
+    fontWeight: 500,
+  },
+  latest: {
+    ...mono,
+    fontSize: 22,
+    fontWeight: 650,
+    letterSpacing: '-0.02em',
+    lineHeight: 1,
+  },
 
   // Fixed height with a stretched viewBox: the shape matters, the aspect ratio
   // does not, and a chart that grows with the window pushes the list off screen.
@@ -263,5 +286,8 @@ const s: Record<string, CSSProperties> = {
     fontSize: 11,
     color: c.t6,
   },
-  range: { fontVariantNumeric: 'tabular-nums' },
+  range: {
+    ...mono,
+    fontVariantNumeric: 'tabular-nums',
+  },
 }

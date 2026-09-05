@@ -285,6 +285,20 @@ I built at work. That is the point — it is a portfolio stand-in for real work.
 accent is a company's brand red, and a brand colour is identity rather than
 craft — reproducing it would make a public repo recognisably theirs.
 
+**That argument was later applied to the typeface, where it always belonged.**
+The face here was Prompt — the original's, a Thai typeface carried onto an
+all-English tool without anyone deciding it should be. A house face is identity
+in exactly the way a brand colour is, and this decision had the reasoning
+without noticing the second thing it applied to. Archivo replaces it, paired
+with JetBrains Mono under one rule: anything the machine produced is set in
+mono, anything a person wrote is not.
+
+So the split is now explicit. The **structure** came from the work — the run
+card, the proportional bar, what sits next to what. The **surface** is this
+repo's own: type, palette, density, and the order of the page. What travelled is
+the thinking, which is what a portfolio piece is for; the paint is not evidence
+of anything.
+
 Indigo replaces it for a second reason beyond avoidance: **on a dashboard whose
 entire job is showing pass and fail, a red accent competes with the failure
 state.** Buttons, links and focus rings in the same red as "3 failed" costs the

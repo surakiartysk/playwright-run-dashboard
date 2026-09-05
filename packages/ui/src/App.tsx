@@ -144,6 +144,20 @@ export function App() {
       {error && <div style={s.error}>{error}</div>}
 
       {/*
+        State before action.
+
+        The order used to be gate, trigger, then the numbers — controls first,
+        answers last. But nobody opens a test dashboard to press a button; they
+        open it to find out whether the last run passed, and had to scroll past
+        two forms to reach that. Summary, then trend, then the controls, then
+        the history a reader digs into once the headline has told them whether
+        they need to.
+      */}
+      <RunStats runs={runs} />
+
+      <RunTrend runs={runs} />
+
+      {/*
         Keyed on the REAL role, never `viewingRole`. A demo session previewing
         admin sees admin's read view; it must not be offered a write control the
         server would refuse — the same real-role rule RunTrigger follows.
@@ -162,10 +176,6 @@ export function App() {
           onStarted={() => void refresh()}
         />
       )}
-
-      <RunStats runs={runs} />
-
-      <RunTrend runs={runs} />
 
       <RunHistory
         runs={runs}
@@ -187,7 +197,7 @@ const s: Record<string, CSSProperties> = {
     gap: 16,
     marginBottom: 22,
   },
-  h1: { fontSize: 20, fontWeight: 680, margin: 0, letterSpacing: '-0.01em' },
+  h1: { fontSize: 19, fontWeight: 600, margin: 0, letterSpacing: '-0.015em' },
   sub: { margin: '5px 0 0', color: c.t4, fontSize: 13.5 },
   signOut: {
     padding: '7px 14px',

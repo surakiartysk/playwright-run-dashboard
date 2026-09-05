@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { api, isPending, type Role, type Run, type RunStatus } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
-import { c, status as sc } from '../theme'
+import { c, mono, status as sc } from '../theme'
 
 /**
  * The run list — a card per run rather than table rows.
@@ -346,6 +346,7 @@ const s: Record<string, CSSProperties> = {
     gap: 14,
   },
   runId: {
+    ...mono,
     fontFamily: 'ui-monospace, monospace',
     fontSize: 13.5,
     fontWeight: 500,
@@ -353,7 +354,8 @@ const s: Record<string, CSSProperties> = {
   },
   meta: { display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' },
   chip: {
-    fontSize: 11.5,
+    ...mono,
+    fontSize: 11,
     color: c.t4,
     background: c.surface,
     border: `1px solid ${c.border}`,
@@ -363,7 +365,8 @@ const s: Record<string, CSSProperties> = {
   // A chip that is also a link: same shape as its neighbours so the row stays
   // even, but coloured so it reads as clickable rather than as another label.
   suiteChip: {
-    fontSize: 11.5,
+    ...mono,
+    fontSize: 11,
     color: c.primary,
     background: c.surface,
     border: `1px solid ${c.border}`,
@@ -400,7 +403,13 @@ const s: Record<string, CSSProperties> = {
     borderTop: `1px solid ${c.divider}`,
     flexWrap: 'wrap',
   },
-  resultNumbers: { display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 },
+  resultNumbers: {
+    ...mono,
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 6,
+  },
   bar: {
     height: 5,
     background: c.divider,
@@ -416,7 +425,7 @@ const s: Record<string, CSSProperties> = {
   },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
 
-  timing: { fontSize: 12.5, color: c.t5, display: 'flex', gap: 5, flexWrap: 'wrap' },
+  timing: { ...mono, fontSize: 12, color: c.t5, display: 'flex', gap: 5, flexWrap: 'wrap' },
   actions: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   report: {
     color: c.primary,
