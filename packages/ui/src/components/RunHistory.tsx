@@ -407,6 +407,12 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 3,
     overflow: 'hidden',
     display: 'flex',
+    // Segments are separated rather than butted together. Where a green run
+    // meets a red one the boundary was carried by hue alone, and that is the
+    // pair colour-vision deficiency flattens — a sliver of failures could read
+    // as part of the pass bar. The gap is the boundary; the colour is the
+    // label on it.
+    gap: 2,
   },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
 

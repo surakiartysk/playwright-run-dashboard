@@ -25,6 +25,7 @@ interviewer should press on hardest.
 14. [One real Allure report, shared by every simulated run](#14-one-real-allure-report-shared-by-every-simulated-run)
 15. [Machine keys the dashboard issues, not GitHub tokens it hands out](#15-machine-keys-the-dashboard-issues-not-github-tokens-it-hands-out)
 16. [What can be switched off, and what the two repos agree on](#16-what-can-be-switched-off-and-what-the-two-repos-agree-on)
+17. [Green and red never carry a result on their own](#17-green-and-red-never-carry-a-result-on-their-own)
 
 ---
 
@@ -774,6 +775,58 @@ And the sequencing cost: the manifest is worth building the moment a service is
 added or renamed, and not before. Today the list has been stable since the repo
 was written, so this would be infrastructure protecting against a change nobody
 has made yet.
+
+---
+
+## 17. Green and red never carry a result on their own
+
+**Context.** This dashboard's entire subject is whether a run passed. Pass is
+green, fail is red, and that pairing is so conventional it stops looking like a
+decision — which is how it survived unexamined until the palette was measured
+rather than judged.
+
+Run against a colour-vision validator, `#22c55e` and `#ef4444` separate by a
+**ΔE of 7.4 under deuteranopia** (OKLab ×100). The working target is 8; the band
+from 6 to 8 is usable _only_ where something other than hue also carries the
+meaning. Roughly one man in twelve has some form of the deficiency, and green
+against red is the pair it flattens hardest.
+
+Most of the UI was already safe by accident rather than intent: the status badge
+prints `passed` beside its colour, the result numbers read `44 / 45 · 1 failed`,
+and the stat tiles colour a figure that is itself the value. In each of those the
+hue is emphasis on a fact the text already states.
+
+**Two places were not.**
+
+The trend chart drew each run as a 4px dot whose only difference between passed
+and failed was hue — no label, no shape, no size. Against a chart whose whole
+job is showing which runs went red, that is the failure mode in its purest form.
+A failed point is now drawn larger and ringed in the surface colour, so it
+survives greyscale, printing and forced-colours mode, and carries a `<title>` so
+hovering names it.
+
+The result bar butted its segments together, so a sliver of failures met the
+pass fill at a boundary drawn in hue alone. A 2px gap makes the boundary
+structural; the colour is now the label on it rather than the edge itself.
+
+**Trade-offs.**
+
+The validator also reports the greens and ambers below 3:1 contrast against the
+light surface, and that is not fixed here. Darkening them to clear the ratio
+would make a green that reads as a warning state and cost the instant "mostly
+green" recognition the bar exists for. The relief the check demands — a visible
+label beside every coloured mark — is present throughout, which is what makes
+that trade legitimate rather than ignored.
+
+`neutral` fails the chroma floor by reading as grey. It is meant to: it fills the
+remainder of a bar where tests neither passed nor failed, and a saturated hue
+there would claim a meaning that segment does not have.
+
+And the honest limit: this was measured once, by hand, against one palette. There
+is no check in CI that would catch someone adding a fifth status colour and
+putting it next to red. The reasoning is written down here, which is weaker than
+a test, and is the same class of gap the landing page's claim checker exists to
+close on the other side.
 
 ---
 

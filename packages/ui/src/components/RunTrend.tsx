@@ -184,16 +184,36 @@ export function RunTrend({ runs }: { runs: Run[] }) {
           strokeLinejoin="round"
         />
 
-        {coords.map((p, i) => (
-          <circle
-            key={points[i]!.id}
-            cx={p.x}
-            cy={p.y}
-            r="2"
-            fill={points[i]!.passed ? sc.pass : sc.fail}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        {/*
+          A failed point is bigger and ringed, not merely red.
+
+          Green and red are the pair colour-vision deficiency hits hardest —
+          measured at ΔE 7.4 for deuteranopia against this palette, which is
+          inside the band where colour is only allowed to carry meaning
+          alongside something else. A 4px dot that differs from its neighbours
+          in hue and nothing else is unreadable to roughly one man in twelve,
+          and this chart's entire job is showing which runs went red.
+
+          Size and the surface ring survive greyscale, printing and forced
+          colours. The title is a real hover layer for everyone else.
+        */}
+        {coords.map((p, i) => {
+          const point = points[i]!
+          return (
+            <circle
+              key={point.id}
+              cx={p.x}
+              cy={p.y}
+              r={point.passed ? 2 : 3.4}
+              fill={point.passed ? sc.pass : sc.fail}
+              stroke={point.passed ? 'none' : c.card}
+              strokeWidth={point.passed ? 0 : 1.4}
+              vectorEffect="non-scaling-stroke"
+            >
+              <title>{`${point.rate}% — ${point.passed ? 'passed' : 'failed'}`}</title>
+            </circle>
+          )
+        })}
       </svg>
 
       {/* The range is stated because it is not 0–100. A chart whose axis
