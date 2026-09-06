@@ -268,7 +268,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Eighty-five mutations were introduced
+**Every test here was proven able to fail.** Ninety mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -841,6 +841,121 @@ is no check in CI that would catch someone adding a fifth status colour and
 putting it next to red. The reasoning is written down here, which is weaker than
 a test, and is the same class of gap the landing page's claim checker exists to
 close on the other side.
+
+---
+
+## 18. The run list is a table, and it can be paged
+
+Decision-shaped because it reverses one. The list was a card per run, and this
+file's own reasoning for that is quoted in the component: a run carries more
+than a table row wants to hold — an id, what it covered, a branch, a result
+split three ways, timing, and two actions.
+
+That reasoning was sound about a single run and wrong about a list of them. The
+job of a run history is comparison: which run went red first, whether one branch
+fails more than the others, whether the failure count is climbing. Comparison is
+exactly what a stack of cards prevents, because the eye has to re-find the same
+field inside each block instead of running down a column. Cards read well at five
+runs, and the dashboard's own production database had thirteen.
+
+So the row carries what gets compared — status, what ran, result, when, how long
+— and everything else moves into a detail row the reader expands: full id,
+worker count, suite provenance, and the report and delete actions. Nothing the
+cards showed was dropped; it stopped being shown all at once.
+
+### The part that was actually broken
+
+Underneath the layout question was a defect. `GET /runs` took a `limit`, the UI
+sent 25, and there was no cursor and no offset — so run 26 was not below the
+fold, it was **unreachable**. Nothing on screen said so either: without a total,
+a truncated list and a complete one look identical.
+
+Both halves are now fixed. The endpoint returns `total` and `nextCursor`, and the
+list says "showing 25 of 37" whenever those disagree.
+
+### Why the cursor is a pair
+
+`(started_at, id)`, not `started_at`. The timestamp is a plain TEXT column with
+no uniqueness guarantee, and a cursor on a non-unique key silently drops rows or
+repeats them when two runs land either side of a page boundary in the same
+second. Production had no duplicate timestamps when this was written, which is a
+statement about today's data rather than about the schema — the pair makes the
+order total regardless.
+
+The cursor clause is **ANDed onto** the visibility clause, never substituted for
+it. A mutation that enforced scoping on the first page only — the exact shape a
+careless refactor would take — let a `dev` page into other branches' runs, and is
+now pinned by a test.
+
+### Trade-offs
+
+- **The poll drops loaded pages.** While a run is in flight the list refreshes
+  every two seconds, and it refreshes page one only. Someone who had loaded four
+  pages is returned to twenty-five rows. Refetching every page on a timer would
+  multiply request count by however far they had scrolled, and stitching a fresh
+  page one onto stale later pages duplicates a run whenever a new one arrives at
+  the top. Losing the extra pages is the cheap, honest option — and while a run
+  is in flight, the top is what is being watched.
+- **The detail row hides things that used to be visible.** A reader scanning for
+  a suite version now clicks. That is the cost of the column that made the list
+  scannable, taken deliberately.
+- **`total` is one more query per list request.** Counted through the same
+  visibility clause as the rows, so it is never a count of runs the caller
+  cannot reach.
+
+---
+
+## 19. Admin controls belong in one place, and the ones with no UI were the point
+
+`GateControl` opens with a note that `PUT /gate` shipped and nothing in the UI
+could reach it. The same sentence was true of `POST /keys`, `GET /keys` and
+`DELETE /keys/:id` — the entire machine-key feature of decision 15, reachable
+only with curl. Decision 15 says the dashboard issues keys and defines their
+authority; for anyone without a terminal, it did not.
+
+That is twice now, which makes it a pattern rather than an oversight: this repo
+builds the route, documents the reasoning, and stops before the surface. It is
+worth naming here so the next feature is not the third.
+
+Both controls now live in one collapsed panel, badged `admin`, with the gate and
+key management as tabs. Collapsed because an admin opens this dashboard for the
+same reason everyone else does — to see whether the last run passed — and the
+operational levers are the exception. Set apart from the flow because a control
+that changes things for everyone should not look like a control that changes
+your own view.
+
+### The one-time secret
+
+`POST /keys` returns the plaintext once; the database holds only a digest. The
+panel that shows it is deliberately not a toast and cannot be dismissed by
+clicking elsewhere — a secret lost to a stray click costs a re-mint and leaves a
+dead key in the list. It stays until acknowledged.
+
+### Trade-offs
+
+- **A collapsed panel is a click away from being found.** An admin who has never
+  opened it may not know key issuing exists. The alternative — controls that
+  change things for everyone, expanded by default above the run history — is
+  worse.
+- **The key form exposes the server's vocabulary.** Branches are a comma list
+  and workers a number, because that is what the API takes. A friendlier form
+  would have to invent a mapping this repo would then have to keep in sync, which
+  is the drift decision 16 is about.
+- **Nothing in CI checks that a shipped route has a way in.** This decision, like
+  decision 17's colour note, is reasoning written down where a test would be
+  stronger. It is the same gap, named twice, which is itself the argument for
+  closing it.
+
+### What building it exposed
+
+The dev proxy did not forward `/keys`. Vite falls through to the SPA index for
+an unlisted route, so the request returned **HTML with a 200**, the component
+read `response.keys` off it, got `undefined`, and threw — taking the whole
+dashboard down, not just the panel. Two fixes: the proxy lists the route, and
+the component treats a response without a `keys` array as empty rather than
+destructuring blind. The same class of miss as the production Worker route that
+`/keys*` needed in decision 15 — a route that exists on the server and is
+unreachable from the client is invisible until something calls it.
 
 ---
 
