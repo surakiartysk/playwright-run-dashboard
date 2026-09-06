@@ -109,6 +109,16 @@ const WORDS = {
   'Eighty-three': 83,
   'Eighty-four': 84,
   'Eighty-five': 85,
+  'Eighty-six': 86,
+  'Eighty-seven': 87,
+  'Eighty-eight': 88,
+  'Eighty-nine': 89,
+  Ninety: 90,
+  'Ninety-one': 91,
+  'Ninety-two': 92,
+  'Ninety-three': 93,
+  'Ninety-four': 94,
+  'Ninety-five': 95,
 }
 const toNumber = (word) => WORDS[word]
 
