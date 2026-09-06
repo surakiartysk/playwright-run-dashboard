@@ -24,12 +24,16 @@ want the reasoning rather than the code.
 > branding. [`docs/provenance.md`](docs/provenance.md) says exactly what
 > travelled and how AI was used.
 
-**Live at [testbydesign.dev](https://testbydesign.dev)** — password `demo`.
-That deployment is real: real D1, real R2, a real GitHub token that can
-dispatch the companion suite below. `demo` cannot reach any of that — see
+**Live at [testbydesign.dev](https://testbydesign.dev)** — one button, no
+password to type. That deployment is real: real D1, real R2, a real GitHub
+token that can dispatch the companion suite below. `demo` cannot reach any of
+that — see
 [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real)
 for why a role can be handed a genuine login to a real deployment and still be
-safe to publish.
+safe to publish, and
+[decision 22](docs/decisions.md#22-a-limit-on-demo-runs-and-why-it-is-not-a-security-control)
+for the hourly cap on demo runs — the one thing a published password does
+expose is row count, so thirty an hour is where it stops.
 
 ## Run it
 
