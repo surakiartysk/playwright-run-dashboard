@@ -206,12 +206,42 @@ runRoutes.post('/', async (c) => {
   return c.json({ runId: id, status: 'queued', simulated: dispatch.simulated }, 201)
 })
 
+/**
+ * A page cursor: the sort key of the last row already sent.
+ *
+ * `started_at` alone is not enough. It is a plain timestamp with no uniqueness
+ * guarantee, and two runs started in the same second would sit either side of
+ * a page boundary — a cursor on a non-unique key silently drops rows or repeats
+ * them. `id` breaks the tie, so `(started_at, id)` is a total order and every
+ * row appears on exactly one page.
+ *
+ * Opaque to the client on purpose: base64 of the pair, so nobody starts
+ * hand-assembling one and depending on the shape.
+ */
+const encodeCursor = (row: RunRow) => btoa(`${row.started_at}\u0000${row.id}`)
+
+const decodeCursor = (raw: string): { startedAt: string; id: string } | null => {
+  try {
+    const [startedAt, id] = atob(raw).split('\u0000')
+    if (!startedAt || !id) return null
+    return { startedAt, id }
+  } catch {
+    // A malformed cursor is a bad request, not a server error — the caller is
+    // told, rather than being handed page one as though nothing happened.
+    return null
+  }
+}
+
 // ── GET /runs ───────────────────────────────────────────────────────────────
 runRoutes.get('/', async (c) => {
   const role = c.get('role')
   const viewAs = await resolveViewRole(c)
   const limit = Math.min(100, Math.max(1, Number.parseInt(c.req.query('limit') ?? '25', 10) || 25))
   const status = c.req.query('status')
+  const rawCursor = c.req.query('cursor')
+
+  const cursor = rawCursor ? decodeCursor(rawCursor) : null
+  if (rawCursor && !cursor) return c.json({ error: 'Invalid cursor' }, 400)
 
   // Visibility is applied in SQL, so a role cannot receive rows it may not see
   // even if a later handler forgets to filter.
@@ -228,19 +258,41 @@ runRoutes.get('/', async (c) => {
     params.push(status)
   }
 
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-  params.push(limit)
+  // The total is counted against the same conditions but WITHOUT the cursor:
+  // it answers "how many runs are there", which must not shrink as the reader
+  // pages through them.
+  const countWhere = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+  const countParams = [...params]
 
-  const { results } = await c.env.DB.prepare(
-    `SELECT * FROM runs ${where} ORDER BY started_at DESC LIMIT ?`,
-  )
-    .bind(...params)
-    .all<RunRow>()
+  if (cursor) {
+    // Strictly after the cursor row in the same (started_at DESC, id DESC)
+    // order the query below sorts by.
+    conditions.push('(started_at < ? OR (started_at = ? AND id < ?))')
+    params.push(cursor.startedAt, cursor.startedAt, cursor.id)
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  // One row more than asked for, to learn whether another page exists without
+  // a second query. The extra row is dropped before the response is built.
+  params.push(limit + 1)
+
+  const [{ results }, totalRow] = await Promise.all([
+    c.env.DB.prepare(`SELECT * FROM runs ${where} ORDER BY started_at DESC, id DESC LIMIT ?`)
+      .bind(...params)
+      .all<RunRow>(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS total FROM runs ${countWhere}`)
+      .bind(...countParams)
+      .first<{ total: number }>(),
+  ])
+
+  const hasMore = results.length > limit
+  const page = hasMore ? results.slice(0, limit) : results
 
   const secret = c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET
 
   const runs = await Promise.all(
-    results.map(async (row) =>
+    page.map(async (row) =>
       toView(
         row,
         row.report_path
@@ -253,7 +305,17 @@ runRoutes.get('/', async (c) => {
   // `role` is always the real, authenticated session; `viewAs` only differs
   // from it for a demo session previewing another role's read view — the UI
   // needs both so it can be honest about which is which.
-  return c.json({ runs, role, viewAs })
+  //
+  // `total` is what the reader may see, not what the table holds: it is counted
+  // through the same visibility clause, so a dev is never told there are runs
+  // they cannot reach.
+  return c.json({
+    runs,
+    role,
+    viewAs,
+    total: totalRow?.total ?? runs.length,
+    nextCursor: hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : null,
+  })
 })
 
 // ── GET /runs/:id ───────────────────────────────────────────────────────────
