@@ -18,3 +18,7 @@ build/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# The leak checker word list — local only, never published.
+# See the note at the top of scripts/check-leak.mjs.
+.leakwords.json
