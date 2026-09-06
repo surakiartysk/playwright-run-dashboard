@@ -11,7 +11,13 @@ import { brandPanelBackground, c } from '../theme'
  *
  * In simulation the development passwords are printed on the form. They are in
  * the source anyway, and a demo whose first screen is a password you have to go
- * hunting for is a demo nobody sees.
+ * hunting for is a demo nobody sees. There are four of them and choosing
+ * between the roles is the point, so the list earns its space.
+ *
+ * On a real deployment there is only `demo`, and the button above already
+ * signs in with it — so the list is not printed there. It would be the same
+ * instruction twice, with the second one asking the reader to type by hand
+ * what the first does in a click.
  */
 export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [password, setPassword] = useState('')
@@ -185,26 +191,42 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
             )}
           </button>
 
+          {/*
+            The password list is only worth printing when it says something the
+            button above does not.
+
+            In `full` mode it lists four roles the button cannot offer, and
+            picking between them is the whole point of the screen. In
+            `demo-only` there is exactly one password and the button already
+            signs in with it — printing `demo → demo` under a button labelled
+            "Look around as demo" is the same instruction twice, and the second
+            one asks the reader to do by hand what the first does for them.
+
+            What survives in that mode is the note, because it is not
+            duplicated anywhere: that this deployment is real, and that demo
+            still cannot touch anything of anyone else's.
+          */}
           {hints ? (
-            <div style={s.hint}>
-              <div style={s.hintTitle}>
-                {hints.mode === 'full' ? 'Simulation mode' : 'Try it — demo role'}
+            hints.mode === 'full' ? (
+              <div style={s.hint}>
+                <div style={s.hintTitle}>Simulation mode</div>
+                <div style={s.hintRows}>
+                  {Object.entries(hints.passwords).map(([role, value]) => (
+                    <div key={role} style={s.hintRow}>
+                      <code style={s.code}>{value}</code>
+                      <span style={{ color: c.t5 }}>→</span>
+                      <span style={{ color: c.t3 }}>{role}</span>
+                    </div>
+                  ))}
+                </div>
+                <p style={s.hintNote}>Each role sees and may do different things.</p>
               </div>
-              <div style={s.hintRows}>
-                {Object.entries(hints.passwords).map(([role, value]) => (
-                  <div key={role} style={s.hintRow}>
-                    <code style={s.code}>{value}</code>
-                    <span style={{ color: c.t5 }}>→</span>
-                    <span style={{ color: c.t3 }}>{role}</span>
-                  </div>
-                ))}
-              </div>
-              <p style={s.hintNote}>
-                {hints.mode === 'full'
-                  ? 'Each role sees and may do different things.'
-                  : 'This deployment is real — demo always simulates its runs, and cannot see or affect anyone else’s.'}
+            ) : (
+              <p style={s.demoNote}>
+                This deployment is real — demo always simulates its runs, and cannot see or affect
+                anyone else’s.
               </p>
-            </div>
+            )
           ) : (
             <p style={s.restricted}>Access restricted to authorised team members</p>
           )}
@@ -480,5 +502,8 @@ const s: Record<string, CSSProperties> = {
     fontFamily: 'ui-monospace, monospace',
   },
   hintNote: { margin: '11px 0 0', fontSize: 12, color: c.t5 },
+  /* Not in a bordered box: with the password row gone there is one sentence
+     left, and a card around a single line claims more weight than it has. */
+  demoNote: { margin: '22px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.55 },
   restricted: { marginTop: 22, fontSize: 13, color: c.t5, textAlign: 'center' },
 }
