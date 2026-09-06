@@ -110,127 +110,129 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
       </aside>
 
       <main style={s.right} className="login-form-col">
-        <form style={s.form} onSubmit={submit}>
-          <div style={s.formIcon} className="login-form-icon">
-            <FlaskIcon size={22} colour="var(--c-primary)" />
-          </div>
+        <div style={s.rightInner}>
+          <form style={s.form} onSubmit={submit}>
+            <div style={s.formIcon} className="login-form-icon">
+              <FlaskIcon size={22} colour="var(--c-primary)" />
+            </div>
 
-          <h2 style={s.formTitle}>Run the suite</h2>
-          <p style={s.formSub}>
-            Pick a slice, press Run, read the report. Four roles may do different amounts of that.
-          </p>
+            <h2 style={s.formTitle}>Run the suite</h2>
+            <p style={s.formSub}>
+              Pick a slice, press Run, read the report. Four roles may do different amounts of that.
+            </p>
 
-          {demoPassword && (
-            <>
+            {demoPassword && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void signIn(demoPassword)}
+                  disabled={busy}
+                  style={s.demo}
+                >
+                  Look around as demo →
+                </button>
+                <div style={s.or}>
+                  <span style={s.orLine} />
+                  <span style={s.orText}>or sign in</span>
+                  <span style={s.orLine} />
+                </div>
+              </>
+            )}
+
+            <label htmlFor="password" style={s.label}>
+              Password
+            </label>
+
+            <div style={s.inputWrap}>
+              <span style={s.lockIcon}>
+                <LockIcon />
+              </span>
+              <input
+                id="password"
+                type={reveal ? 'text' : 'password'}
+                value={password}
+                autoFocus
+                placeholder="Enter dashboard password"
+                onChange={(e) => setPassword(e.target.value)}
+                style={{
+                  ...s.input,
+                  borderColor: error ? '#fca5a5' : c.border,
+                  background: error ? '#fff5f5' : c.input,
+                }}
+              />
               <button
                 type="button"
-                onClick={() => void signIn(demoPassword)}
-                disabled={busy}
-                style={s.demo}
+                onClick={() => setReveal((v) => !v)}
+                style={s.reveal}
+                aria-label={reveal ? 'Hide password' : 'Show password'}
               >
-                Look around as demo →
+                <EyeIcon off={reveal} />
               </button>
-              <div style={s.or}>
-                <span style={s.orLine} />
-                <span style={s.orText}>or sign in</span>
-                <span style={s.orLine} />
-              </div>
-            </>
-          )}
+            </div>
 
-          <label htmlFor="password" style={s.label}>
-            Password
-          </label>
+            {error && <p style={s.error}>{error}</p>}
 
-          <div style={s.inputWrap}>
-            <span style={s.lockIcon}>
-              <LockIcon />
-            </span>
-            <input
-              id="password"
-              type={reveal ? 'text' : 'password'}
-              value={password}
-              autoFocus
-              placeholder="Enter dashboard password"
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                ...s.input,
-                borderColor: error ? '#fca5a5' : c.border,
-                background: error ? '#fff5f5' : c.input,
-              }}
-            />
+            {/*
+              Quieter when demo is offered above it, because then this is the
+              path for the few people who hold a password, not the many who came
+              to look. Where there is no demo to offer, it is the only way in and
+              takes the emphasis back.
+            */}
             <button
-              type="button"
-              onClick={() => setReveal((v) => !v)}
-              style={s.reveal}
-              aria-label={reveal ? 'Hide password' : 'Show password'}
+              type="submit"
+              disabled={busy || !password}
+              style={demoPassword ? { ...s.submit, ...s.submitQuiet } : s.submit}
             >
-              <EyeIcon off={reveal} />
+              {busy ? (
+                <>
+                  <span style={s.spinner} /> Signing in…
+                </>
+              ) : (
+                <>Sign in →</>
+              )}
             </button>
-          </div>
 
-          {error && <p style={s.error}>{error}</p>}
+            {/*
+              The password list is only worth printing when it says something the
+              button above does not.
 
-          {/*
-            Quieter when demo is offered above it, because then this is the
-            path for the few people who hold a password, not the many who came
-            to look. Where there is no demo to offer, it is the only way in and
-            takes the emphasis back.
-          */}
-          <button
-            type="submit"
-            disabled={busy || !password}
-            style={demoPassword ? { ...s.submit, ...s.submitQuiet } : s.submit}
-          >
-            {busy ? (
-              <>
-                <span style={s.spinner} /> Signing in…
-              </>
-            ) : (
-              <>Sign in →</>
-            )}
-          </button>
+              In `full` mode it lists four roles the button cannot offer, and
+              picking between them is the whole point of the screen. In
+              `demo-only` there is exactly one password and the button already
+              signs in with it — printing `demo → demo` under a button labelled
+              "Look around as demo" is the same instruction twice, and the second
+              one asks the reader to do by hand what the first does for them.
 
-          {/*
-            The password list is only worth printing when it says something the
-            button above does not.
-
-            In `full` mode it lists four roles the button cannot offer, and
-            picking between them is the whole point of the screen. In
-            `demo-only` there is exactly one password and the button already
-            signs in with it — printing `demo → demo` under a button labelled
-            "Look around as demo" is the same instruction twice, and the second
-            one asks the reader to do by hand what the first does for them.
-
-            What survives in that mode is the note, because it is not
-            duplicated anywhere: that this deployment is real, and that demo
-            still cannot touch anything of anyone else's.
-          */}
-          {hints ? (
-            hints.mode === 'full' ? (
-              <div style={s.hint}>
-                <div style={s.hintTitle}>Simulation mode</div>
-                <div style={s.hintRows}>
-                  {Object.entries(hints.passwords).map(([role, value]) => (
-                    <div key={role} style={s.hintRow}>
-                      <code style={s.code}>{value}</code>
-                      <span style={{ color: c.t5 }}>→</span>
-                      <span style={{ color: c.t3 }}>{role}</span>
-                    </div>
-                  ))}
+              What survives in that mode is the note, because it is not
+              duplicated anywhere: that this deployment is real, and that demo
+              still cannot touch anything of anyone else's.
+            */}
+            {hints ? (
+              hints.mode === 'full' ? (
+                <div style={s.hint}>
+                  <div style={s.hintTitle}>Simulation mode</div>
+                  <div style={s.hintRows}>
+                    {Object.entries(hints.passwords).map(([role, value]) => (
+                      <div key={role} style={s.hintRow}>
+                        <code style={s.code}>{value}</code>
+                        <span style={{ color: c.t5 }}>→</span>
+                        <span style={{ color: c.t3 }}>{role}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={s.hintNote}>Each role sees and may do different things.</p>
                 </div>
-                <p style={s.hintNote}>Each role sees and may do different things.</p>
-              </div>
+              ) : (
+                <p style={s.demoNote}>
+                  This deployment is real — demo always simulates its runs, and cannot see or affect
+                  anyone else’s.
+                </p>
+              )
             ) : (
-              <p style={s.demoNote}>
-                This deployment is real — demo always simulates its runs, and cannot see or affect
-                anyone else’s.
-              </p>
-            )
-          ) : (
-            <p style={s.restricted}>Access restricted to authorised team members</p>
-          )}
-        </form>
+              <p style={s.restricted}>Access restricted to authorised team members</p>
+            )}
+          </form>
+        </div>
       </main>
     </div>
   )
@@ -273,6 +275,19 @@ const EyeIcon = ({ off }: { off: boolean }) => (
 )
 
 const s: Record<string, CSSProperties> = {
+  /*
+   * Full-bleed, deliberately.
+   *
+   * Capping the split and centring it looked balanced in the measurements and
+   * wrong on screen: the right half shares the page background, so the only
+   * thing with a distinct surface was the blue panel, and the whole page read
+   * as a narrow coloured stripe with text floating beside it rather than as a
+   * login screen.
+   *
+   * So the split fills the window, and the drift that started all of this is
+   * solved where it belongs — on the content inside the right half, not by
+   * shrinking the page around it. See `right`.
+   */
   outer: { minHeight: '100vh', display: 'flex' },
 
   left: {
@@ -282,9 +297,18 @@ const s: Record<string, CSSProperties> = {
      * two halves' content drifts apart as the screen grows. The cap holds the
      * panel at a width its content actually fills.
      */
-    width: '42%',
+    /*
+     * A proportion, uncapped.
+     *
+     * It was capped at 560px to stop the panel holding a lot of empty blue on
+     * a wide screen. That fixed the blue and broke the balance: at 1860px the
+     * panel became 30% of the window, the right half 70%, and the whole page
+     * read as a narrow coloured stripe beside a lot of dark nothing. The empty
+     * blue was the smaller problem, and it is handled by centring the panel's
+     * own content rather than by shrinking the panel.
+     */
+    width: '44%',
     minWidth: 320,
-    maxWidth: 560,
     background: brandPanelBackground,
     display: 'flex',
     alignItems: 'center',
@@ -368,16 +392,18 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     /*
-     * Left, not centre. Centring the form in an unbounded column pushes it
-     * further from the panel the wider the window gets — at 1850px it sat
-     * 475px out, adrift in empty space. Anchoring it to the start keeps the
-     * two halves' content a fixed distance apart at every width; `padding`
-     * is that distance.
+     * Centred within a bounded content column, not within the whole half.
+     *
+     * On a wide monitor the right half is enormous, and centring the form in
+     * all of it pushed it far from the panel. `rightInner` caps the space the
+     * form is centred in, so it sits a short, even distance from the split at
+     * any width while the surface behind it still fills the window.
      */
-    justifyContent: 'flex-start',
-    padding: '32px clamp(48px, 7vw, 120px)',
+    justifyContent: 'center',
+    padding: '32px 40px',
     background: c.bg,
   },
+  rightInner: { width: '100%', maxWidth: 440, display: 'flex', justifyContent: 'center' },
   form: { width: '100%', maxWidth: 340, animation: 'fade-in 0.35s ease' },
 
   formIcon: {

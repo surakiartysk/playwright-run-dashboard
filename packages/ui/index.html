@@ -189,6 +189,12 @@
         .login-split {
           flex-direction: column;
           min-height: 100vh;
+          /* The cap and its edges are for wide screens; on a phone the split
+             fills the viewport, and a side border there is a 1px stripe down
+             the screen edge. Inline styles again, so these need the override. */
+          max-width: none !important;
+          border-left: none !important;
+          border-right: none !important;
         }
         /* The panel's width/min-width are inline styles on the element, so the
            collapse has to override them explicitly. */
