@@ -131,8 +131,16 @@ export const api = {
   /**
    * `role` is always the caller's real, authenticated role; `viewAs` differs
    * from it only for a demo session currently previewing another role.
+   *
+   * `total` counts every run the caller may see, not the page — without it the
+   * list could only truncate silently, which is what it used to do. `cursor`
+   * asks for the page after a given row; `nextCursor` is null on the last page.
    */
-  listRuns: () => request<{ runs: Run[]; role: Role; viewAs: Role }>('/runs?limit=25'),
+  listRuns: (options: { cursor?: string | null; limit?: number } = {}) => {
+    const query = new URLSearchParams({ limit: String(options.limit ?? RUNS_PER_PAGE) })
+    if (options.cursor) query.set('cursor', options.cursor)
+    return request<RunPage>(`/runs?${query}`)
+  },
 
   createRun: (input: { service: string; tags: string; workers?: number; ref?: string }) =>
     request<{ runId: string; simulated: boolean }>('/runs', {
@@ -141,6 +149,57 @@ export const api = {
     }),
 
   deleteRun: (id: string) => request<{ ok: true }>(`/runs/${id}`, { method: 'DELETE' }),
+
+  /** Admin only. Revoked keys are included — see the route's own note. */
+  listKeys: () => request<{ keys: ApiKey[] }>('/keys'),
+
+  /**
+   * The response carries `plaintext`, and it is the only time the key exists
+   * outside the caller's own storage. Nothing can show it again.
+   */
+  createKey: (input: { label: string; role: Role; allowedRefs?: string[]; maxWorkers?: number }) =>
+    request<{ key: ApiKey; plaintext: string }>('/keys', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  revokeKey: (id: string) =>
+    request<{ ok: true; alreadyRevoked?: boolean }>(`/keys/${id}`, { method: 'DELETE' }),
+}
+
+/**
+ * How many runs a page holds.
+ *
+ * Shared between the first load and every "load more", so a page is always the
+ * same size — a first page of 25 followed by pages of 10 makes the cursor's
+ * behaviour look inconsistent when it is not.
+ */
+export const RUNS_PER_PAGE = 25
+
+export type RunPage = {
+  runs: Run[]
+  role: Role
+  viewAs: Role
+  /** Every run the caller may see, counted past the end of this page. */
+  total: number
+  /** Null on the last page. */
+  nextCursor: string | null
+}
+
+/**
+ * A key as it can be read back — there is deliberately no field here that
+ * could reconstruct the credential.
+ */
+export type ApiKey = {
+  id: string
+  label: string
+  role: Role
+  allowedRefs: string[] | null
+  maxWorkers: number | null
+  createdBy: Role
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
 }
 
 /** Runs still in flight — the UI polls only while one of these exists. */

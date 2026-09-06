@@ -1,15 +1,22 @@
-import { useState, type CSSProperties } from 'react'
-import { api, isPending, type Role, type Run, type RunStatus } from '../api'
+import { Fragment, useState, type CSSProperties } from 'react'
+import { RUNS_PER_PAGE, api, isPending, type Role, type Run, type RunStatus } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { c, mono, status as sc } from '../theme'
 
 /**
- * The run list — a card per run rather than table rows.
+ * The run list — a table, with the rest of each run one click away.
  *
- * A run carries more than a table row wants to hold: an id, what it covered, a
- * branch, a result split three ways, timing, and two actions. Squeezed into
- * columns it becomes unreadable at the width most people have; as a card each
- * run gets room and the eye follows one block at a time.
+ * This was a card per run, on the argument that a run carries more than a row
+ * can hold: an id, what it covered, a branch, a result split three ways,
+ * timing, and two actions. That is true, and it was still the wrong call. The
+ * job of a run list is comparison — which run went red first, whether a branch
+ * fails more than others — and comparison is exactly what cards prevent: the
+ * eye has to jump between blocks instead of running down a column. Cards read
+ * well at five runs and stop working at fifty.
+ *
+ * So the row carries what is compared (status, what ran, result, when), and
+ * everything else — full id, worker count, suite provenance, actions — lives in
+ * a detail row the reader opens. Nothing the cards showed was dropped.
  *
  * Which runs appear is decided by the server, not filtered here — a `dev` is
  * sent only main-branch runs. Filtering client-side would mean the browser
@@ -160,14 +167,24 @@ export function RunHistory({
   role,
   canDelete,
   onChanged,
+  total,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: {
   runs: Run[]
   role: Role
   canDelete: boolean
   onChanged: () => void
+  /** Every run the caller may see — not the number loaded. */
+  total: number
+  hasMore: boolean
+  loadingMore: boolean
+  onLoadMore: () => void
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [open, setOpen] = useState<string | null>(null)
 
   /**
    * The button is shown whenever the *previewed* role may delete, so a demo
@@ -216,70 +233,163 @@ export function RunHistory({
           </button>
         </div>
       ) : (
-        <div style={s.list}>
-          {shown.map((run) => {
-            const st = STATUS[run.status]
-            return (
-              <article key={run.id} style={{ ...s.card, borderLeftColor: st.fg }}>
-                <div style={s.cardTop}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={s.runId}>{run.id}</div>
-                    <div style={s.meta}>
-                      <span style={s.chip}>{run.service}</span>
-                      <span style={s.chip}>@{run.tags}</span>
-                      <span style={s.chip}>{run.ref}</span>
-                      {run.workers && <span style={s.chip}>{run.workers}w</span>}
-                      {/*
-                        Which suite produced this result, shown only once its
-                        callback has arrived. A queued or simulated run has no
-                        suite to name, and a chip reading "suite —" would be
-                        noise on most rows.
+        <div style={s.tableWrap}>
+          <table style={s.table}>
+            <thead>
+              <tr>
+                <th style={{ ...s.th, ...s.thStatus }}>Status</th>
+                <th style={s.th}>Run</th>
+                <th style={s.th}>Result</th>
+                <th style={{ ...s.th, ...s.thRight }}>Started</th>
+                <th style={{ ...s.th, ...s.thRight }}>Took</th>
+                <th style={s.th} aria-label="Details" />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((run) => {
+                const st = STATUS[run.status]
+                const expanded = open === run.id
 
-                        Linked to the commit rather than the release: the
-                        version is what a person quotes, the sha is what they
-                        need when they go looking. `title` carries the full sha
-                        so the short form is never the only copy of it.
-                      */}
-                      {run.suiteVersion && (
-                        <SuiteChip version={run.suiteVersion} sha={run.suiteSha} />
-                      )}
-                    </div>
-                  </div>
+                return (
+                  <Fragment key={run.id}>
+                    <tr
+                      onClick={() => setOpen(expanded ? null : run.id)}
+                      style={{ ...s.tr, ...(expanded ? s.trOpen : null) }}
+                    >
+                      <td style={{ ...s.td, ...s.tdStatus }}>
+                        <span style={{ ...s.badge, color: st.fg, background: st.bg }}>
+                          {isPending(run.status) && (
+                            <span style={{ ...s.dot, background: st.fg }} />
+                          )}
+                          {st.label}
+                        </span>
+                      </td>
 
-                  <span style={{ ...s.badge, color: st.fg, background: st.bg }}>
-                    {isPending(run.status) && <span style={{ ...s.dot, background: st.fg }} />}
-                    {st.label}
-                  </span>
-                </div>
+                      <td style={s.td}>
+                        <div style={s.runCell}>
+                          <span style={s.runService}>{run.service}</span>
+                          <span style={s.runTags}>@{run.tags}</span>
+                          <span style={s.runRef}>{run.ref}</span>
+                        </div>
+                      </td>
 
-                <div style={s.cardBottom}>
-                  <ResultBar run={run} />
+                      <td style={s.td}>
+                        <ResultBar run={run} />
+                      </td>
 
-                  <div style={s.timing}>
-                    <span>{relative(run.startedAt)}</span>
-                    {duration(run.durationMs) && <span>· {duration(run.durationMs)}</span>}
-                    <span>· by {run.triggeredBy}</span>
-                  </div>
+                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>{relative(run.startedAt)}</td>
 
-                  <div style={s.actions}>
-                    {run.reportUrl && (
-                      <a href={run.reportUrl} target="_blank" rel="noreferrer" style={s.report}>
-                        Report ↗
-                      </a>
+                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>
+                        {duration(run.durationMs) ?? '—'}
+                      </td>
+
+                      <td style={{ ...s.td, ...s.tdRight }}>
+                        <span
+                          aria-hidden
+                          style={{
+                            ...s.caret,
+                            transform: expanded ? 'rotate(90deg)' : 'none',
+                          }}
+                        >
+                          ›
+                        </span>
+                      </td>
+                    </tr>
+
+                    {expanded && (
+                      <tr style={s.detailRow}>
+                        <td colSpan={6} style={s.detailCell}>
+                          <div style={s.detailGrid}>
+                            <Detail label="Run id">
+                              <span style={{ ...mono, color: c.t2 }}>{run.id}</span>
+                            </Detail>
+
+                            <Detail label="Triggered by">{run.triggeredBy}</Detail>
+
+                            {run.workers !== null && run.workers !== undefined && (
+                              <Detail label="Workers">
+                                <span style={mono}>{run.workers}</span>
+                              </Detail>
+                            )}
+
+                            {/*
+                              Shown only once the callback has arrived: a queued
+                              or simulated run has no suite to name, and a field
+                              reading "suite —" would be noise on most rows.
+                            */}
+                            {run.suiteVersion && (
+                              <Detail label="Suite">
+                                <SuiteChip version={run.suiteVersion} sha={run.suiteSha} />
+                              </Detail>
+                            )}
+                          </div>
+
+                          <div style={s.detailActions}>
+                            {run.reportUrl && (
+                              <a
+                                href={run.reportUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={s.report}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Report ↗
+                              </a>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void remove(run.id)
+                                }}
+                                style={s.delete}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                    {canDelete && (
-                      <button onClick={() => void remove(run.id)} style={s.delete}>
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </article>
-            )
-          })}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/*
+        The list used to stop at 25 with nothing said about it — not below the
+        fold, but unreachable. The count is always shown once there is more than
+        a page, so "showing 25 of 91" is a fact on screen rather than something
+        a reader has to infer from a list that simply ends.
+      */}
+      {runs.length > 0 && (total > runs.length || hasMore) && (
+        <div style={s.more}>
+          <span style={s.moreCount}>
+            Showing <strong style={{ color: c.t2 }}>{runs.length}</strong> of {total}
+          </span>
+          {hasMore && (
+            <button onClick={onLoadMore} disabled={loadingMore} style={s.moreButton}>
+              {loadingMore
+                ? 'Loading…'
+                : `Load ${Math.min(RUNS_PER_PAGE, total - runs.length)} more`}
+            </button>
+          )}
         </div>
       )}
     </section>
+  )
+}
+
+/** One labelled fact in the expanded row. */
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={s.detailLabel}>{label}</div>
+      <div style={s.detailValue}>{children}</div>
+    </div>
   )
 }
 
@@ -325,34 +435,105 @@ const s: Record<string, CSSProperties> = {
     fontSize: 13,
   },
 
-  list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: {
-    background: c.card,
+  tableWrap: {
     border: `1px solid ${c.border}`,
-    // A status stripe down the left edge, set per-card below. Colour is the
-    // first thing read when scanning a list, and a red run that looks
-    // identical to a green one until you reach the badge is a red run that
-    // gets missed.
-    borderLeftWidth: 3,
-    borderLeftStyle: 'solid',
     borderRadius: 12,
-    padding: '15px 18px',
-    animation: 'fade-in 0.3s ease',
+    overflowX: 'auto',
+    background: c.card,
   },
-  cardTop: {
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    // Below this the columns stop being readable and the wrapper scrolls
+    // instead of squeezing them — a table that reflows into three-word columns
+    // is harder to scan than one you push sideways.
+    minWidth: 620,
+  },
+  th: {
+    textAlign: 'left',
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: c.t5,
+    padding: '10px 14px',
+    borderBottom: `1px solid ${c.border}`,
+    whiteSpace: 'nowrap',
+  },
+  thStatus: { width: 108 },
+  thRight: { textAlign: 'right' },
+  tr: {
+    cursor: 'pointer',
+    borderBottom: `1px solid ${c.divider}`,
+  },
+  trOpen: { background: c.surface },
+  td: {
+    padding: '11px 14px',
+    fontSize: 13,
+    color: c.t2,
+    verticalAlign: 'middle',
+  },
+  tdStatus: { width: 108 },
+  tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
+  // Service is the identity of the row; the tag and branch qualify it, so they
+  // are present but recede.
+  runCell: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
+  runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
+  runTags: { ...mono, fontSize: 11.5, color: c.t4 },
+  runRef: { ...mono, fontSize: 11.5, color: c.t5 },
+  caret: {
+    display: 'inline-block',
+    color: c.t5,
+    fontSize: 15,
+    transition: 'transform 0.15s ease',
+  },
+
+  detailRow: { background: c.surface },
+  detailCell: {
+    padding: '14px 16px 16px',
+    borderBottom: `1px solid ${c.border}`,
+  },
+  detailGrid: {
     display: 'flex',
-    alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: '14px 32px',
+  },
+  detailLabel: {
+    fontSize: 10.5,
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: c.t5,
+    marginBottom: 4,
+  },
+  detailValue: { fontSize: 13, color: c.t2 },
+  detailActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+
+  more: {
+    display: 'flex',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 14,
+    gap: 12,
+    marginTop: 12,
+    flexWrap: 'wrap',
   },
-  runId: {
-    ...mono,
-    fontFamily: 'ui-monospace, monospace',
-    fontSize: 13.5,
-    fontWeight: 500,
-    color: c.t1,
+  moreCount: { fontSize: 12.5, color: c.t5 },
+  moreButton: {
+    padding: '7px 15px',
+    background: 'transparent',
+    border: `1px solid ${c.border}`,
+    borderRadius: 9,
+    color: c.t2,
+    font: 'inherit',
+    fontSize: 13,
+    cursor: 'pointer',
   },
-  meta: { display: 'flex', gap: 6, marginTop: 7, flexWrap: 'wrap' },
+
   chip: {
     ...mono,
     fontSize: 11,
@@ -368,7 +549,7 @@ const s: Record<string, CSSProperties> = {
     ...mono,
     fontSize: 11,
     color: c.primary,
-    background: c.surface,
+    background: c.card,
     border: `1px solid ${c.border}`,
     borderRadius: 5,
     padding: '2px 7px',
@@ -393,16 +574,6 @@ const s: Record<string, CSSProperties> = {
     animation: 'pulse-dot 1.4s ease-in-out infinite',
   },
 
-  cardBottom: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 16,
-    marginTop: 14,
-    paddingTop: 13,
-    borderTop: `1px solid ${c.divider}`,
-    flexWrap: 'wrap',
-  },
   resultNumbers: {
     ...mono,
     display: 'flex',
@@ -425,8 +596,6 @@ const s: Record<string, CSSProperties> = {
   },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
 
-  timing: { ...mono, fontSize: 12, color: c.t5, display: 'flex', gap: 5, flexWrap: 'wrap' },
-  actions: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   report: {
     color: c.primary,
     textDecoration: 'none',
