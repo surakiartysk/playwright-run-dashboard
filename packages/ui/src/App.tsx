@@ -3,7 +3,7 @@ import { ApiError, api, isPending, type Role, type RolePolicy, type Run } from '
 import { Login } from './components/Login'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { RunTrigger } from './components/RunTrigger'
-import { GateControl } from './components/GateControl'
+import { AdminPanel } from './components/AdminPanel'
 import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
@@ -17,6 +17,11 @@ export function App() {
   const [viewAs, setViewAs] = useState<Role | null>(null)
   const [checking, setChecking] = useState(true)
   const [runs, setRuns] = useState<Run[]>([])
+  // Everything the caller may see, counted past the loaded pages — so the list
+  // can say how much it is not showing rather than truncating in silence.
+  const [total, setTotal] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
   const [canPreview, setCanPreview] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,12 +50,25 @@ export function App() {
       .catch(() => setPolicies([]))
   }, [role])
 
+  /**
+   * Reloads from the top.
+   *
+   * Deliberately drops any extra pages the reader had loaded. This runs on a
+   * poll while a run is in flight, and re-fetching every loaded page on a timer
+   * would multiply the request count by however far someone had scrolled;
+   * stitching a fresh page one onto stale later pages is worse still, because
+   * a new run at the top shifts every later row by one and the seam duplicates
+   * a run. Returning to the first page is the honest, cheap option — and while
+   * a run is in flight, the top is what the reader is watching.
+   */
   const refresh = useCallback(async () => {
     if (!role) return
     try {
-      const { runs, viewAs: servedAs } = await api.listRuns()
-      setRuns(runs)
-      setViewAs(servedAs)
+      const page = await api.listRuns()
+      setRuns(page.runs)
+      setTotal(page.total)
+      setNextCursor(page.nextCursor)
+      setViewAs(page.viewAs)
       setError(null)
     } catch (e) {
       // An expired session should return to the sign-in screen rather than
@@ -62,6 +80,33 @@ export function App() {
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
   }, [role])
+
+  /** Appends the next page. The cursor makes this safe against new runs
+   *  arriving at the top: it names a row, not an offset. */
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const page = await api.listRuns({ cursor: nextCursor })
+      // Guards against a double-click racing two identical requests: a run
+      // already on screen is never appended twice.
+      setRuns((current) => {
+        const seen = new Set(current.map((run) => run.id))
+        return [...current, ...page.runs.filter((run) => !seen.has(run.id))]
+      })
+      setTotal(page.total)
+      setNextCursor(page.nextCursor)
+      setError(null)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        setRole(null)
+        return
+      }
+      setError(e instanceof Error ? e.message : 'Could not load more runs')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [nextCursor, loadingMore])
 
   useEffect(() => {
     void refresh()
@@ -158,15 +203,15 @@ export function App() {
       <RunTrend runs={runs} />
 
       {/*
-        Keyed on the REAL role, never `viewingRole`. A demo session previewing
-        admin sees admin's read view; it must not be offered a write control the
+        Gated on the REAL role, never `viewingRole`. A demo session previewing
+        admin sees admin's read view; it must not be offered write controls the
         server would refuse — the same real-role rule RunTrigger follows.
 
         `gateTick` remounts RunTrigger after the gate changes, so its "runs are
         paused" notice reflects the new state without a reload. RunTrigger reads
         the gate on mount, so a key change is the honest way to make it re-read.
       */}
-      {role === 'admin' && <GateControl onChanged={() => setGateTick((n) => n + 1)} />}
+      {role === 'admin' && <AdminPanel onGateChanged={() => setGateTick((n) => n + 1)} />}
 
       {policy && (
         <RunTrigger
@@ -182,6 +227,10 @@ export function App() {
         role={viewingRole}
         canDelete={viewPolicy?.canDelete ?? false}
         onChanged={() => void refresh()}
+        total={total}
+        hasMore={nextCursor !== null}
+        loadingMore={loadingMore}
+        onLoadMore={() => void loadMore()}
       />
     </div>
   )
