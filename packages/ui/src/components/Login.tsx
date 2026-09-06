@@ -207,39 +207,22 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
               duplicated anywhere: that this deployment is real, and that demo
               still cannot touch anything of anyone else's.
             */}
+            {/*
+              No password table.
+              
+              It listed dev/qa/admin against passwords identical to the role
+              names, under a button that already covers the only role a visitor
+              needs — three rows of ceremony for something a contributor reads
+              once in the README and then knows. The sentence below still earns
+              its place in each mode: which deployment this is, and what demo
+              can and cannot reach.
+            */}
             {hints ? (
-              hints.mode === 'full' ? (
-                <div style={s.hint}>
-                  <div style={s.hintTitle}>Simulation mode — other roles</div>
-                  {/*
-                    `demo` is left out because the button above signs in with
-                    it. Printing its password here asks the reader to type by
-                    hand what one click already does — the same duplication
-                    removed from the real deployment, which survived here only
-                    because this mode lists other roles too. The three with no
-                    button still need theirs.
-                  */}
-                  <div style={s.hintRows}>
-                    {Object.entries(hints.passwords)
-                      .filter(([role]) => role !== 'demo')
-                      .map(([role, value]) => (
-                        <div key={role} style={s.hintRow}>
-                          <code style={s.code}>{value}</code>
-                          <span style={{ color: c.t5 }}>→</span>
-                          <span style={{ color: c.t3 }}>{role}</span>
-                        </div>
-                      ))}
-                  </div>
-                  <p style={s.hintNote}>
-                    Each role sees and may do different things. Demo is the button above.
-                  </p>
-                </div>
-              ) : (
-                <p style={s.demoNote}>
-                  This deployment is real — demo always simulates its runs, and cannot see or affect
-                  anyone else’s.
-                </p>
-              )
+              <p style={s.modeNote}>
+                {hints.mode === 'full'
+                  ? 'Simulating — no run here reaches a real workflow. Sign in as dev, qa or admin to see how far each role gets; the passwords are in the README.'
+                  : 'This deployment is real — demo always simulates its runs, and cannot see or affect anyone else’s.'}
+              </p>
             ) : (
               <p style={s.restricted}>Access restricted to authorised team members</p>
             )}
@@ -304,34 +287,19 @@ const s: Record<string, CSSProperties> = {
 
   left: {
     /*
-     * Capped, not just proportional. At 42% of a 1900px window the panel is
-     * ~800px holding 400px of text, so a third of it is empty blue and the
-     * two halves' content drifts apart as the screen grows. The cap holds the
-     * panel at a width its content actually fills.
-     */
-    /*
-     * A proportion, uncapped.
-     *
-     * It was capped at 560px to stop the panel holding a lot of empty blue on
-     * a wide screen. That fixed the blue and broke the balance: at 1860px the
-     * panel became 30% of the window, the right half 70%, and the whole page
-     * read as a narrow coloured stripe beside a lot of dark nothing. The empty
-     * blue was the smaller problem, and it is handled by centring the panel's
-     * own content rather than by shrinking the panel.
-     */
-    /*
-     * Unequal on purpose — 55/45, not a even split.
+     * Unequal on purpose — 55/45, not an even split.
      *
      * A 50/50 split gives the two halves the same visual weight and reads as
      * two panes rather than one screen with a subject. The panel is the page's
-     * identity and carries a gradient; the form is a short column of controls
+     * identity and carries the gradient; the form is a short column of controls
      * that needs about 340px whatever the window does. Giving the panel the
-     * larger share states which one leads, and the ratio is close enough to
+     * larger share says which one leads, and the ratio stays close enough to
      * even that neither half looks starved.
      *
-     * It was briefly 50/50 while chasing an alignment bug that turned out to
-     * be about text measure, not proportion. The insets that fix cost nothing
-     * here: both columns are sized from their content now, not from the halves.
+     * Deliberately uncapped. A 560px cap once held the panel at 30% of a wide
+     * window against a 70% right half, which read as a coloured stripe beside
+     * a lot of dark nothing; the empty blue that cap was guarding against is
+     * handled by centring the panel's own content instead.
      */
     width: '55%',
     minWidth: 320,
@@ -583,29 +551,8 @@ const s: Record<string, CSSProperties> = {
     display: 'inline-block',
   },
 
-  hint: {
-    marginTop: 26,
-    padding: '14px 16px',
-    background: c.card,
-    border: `1px solid ${c.border}`,
-    borderLeft: `3px solid ${c.primary}`,
-    borderRadius: 10,
-  },
-  hintTitle: { fontSize: 13, fontWeight: 600, color: c.t1 },
-  hintRows: { display: 'flex', flexDirection: 'column', gap: 6, margin: '11px 0 0' },
-  hintRow: { display: 'flex', alignItems: 'center', gap: 9, fontSize: 13 },
-  code: {
-    background: c.surface,
-    border: `1px solid ${c.border}`,
-    borderRadius: 5,
-    padding: '2px 8px',
-    color: c.t1,
-    fontSize: 12.5,
-    fontFamily: 'ui-monospace, monospace',
-  },
-  hintNote: { margin: '11px 0 0', fontSize: 12, color: c.t5 },
-  /* Not in a bordered box: with the password row gone there is one sentence
-     left, and a card around a single line claims more weight than it has. */
-  demoNote: { margin: '22px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.55 },
+  /* One sentence, not a card: a border around a single line claims more
+     weight than it has, and this is a footnote to the form above it. */
+  modeNote: { margin: '22px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.55 },
   restricted: { marginTop: 22, fontSize: 13, color: c.t5, textAlign: 'center' },
 }

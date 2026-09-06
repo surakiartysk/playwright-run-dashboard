@@ -22,7 +22,8 @@ pnpm dev
 ```
 
 Starts the Worker on `:8787` and the UI on `:5173` together. Sign in as `demo`,
-`dev`, `qa`, or `admin` — the passwords are printed on the login screen.
+`dev`, `qa`, or `admin` — each of those three uses its own name as the
+password; `demo` is a button on the login screen.
 
 If the local database ends up in a state you do not want, `pnpm db:reset`
 deletes `.wrangler/` and re-migrates. It is the only destructive command here,
