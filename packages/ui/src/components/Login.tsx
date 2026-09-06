@@ -152,7 +152,17 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
                 type={reveal ? 'text' : 'password'}
                 value={password}
                 autoFocus
-                placeholder="Enter dashboard password"
+                /*
+                  Names who the field is for, rather than hinting `demo`.
+                  
+                  A placeholder reading "type demo" would point at the button
+                  directly above it — the same duplication the password table
+                  was removed for, reintroduced in smaller type. Anyone who
+                  wants demo has a one-click way in; this field exists for the
+                  people who were given a different password, and saying so is
+                  more useful than repeating the button.
+                */
+                placeholder={demoPassword ? 'dev, qa or admin password' : 'Dashboard password'}
                 onChange={(e) => setPassword(e.target.value)}
                 style={{
                   ...s.input,

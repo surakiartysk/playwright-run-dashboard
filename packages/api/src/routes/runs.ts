@@ -80,6 +80,29 @@ export function randomSuffix(length = 6): string {
   return Array.from(bytes, (byte) => ALPHABET[byte % 32]).join('')
 }
 
+/**
+ * How many runs `demo` may start in a rolling hour, across everyone using it.
+ *
+ * `demo`'s password is published — in this repo's README, on the landing page,
+ * and behind a one-click button on the sign-in screen. That is deliberate and
+ * safe in every way that matters: a demo run is always simulated, never
+ * reaches a real workflow, sees only the runs it started, and cannot delete
+ * anything. The one thing a stranger *can* do is start simulated runs in a
+ * loop, and the only casualty is rows in D1.
+ *
+ * So this is a housekeeping limit, not a security control — the security is
+ * that demo cannot reach anything real in the first place. It is deliberately
+ * generous: the number exists to stop a script, not to interrupt a visitor
+ * clicking Run a few times to see what happens, which is exactly what the
+ * button invites them to do.
+ *
+ * Shared rather than per-visitor on purpose. A demo session carries no
+ * identity beyond its role — that is the point of it — so there is nothing
+ * honest to key a per-caller bucket on. IP would be the usual choice and is
+ * both spoofable and shared by everyone behind one NAT.
+ */
+const DEMO_RUNS_PER_HOUR = 30
+
 const SERVICE_RE = /^[a-z][a-z0-9-]*$/
 const TAG_RE = /^[a-z][a-z0-9-]*$/
 const REF_RE = /^[a-zA-Z0-9._\-/]+$/
@@ -146,6 +169,35 @@ runRoutes.post('/', async (c) => {
         // 503, not 403: the request is allowed and the caller should retry
         // later, which is exactly what this status means.
         503,
+      )
+    }
+  }
+
+  /*
+   * Checked last of the refusals, and only for demo.
+   *
+   * A caller who is over the limit but also asked for a branch they may never
+   * use should hear about the branch: that answer does not change in an hour,
+   * and telling them to come back later would send them round the same wall.
+   */
+  if (role === 'demo') {
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const recent = await c.env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM runs WHERE triggered_by = 'demo' AND started_at > ?1`,
+    )
+      .bind(since)
+      .first<{ n: number }>()
+
+    if ((recent?.n ?? 0) >= DEMO_RUNS_PER_HOUR) {
+      return c.json(
+        {
+          error:
+            'The demo has run its hourly limit. It resets within the hour — ' +
+            'or clone the repo and run it locally with no limit at all.',
+        },
+        // 429, and it is the honest status: the request is allowed, the caller
+        // is simply making too many of them.
+        429,
       )
     }
   }
