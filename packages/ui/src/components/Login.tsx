@@ -319,7 +319,21 @@ const s: Record<string, CSSProperties> = {
      * blue was the smaller problem, and it is handled by centring the panel's
      * own content rather than by shrinking the panel.
      */
-    width: '50%',
+    /*
+     * Unequal on purpose — 55/45, not a even split.
+     *
+     * A 50/50 split gives the two halves the same visual weight and reads as
+     * two panes rather than one screen with a subject. The panel is the page's
+     * identity and carries a gradient; the form is a short column of controls
+     * that needs about 340px whatever the window does. Giving the panel the
+     * larger share states which one leads, and the ratio is close enough to
+     * even that neither half looks starved.
+     *
+     * It was briefly 50/50 while chasing an alignment bug that turned out to
+     * be about text measure, not proportion. The insets that fix cost nothing
+     * here: both columns are sized from their content now, not from the halves.
+     */
+    width: '55%',
     minWidth: 320,
     background: brandPanelBackground,
     display: 'flex',
@@ -352,10 +366,25 @@ const s: Record<string, CSSProperties> = {
    * the split read as one layout rather than two.
    */
   leftInner: {
+    /*
+     * Sized so the prose actually reaches the right edge.
+     *
+     * At 360px every line started on the left margin and stopped somewhere
+     * different — the title 82px short of the edge, the subtitle 200px, the
+     * pill 215px. Left-aligned text in a box wider than the text is a ragged
+     * right edge and a column of white space down one side, which is what
+     * reads as "the text is pushed left" no matter where the box itself sits.
+     *
+     * The form opposite is left-aligned too and does not look it, because its
+     * button, input and panel are full width and all end on the same line. The
+     * panel has no such element, so the measure has to do that work: at 320px
+     * the note wraps to fill it and the block gains a right edge for the
+     * shorter lines to be read against.
+     */
     padding: '40px 0',
     position: 'relative',
     zIndex: 1,
-    width: 'min(100% - 56px, 360px)',
+    width: 'min(100% - 56px, 320px)',
   },
 
   brandIcon: {
@@ -369,19 +398,31 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 28,
   },
   brandTitle: {
-    fontSize: 30,
+    /* Clearly larger than the form's 28px heading, not a hair's breadth from
+     * it: two headings a couple of pixels apart read as a tie rather than a
+     * hierarchy, and this one names the product while that one labels a task. */
+    fontSize: 34,
     fontWeight: 700,
     color: '#fff',
     lineHeight: 1.2,
     letterSpacing: '-0.02em',
   },
   brandSub: { margin: '10px 0 0', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 300 },
+  /*
+   * Full width, not a 48px stub.
+   *
+   * The panel's lines all begin on the left margin and end wherever the words
+   * happen to stop, which is what makes left-aligned text read as "pushed
+   * left" — there is no right edge to measure them against. The form opposite
+   * has one for free: its button, input and its own `or sign in` rule are all
+   * full width. This rule is the panel's equivalent, and it costs nothing
+   * because the element was already there.
+   */
   divider: {
-    width: 48,
-    height: 3,
-    background: 'rgba(255,255,255,0.28)',
-    borderRadius: 2,
-    margin: '28px 0',
+    width: '100%',
+    height: 1,
+    background: 'rgba(255,255,255,0.16)',
+    margin: '26px 0',
   },
   brandNote: {
     color: 'rgba(255,255,255,0.62)',
@@ -389,15 +430,28 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1.75,
     fontWeight: 300,
   },
+  /*
+   * Spans the column rather than hugging its label.
+   *
+   * As an `inline-flex` chip it ended 175px short of the column's right edge,
+   * which — with the subtitle also stopping early — left the block's right
+   * side ragged even after the rule above gave it an edge. Full width, it
+   * closes the block at the bottom the way the rule opens it, and the status
+   * dot stays left where the eye already is.
+   *
+   * `space-between` rather than centred: the dot and its label belong
+   * together on the left, and centring them in a wide bar would separate the
+   * pair from everything above it.
+   */
   pill: {
-    display: 'inline-flex',
+    display: 'flex',
     alignItems: 'center',
     gap: 9,
     marginTop: 30,
-    padding: '10px 18px',
-    background: 'rgba(255,255,255,0.08)',
+    padding: '11px 18px',
+    background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 999,
+    borderRadius: 10,
     color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
   },
