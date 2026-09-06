@@ -268,7 +268,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Ninety-four mutations were introduced
+**Every test here was proven able to fail.** Ninety-seven mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -1042,6 +1042,55 @@ so, shown only where the scroll exists.
 - **A diagram redrawn for narrow screens would beat both.** That means a second
   layout per figure to keep in sync, and these diagrams already carry the
   page's most-checked claims.
+
+---
+
+## 22. A limit on demo runs, and why it is not a security control
+
+`demo`'s password is published — in this README, on the landing page, and
+behind a one-click button on the sign-in screen. That is deliberate, and the
+containment around it is real: a demo run is always simulated and never reaches
+a real workflow (the `role === 'demo'` term sits first in `dispatchWorkflow`'s
+`simulate` expression, so no deployment flag can turn it off), it sees only the
+runs it started itself, and it cannot delete anything or reach the gate or the
+key routes.
+
+What a stranger _can_ do is start simulated runs in a loop. The only casualty
+is rows in D1, which is a housekeeping problem rather than a security one — and
+it is the one thing the published password actually exposes.
+
+So `POST /runs` refuses a demo run once thirty have started in the last hour,
+with a 429. Deliberately generous: the number exists to stop a script, not to
+interrupt a visitor clicking Run a few times to see what happens, which is
+exactly what the button invites. The message names the way around it — clone
+the repo and run it locally, where there is no limit at all.
+
+### One shared bucket, not one per visitor
+
+A demo session carries no identity beyond its role; that is the point of it.
+There is nothing honest to key a per-caller bucket on. IP is the usual answer
+and is both spoofable and shared by everyone behind one NAT, so it would punish
+an office while barely inconveniencing a script.
+
+The cost is real and worth stating: one person hammering the demo can lock the
+button for everyone else for up to an hour. That is acceptable here because the
+locked-out visitor loses a demo, not their work — and the message tells them
+where to get an unlimited one.
+
+### Checked last
+
+The limit is evaluated after the ref and gate checks. A caller who is over the
+limit _and_ asked for a branch they may never use should hear about the branch:
+that answer does not change in an hour, and telling them to come back later
+would send them round the same wall twice.
+
+### What was already covered, and what was not
+
+`demo-role-safety.test.ts` pinned the dispatch half of this from the start.
+Nothing pinned the other half — that one visitor cannot see another's runs, or
+delete, or reach the admin routes — which is the half the published password
+makes interesting. `demo-isolation.test.ts` covers it now, and removing the
+visibility clause turns it red.
 
 ---
 
