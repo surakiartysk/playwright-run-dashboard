@@ -84,10 +84,20 @@ const SCAN_EXTENSIONS = new Set([
  * is not caught by "lease".
  */
 function looseWord(term) {
-  const body = term
-    .trim()
+  const trimmed = term.trim()
+  const escape = (part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  // A term that is not plain words — a hex colour, a token with punctuation —
+  // is matched literally. Splitting it on separators and prefixing `\b` would
+  // silently fail: `\b` finds no boundary before `#`, so "#c0ffee" matched
+  // nothing at all while appearing to be covered.
+  if (!/^[\w\s_-]+$/.test(trimmed)) {
+    return new RegExp(escape(trimmed).replace(/,\s*/g, ',\\s*'), 'i')
+  }
+
+  const body = trimmed
     .split(/[\s_-]+/)
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .map(escape)
     .join('[-_ .]?')
   return new RegExp(`\\b${body}`, 'i')
 }
@@ -124,12 +134,10 @@ const { rules: WORD_RULES, present: WORDS_PRESENT } = loadWordRules()
  * nothing about where it came from.
  */
 const STRUCTURAL = [
-  // ── Brand ─────────────────────────────────────────────────────────────────
-  // The original's accent, in every form a copy-paste would produce. Layout
-  // travelled deliberately; the brand colour must not. See decision 10.
-  { pattern: /#c0ffee\b/i, why: 'a specific disallowed brand colour' },
-  { pattern: /\brgb\(\s*229\s*,\s*28\s*,\s*35\s*\)/i, why: 'a specific disallowed brand colour' },
-  { pattern: /\b229\s*,\s*28\s*,\s*35\b/, why: 'a disallowed brand colour, as components' },
+  // The brand colour is NOT here. A hex value is a fingerprint — it can be
+  // matched back to whoever uses it — so it lives in the word list with the
+  // vocabulary, for the same reason. Layout travelled deliberately; the accent
+  // must not. See decision 10.
 
   // ── Fabricated identifiers ────────────────────────────────────────────────
   // An AI drafting this once invented a GitHub account that does not exist and
