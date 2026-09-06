@@ -175,6 +175,45 @@
           transform: scale(0.75);
         }
       }
+
+      /*
+       * The sign-in split collapses below 820px.
+       *
+       * Two columns on a phone gave the panel 320px of a 499px viewport and
+       * left the form 83px wide, with the password field off the right edge —
+       * the page could not be signed into at all on a phone. Narrow screens
+       * get the form, full width, and the identity panel becomes a short band
+       * above it rather than a column beside it.
+       */
+      @media (max-width: 820px) {
+        .login-split {
+          flex-direction: column;
+          min-height: 100vh;
+        }
+        /* The panel's width/min-width are inline styles on the element, so the
+           collapse has to override them explicitly. */
+        .login-panel {
+          width: 100% !important;
+          max-width: none !important;
+          min-width: 0 !important;
+          padding: 26px 0 30px;
+        }
+        /*
+         * The circles are sized for a tall column and crop into visible arcs in
+         * a short band; and stacked, the two flask marks sit directly above one
+         * another, so the panel's keeps the title company and the form's goes.
+         */
+        .login-panel > .login-orb,
+        .login-panel-detail,
+        .login-form-col .login-form-icon {
+          display: none !important;
+        }
+
+        .login-form-col {
+          justify-content: center;
+          padding: 32px 24px 48px;
+        }
+      }
     </style>
   </head>
   <body>

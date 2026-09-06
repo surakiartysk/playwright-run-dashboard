@@ -61,37 +61,51 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const demoPassword = hints?.passwords.demo ?? null
 
   return (
-    <div style={s.outer}>
-      <aside style={s.left}>
-        <div style={{ ...s.circle, width: 420, height: 420, top: -120, right: -120 }} />
-        <div style={{ ...s.circle, width: 300, height: 300, bottom: -80, left: -80 }} />
-        <div style={{ ...s.circle, width: 160, height: 160, bottom: 120, right: 40 }} />
+    <div style={s.outer} className="login-split">
+      <aside style={s.left} className="login-panel">
+        <div
+          className="login-orb"
+          style={{ ...s.circle, width: 420, height: 420, top: -120, right: -120 }}
+        />
+        <div
+          className="login-orb"
+          style={{ ...s.circle, width: 300, height: 300, bottom: -80, left: -80 }}
+        />
+        <div
+          className="login-orb"
+          style={{ ...s.circle, width: 160, height: 160, bottom: 120, right: 40 }}
+        />
 
         <div style={s.leftInner}>
-          <div style={s.brandIcon}>
+          <div style={s.brandIcon} className="login-brand-icon">
             <FlaskIcon size={34} />
           </div>
 
           <h1 style={s.brandTitle}>Test Run Dashboard</h1>
           <p style={s.brandSub}>Self-service test running</p>
 
-          <div style={s.divider} />
+          {/*
+            Hidden in the collapsed band: stacked above the form on a phone,
+            the note and pill push the password field below the fold, and the
+            panel's job there is to say what this is, not to sell it.
+          */}
+          <div style={s.divider} className="login-panel-detail" />
 
-          <p style={s.brandNote}>
+          <p style={s.brandNote} className="login-panel-detail">
             Trigger the API suite against any branch and read the report — without waiting for QA or
             digging through CI artifacts.
           </p>
 
-          <div style={s.pill}>
+          <div style={s.pill} className="login-panel-detail">
             <span style={s.pulseDot} />
             Live run monitoring
           </div>
         </div>
       </aside>
 
-      <main style={s.right}>
+      <main style={s.right} className="login-form-col">
         <form style={s.form} onSubmit={submit}>
-          <div style={s.formIcon}>
+          <div style={s.formIcon} className="login-form-icon">
             <FlaskIcon size={22} colour="var(--c-primary)" />
           </div>
 
@@ -240,11 +254,21 @@ const s: Record<string, CSSProperties> = {
   outer: { minHeight: '100vh', display: 'flex' },
 
   left: {
+    /*
+     * Capped, not just proportional. At 42% of a 1900px window the panel is
+     * ~800px holding 400px of text, so a third of it is empty blue and the
+     * two halves' content drifts apart as the screen grows. The cap holds the
+     * panel at a width its content actually fills.
+     */
     width: '42%',
     minWidth: 320,
+    maxWidth: 560,
     background: brandPanelBackground,
     display: 'flex',
     alignItems: 'center',
+    /* Centres the content block in the panel, the way the form is centred in
+     * its own column — one alignment rule across the split rather than two. */
+    justifyContent: 'center',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -256,7 +280,15 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(255,255,255,0.025)',
     pointerEvents: 'none',
   },
-  leftInner: { padding: '40px 48px', position: 'relative', zIndex: 1, maxWidth: 400 },
+  leftInner: {
+    /* Padding scales with the panel rather than being crushed to nothing:
+     * at 900px the content block was reaching both of the panel's edges. */
+    padding: '40px clamp(28px, 9%, 48px)',
+    position: 'relative',
+    zIndex: 1,
+    width: '100%',
+    maxWidth: 496,
+  },
 
   brandIcon: {
     width: 68,
@@ -313,8 +345,15 @@ const s: Record<string, CSSProperties> = {
     flex: 1,
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+    /*
+     * Left, not centre. Centring the form in an unbounded column pushes it
+     * further from the panel the wider the window gets — at 1850px it sat
+     * 475px out, adrift in empty space. Anchoring it to the start keeps the
+     * two halves' content a fixed distance apart at every width; `padding`
+     * is that distance.
+     */
+    justifyContent: 'flex-start',
+    padding: '32px clamp(48px, 7vw, 120px)',
     background: c.bg,
   },
   form: { width: '100%', maxWidth: 340, animation: 'fade-in 0.35s ease' },
