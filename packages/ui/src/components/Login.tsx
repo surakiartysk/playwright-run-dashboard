@@ -25,14 +25,13 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [hints, setHints] = useState<{
-    mode: 'full' | 'demo-only'
     passwords: Record<string, string>
   } | null>(null)
 
   useEffect(() => {
     api
       .devCredentials()
-      .then((r) => setHints({ mode: r.mode, passwords: r.passwords }))
+      .then((r) => setHints({ passwords: r.passwords }))
       .catch(() => setHints(null))
   }, [])
 
@@ -203,39 +202,19 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
             </button>
 
             {/*
-              The password list is only worth printing when it says something the
-              button above does not.
+              Nothing below the button unless there is nothing above it.
 
-              In `full` mode it lists four roles the button cannot offer, and
-              picking between them is the whole point of the screen. In
-              `demo-only` there is exactly one password and the button already
-              signs in with it — printing `demo → demo` under a button labelled
-              "Look around as demo" is the same instruction twice, and the second
-              one asks the reader to do by hand what the first does for them.
+              This carried a password table, then a sentence about which
+              deployment the visitor had landed on and what demo could reach.
+              Both were answers to questions nobody asks at a sign-in screen:
+              the button says what to press, and the limits explain themselves
+              at the moment they apply — the run cap names itself in the error
+              it returns, and the role's scope is on the dashboard behind it.
 
-              What survives in that mode is the note, because it is not
-              duplicated anywhere: that this deployment is real, and that demo
-              still cannot touch anything of anyone else's.
+              The one case that still needs a line is a screen offering no way
+              in at all, where silence would read as broken rather than closed.
             */}
-            {/*
-              No password table.
-              
-              It listed dev/qa/admin against passwords identical to the role
-              names, under a button that already covers the only role a visitor
-              needs — three rows of ceremony for something a contributor reads
-              once in the README and then knows. The sentence below still earns
-              its place in each mode: which deployment this is, and what demo
-              can and cannot reach.
-            */}
-            {hints ? (
-              <p style={s.modeNote}>
-                {hints.mode === 'full'
-                  ? 'Simulating — no run here reaches a real workflow. Sign in as dev, qa or admin to see how far each role gets; the passwords are in the README.'
-                  : 'This deployment is real — demo always simulates its runs, and cannot see or affect anyone else’s.'}
-              </p>
-            ) : (
-              <p style={s.restricted}>Access restricted to authorised team members</p>
-            )}
+            {!hints && <p style={s.restricted}>Access restricted to authorised team members</p>}
           </form>
         </div>
       </main>
@@ -561,8 +540,5 @@ const s: Record<string, CSSProperties> = {
     display: 'inline-block',
   },
 
-  /* One sentence, not a card: a border around a single line claims more
-     weight than it has, and this is a footnote to the form above it. */
-  modeNote: { margin: '22px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.55 },
   restricted: { marginTop: 22, fontSize: 13, color: c.t5, textAlign: 'center' },
 }
