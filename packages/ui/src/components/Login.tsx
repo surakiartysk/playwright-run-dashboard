@@ -153,7 +153,7 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
                 autoFocus
                 /*
                   Names who the field is for, rather than hinting `demo`.
-                  
+
                   A placeholder reading "type demo" would point at the button
                   directly above it — the same duplication the password table
                   was removed for, reintroduced in smaller type. Anyone who
