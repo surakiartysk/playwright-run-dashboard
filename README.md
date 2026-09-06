@@ -39,10 +39,12 @@ No Cloudflare account, no GitHub token, nothing to sign up for.
 pnpm install && pnpm db:migrate && pnpm dev
 ```
 
-The UI is on `http://localhost:5173`. Sign in with `demo`, `dev`, `qa`, or
-`admin` — the passwords are printed on the login screen, because they are in
-the source anyway and a demo whose first screen is a password hunt is a demo
-nobody sees.
+The UI is on `http://localhost:5173`. `demo` is a button — one click, no
+typing, because the password is published anyway and a demo whose first screen
+is a password hunt is a demo nobody sees. `dev`, `qa` and `admin` have their
+passwords printed beside the form, for the same reason: they are in the source
+already, and signing in as `admin` is the only way to reach the controls that a
+`demo` session may look at but never use.
 
 Press Run. The dashboard simulates a dispatch, walks the run through
 queued → running → result, and the report link opens a real Allure report.
@@ -164,7 +166,9 @@ the dashboard keeps working, and quietly stops dispatching anything real.
 Then in `wrangler.toml`: set `database_id` to a real D1 database, `GITHUB_REPO`
 to the repository whose workflow you are dispatching, and `SIMULATE_DISPATCH`
 to `"false"`. That last one also hides dev/qa/admin's credentials from the
-login screen — only `demo`'s stays printed, since hiding it protects nothing.
+login screen, leaving only the `demo` button — which is not a secret being
+kept, since demo cannot dispatch anything real and hiding it would protect
+nothing.
 
 The suite side needs `DASHBOARD_WEBHOOK_URL` as a repository variable and
 `DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching `WEBHOOK_SECRET`

@@ -210,17 +210,29 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
             {hints ? (
               hints.mode === 'full' ? (
                 <div style={s.hint}>
-                  <div style={s.hintTitle}>Simulation mode</div>
+                  <div style={s.hintTitle}>Simulation mode — other roles</div>
+                  {/*
+                    `demo` is left out because the button above signs in with
+                    it. Printing its password here asks the reader to type by
+                    hand what one click already does — the same duplication
+                    removed from the real deployment, which survived here only
+                    because this mode lists other roles too. The three with no
+                    button still need theirs.
+                  */}
                   <div style={s.hintRows}>
-                    {Object.entries(hints.passwords).map(([role, value]) => (
-                      <div key={role} style={s.hintRow}>
-                        <code style={s.code}>{value}</code>
-                        <span style={{ color: c.t5 }}>→</span>
-                        <span style={{ color: c.t3 }}>{role}</span>
-                      </div>
-                    ))}
+                    {Object.entries(hints.passwords)
+                      .filter(([role]) => role !== 'demo')
+                      .map(([role, value]) => (
+                        <div key={role} style={s.hintRow}>
+                          <code style={s.code}>{value}</code>
+                          <span style={{ color: c.t5 }}>→</span>
+                          <span style={{ color: c.t3 }}>{role}</span>
+                        </div>
+                      ))}
                   </div>
-                  <p style={s.hintNote}>Each role sees and may do different things.</p>
+                  <p style={s.hintNote}>
+                    Each role sees and may do different things. Demo is the button above.
+                  </p>
                 </div>
               ) : (
                 <p style={s.demoNote}>
@@ -307,7 +319,7 @@ const s: Record<string, CSSProperties> = {
      * blue was the smaller problem, and it is handled by centring the panel's
      * own content rather than by shrinking the panel.
      */
-    width: '44%',
+    width: '50%',
     minWidth: 320,
     background: brandPanelBackground,
     display: 'flex',
@@ -326,14 +338,24 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(255,255,255,0.025)',
     pointerEvents: 'none',
   },
+  /*
+   * The panel's text column, matched to the form's.
+   *
+   * Both halves were already symmetric inside themselves — 133px either side
+   * of this block, 254px either side of the form — and that was the problem:
+   * two different insets. The left content started much nearer its edge than
+   * the right did, so the panel read as pushed left against a form that looked
+   * comfortably placed, even though neither was misaligned on its own.
+   *
+   * Widening this column to the same 340px measure the form uses puts the two
+   * text blocks at a comparable distance from their edges, which is what makes
+   * the split read as one layout rather than two.
+   */
   leftInner: {
-    /* Padding scales with the panel rather than being crushed to nothing:
-     * at 900px the content block was reaching both of the panel's edges. */
-    padding: '40px clamp(28px, 9%, 48px)',
+    padding: '40px 0',
     position: 'relative',
     zIndex: 1,
-    width: '100%',
-    maxWidth: 496,
+    width: 'min(100% - 56px, 360px)',
   },
 
   brandIcon: {
