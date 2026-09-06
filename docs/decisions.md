@@ -268,7 +268,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Ninety mutations were introduced
+**Every test here was proven able to fail.** Ninety-four mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -956,6 +956,92 @@ the component treats a response without a `keys` array as empty rather than
 destructuring blind. The same class of miss as the production Worker route that
 `/keys*` needed in decision 15 — a route that exists on the server and is
 unreachable from the client is invisible until something calls it.
+
+---
+
+## 20. Bars, not a line — runs are discrete events
+
+The pass-rate panel drew a polyline with a filled area under it. That shape
+makes a claim about the data that is not true: a line says the quantity was
+continuous and we sampled it, so the segment between two runs draws a pass rate
+for a moment when no run existed. Runs are discrete events a few times a day,
+not a signal.
+
+Grafana draws the same line — a bar chart for categorical or discrete data, a
+time series for a continuous one — and recommends bars only while the count
+stays small. Production had thirteen runs.
+
+Bars also fix what the line could not show. A failed run was a 3px dot on a
+polyline; it is now a red column of its own, with a faint full-height wash
+behind it so it is findable at a glance in a row of green.
+
+### The stretch, and the letterbox
+
+The old chart used `viewBox="0 0 100 100"` with `preserveAspectRatio="none"`,
+scaling x and y by different factors. That is why it looked cheap: a circle
+rendered as an ellipse — the failed-run dot was a flattened red smear — and
+every stroke needed `vectorEffect="non-scaling-stroke"` to stay even.
+
+The first fix was `meet`, and it was wrong in the other direction: it
+letterboxes, so a 320-unit box in a 900px panel drew the chart down the middle
+with a third of the panel empty on each side. It reverted to `none`, which is
+correct **for this shape**: a stretched rectangle is still a rectangle, and its
+width carries no meaning here — the bars divide whatever room they are given.
+The corner radius went with it, because a radius drawn in a stretched space is
+rounder on one axis than the other.
+
+### Two floors
+
+- **Minimum bar height.** A run at the bottom of the drawn range maps to zero
+  height, so the run that failed hardest — the one most worth seeing — is the
+  one that disappears.
+- **Minimum bar width.** A page holds up to 100 runs and the reader can load
+  more; past about ninety the natural width drops under two units and the chart
+  becomes a grey smear.
+
+Both were written with a test that passed whether or not the guard existed —
+`domain` pads the range, so a two-run spread never reaches the true floor, and
+sixty runs never reach the width guard. Both tests were tightened until they
+failed against the mutation. Worth recording because it is the failure mode this
+repo's mutation rule exists to catch: a test that asserts on the right property
+in a case that never exercises it.
+
+### Trade-offs
+
+- **A trend is easier to see in a line.** Direction is what a line is good at,
+  and bars trade some of that for honesty about what was measured. The
+  header keeps the change in points, which is the part of the trend a reader
+  actually quotes.
+- **Bars cost more marks.** One rect per run against one polyline for all of
+  them, plus a wash per failure. At the sizes this panel shows, that is
+  nothing; at a thousand runs it would be a different decision.
+
+---
+
+## 21. The diagrams scroll on a phone rather than shrink
+
+`figure svg { max-width: 100% }` is the standard advice for a responsive SVG and
+it was quietly ruining the landing page. An 800-unit diagram squeezed into a
+343px phone scales its 10px labels to **4.3px** — the figure stays on the page,
+costs a screen of height, and cannot be read. The page passed every check that
+looks for horizontal overflow, because there was none: the drawing had been
+shrunk into uselessness instead.
+
+Below 760px each figure now scrolls sideways inside its own container, with the
+SVG held at a minimum width. Labels render at 7.8–10.8px, the reader pans, and
+the page itself still never scrolls horizontally. A hint under the figure says
+so, shown only where the scroll exists.
+
+### Trade-offs
+
+- **Panning is worse than seeing it all at once.** It is better than a diagram
+  that is present and illegible, which is what was shipped.
+- **The breakpoint is a guess.** 760px is where the page's other rules already
+  switch, not a measurement of these particular drawings. A tablet at 768px sits
+  just above it and scales to 8.6px, which is legible but not comfortable.
+- **A diagram redrawn for narrow screens would beat both.** That means a second
+  layout per figure to keep in sync, and these diagrams already carry the
+  page's most-checked claims.
 
 ---
 

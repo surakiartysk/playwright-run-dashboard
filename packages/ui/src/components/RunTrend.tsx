@@ -3,15 +3,28 @@ import { isPending, type Run } from '../api'
 import { c, mono, status as sc } from '../theme'
 
 /**
- * Pass rate over the recent runs, oldest to newest.
+ * Pass rate over the recent runs, oldest to newest — one bar per run.
  *
  * A list says what happened to each run; this says which way things are
  * going — the question a lead actually asks, and the one the numbers above
  * cannot answer because a single rate has no direction.
  *
- * Drawn as inline SVG rather than with a charting library. The whole shape is
- * a polyline over n points: a library would be ~40 KB and a new vocabulary to
- * read, to produce markup shorter than its own configuration.
+ * Bars, not a line, and the reason is what the data is. A line says "this
+ * quantity was continuous and we sampled it"; runs are not that. They are
+ * discrete events that happened a few times a day, and between two of them the
+ * pass rate does not exist — so the segment joining them draws a value that was
+ * never measured. Grafana draws the same distinction: a bar chart for
+ * categorical or discrete data, a time series for a continuous one, and it
+ * recommends bars only while the count stays small. Thirteen runs is small.
+ *
+ * It also fixes what the line could not show. Every run is now a target of its
+ * own — hoverable, individually coloured — where before a failed run was a 3px
+ * dot on a polyline. A red bar in a row of green is the thing this panel exists
+ * to make obvious.
+ *
+ * Drawn as inline SVG rather than with a charting library: a library would be
+ * ~40 KB and a new vocabulary to read, to produce markup shorter than its own
+ * configuration.
  *
  * Deliberately not a time axis. Runs arrive irregularly — three in a minute,
  * then none for a day — and spacing them by clock time makes a burst
@@ -94,18 +107,63 @@ export function domain(points: TrendPoint[]): { min: number; max: number } {
   return { min, max }
 }
 
-/** `x`/`y` in a 0–100 viewBox, so the SVG scales with its container. */
-export function plot(points: TrendPoint[]): { x: number; y: number }[] {
+/** A bar's box in user units, measured from the top-left of the plot area. */
+export interface Bar {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * The drawn width of the plot area, in user units.
+ *
+ * A real coordinate space rather than the old 0–100 box stretched to fit with
+ * `preserveAspectRatio="none"`. That stretch was why the chart looked cheap: it
+ * scaled x and y by different factors, so a circle rendered as an ellipse and
+ * every stroke needed `vectorEffect` to stay even. Bars have to keep their
+ * corners square, so the viewBox now has the same proportions as the box it is
+ * drawn in.
+ */
+export const PLOT_WIDTH = 320
+export const PLOT_HEIGHT = 72
+
+/** Gap between bars, as a share of the space each one is allotted. */
+const BAR_GAP_RATIO = 0.26
+/** Bars never render thinner than this, however many runs there are. */
+const MIN_BAR_WIDTH = 3
+/**
+ * A bar is drawn at least this tall even at the bottom of the range.
+ *
+ * The floor is not decoration. A run at exactly the domain minimum maps to zero
+ * height and disappears, so the run that failed hardest — the one most worth
+ * seeing — is the one that vanishes.
+ */
+const MIN_BAR_HEIGHT = 2
+
+export function bars(points: TrendPoint[]): Bar[] {
+  if (points.length === 0) return []
+
   const { min, max } = domain(points)
   // Guarded: every run at exactly the same rate collapses the range to zero.
   const range = max - min || 1
 
-  return points.map((point, index) => ({
-    // A single point sits in the middle rather than dividing by zero.
-    x: points.length === 1 ? 50 : (index / (points.length - 1)) * 100,
-    // y grows downward in SVG, so the highest rate maps to the smallest y.
-    y: 100 - ((point.rate - min) / range) * 100,
-  }))
+  const slot = PLOT_WIDTH / points.length
+  const width = Math.max(MIN_BAR_WIDTH, slot * (1 - BAR_GAP_RATIO))
+
+  return points.map((point, index) => {
+    const share = (point.rate - min) / range
+    const height = Math.max(MIN_BAR_HEIGHT, share * PLOT_HEIGHT)
+
+    return {
+      // Centred in its slot, so the row stays evenly spaced whatever the gap
+      // works out to.
+      x: index * slot + (slot - width) / 2,
+      y: PLOT_HEIGHT - height,
+      width,
+      height,
+    }
+  })
 }
 
 export function RunTrend({ runs }: { runs: Run[] }) {
@@ -120,14 +178,13 @@ export function RunTrend({ runs }: { runs: Run[] }) {
    */
   if (points.length < MINIMUM_POINTS) return null
 
-  const coords = plot(points)
-  const line = coords.map((p) => `${p.x},${p.y}`).join(' ')
-  const area = `0,100 ${line} 100,100`
+  const boxes = bars(points)
   const { min, max } = domain(points)
 
   const latest = points[points.length - 1]!
   const first = points[0]!
   const change = Math.round(latest.rate - first.rate)
+  const failing = points.filter((p) => !p.passed).length
 
   return (
     <section style={s.wrap}>
@@ -161,68 +218,92 @@ export function RunTrend({ runs }: { runs: Run[] }) {
       </header>
 
       <svg
-        viewBox="0 0 100 100"
+        viewBox={`0 0 ${PLOT_WIDTH} ${PLOT_HEIGHT}`}
+        /*
+          `none` again, but for a shape that survives it. The old chart stretched
+          a polyline and its dots, which is why a failed run rendered as a
+          flattened ellipse and every stroke needed `vectorEffect` to stay even.
+          A rectangle stretched horizontally is still a rectangle: only its width
+          changes, and width here carries no meaning — the bars simply divide
+          whatever room they are given.
+
+          `meet` was the obvious alternative and the wrong one: it letterboxes,
+          so a 320-unit box inside a 900px panel drew the chart down the middle
+          with a third of the panel empty on each side.
+        */
         preserveAspectRatio="none"
         style={s.chart}
         role="img"
-        aria-label={`Pass rate across the last ${points.length} runs, currently ${Math.round(latest.rate)} percent`}
+        aria-label={`Pass rate for the last ${points.length} runs, oldest first, currently ${Math.round(
+          latest.rate,
+        )} percent${failing > 0 ? `, with ${failing} failing` : ''}`}
       >
-        {/* Top and midpoint of the drawn range — labelled below, since the
-            axis no longer starts at zero and an unlabelled guide would imply
-            it does. */}
-        <line x1="0" y1="0" x2="100" y2="0" stroke={c.divider} strokeWidth="0.5" />
-        <line
-          x1="0"
-          y1="50"
-          x2="100"
-          y2="50"
-          stroke={c.divider}
-          strokeWidth="0.5"
-          strokeDasharray="2 2"
-        />
-
-        <polygon points={area} fill={sc.pass} opacity="0.15" />
-        <polyline
-          points={line}
-          fill="none"
-          stroke={sc.pass}
-          strokeWidth="2"
-          // Non-scaling keeps the stroke even, despite the viewBox being
-          // stretched by preserveAspectRatio="none".
-          vectorEffect="non-scaling-stroke"
-          strokeLinejoin="round"
-        />
-
-        {/*
-          A failed point is bigger and ringed, not merely red.
-
-          Green and red are the pair colour-vision deficiency hits hardest —
-          measured at ΔE 7.4 for deuteranopia against this palette, which is
-          inside the band where colour is only allowed to carry meaning
-          alongside something else. A 4px dot that differs from its neighbours
-          in hue and nothing else is unreadable to roughly one man in twelve,
-          and this chart's entire job is showing which runs went red.
-
-          Size and the surface ring survive greyscale, printing and forced
-          colours. The title is a real hover layer for everyone else.
-        */}
-        {coords.map((p, i) => {
+        {boxes.map((box, i) => {
           const point = points[i]!
           return (
-            <circle
+            <rect
               key={point.id}
-              cx={p.x}
-              cy={p.y}
-              r={point.passed ? 2 : 3.4}
+              x={box.x}
+              y={box.y}
+              width={box.width}
+              height={box.height}
+              /* No rx: a corner radius is drawn in the stretched space, so it
+                 would round the horizontal axis more than the vertical. */
+              /*
+                Colour is not the only difference, and deliberately so. Green and
+                red are the pair colour-vision deficiency hits hardest — measured
+                at ΔE 7.4 for deuteranopia against this palette, inside the band
+                where colour may only carry meaning alongside something else.
+
+                Here that something is height and a label: a failed run is
+                shorter by definition, and its bar carries the rate in a title.
+                A failing run is also the full height of the plot in a faint
+                wash behind it, so it is findable in a row of bars at a glance,
+                in greyscale, and under forced colours.
+              */
               fill={point.passed ? sc.pass : sc.fail}
-              stroke={point.passed ? 'none' : c.card}
-              strokeWidth={point.passed ? 0 : 1.4}
-              vectorEffect="non-scaling-stroke"
+              opacity={point.passed ? 0.85 : 1}
             >
-              <title>{`${point.rate}% — ${point.passed ? 'passed' : 'failed'}`}</title>
-            </circle>
+              <title>{`${Math.round(point.rate)}% — ${point.passed ? 'passed' : 'failed'}`}</title>
+            </rect>
           )
         })}
+
+        {/* The marker for a failed run, drawn after the bars so it is never
+            covered: a full-height wash in its column. */}
+        {boxes.map((box, i) => {
+          const point = points[i]!
+          if (point.passed) return null
+          return (
+            <rect
+              key={`${point.id}-mark`}
+              x={box.x}
+              y="0"
+              width={box.width}
+              height={PLOT_HEIGHT}
+              fill={sc.fail}
+              opacity="0.14"
+              pointerEvents="none"
+            />
+          )
+        })}
+        {/*
+          The midpoint of the drawn range, over the bars rather than behind
+          them — behind, it was completely hidden by a full row of bars and
+          only appeared in the gaps. Faint, and last in paint order, so it
+          reads as a guide laid across the chart instead of a divider in it.
+        */}
+        <line
+          x1="0"
+          y1={PLOT_HEIGHT / 2}
+          x2={PLOT_WIDTH}
+          y2={PLOT_HEIGHT / 2}
+          stroke={c.t1}
+          strokeWidth="1"
+          strokeDasharray="2 4"
+          opacity="0.22"
+          pointerEvents="none"
+        />
       </svg>
 
       {/* The range is stated because it is not 0–100. A chart whose axis
@@ -271,12 +352,13 @@ const s: Record<string, CSSProperties> = {
     lineHeight: 1,
   },
 
-  // Fixed height with a stretched viewBox: the shape matters, the aspect ratio
-  // does not, and a chart that grows with the window pushes the list off screen.
-  // `overflow: visible` plus vertical padding: a dot sitting exactly on the
-  // top or bottom of the range is drawn half outside the viewBox, and would
-  // otherwise be clipped in half.
-  chart: { width: '100%', height: 64, display: 'block', overflow: 'visible', padding: '4px 0' },
+  /*
+   * Fixed height, and the viewBox now matches its proportions rather than being
+   * stretched to fit. Nothing is drawn outside the box any more — bars sit on
+   * the floor instead of dots straddling the edges — so the old
+   * `overflow: visible` and its padding are gone with the hack they served.
+   */
+  chart: { width: '100%', height: 72, display: 'block' },
 
   axis: {
     display: 'flex',

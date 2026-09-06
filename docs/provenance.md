@@ -66,7 +66,7 @@ review half is where the value was:
   believed.
 
 The discipline that made this work: **nothing is described as passing until it
-has been seen to fail for the right reason.** Ninety deliberate mutations, each
+has been seen to fail for the right reason.** Ninety-four deliberate mutations, each
 confirmed to produce a failure naming the right behaviour.
 
 ## The companion repository

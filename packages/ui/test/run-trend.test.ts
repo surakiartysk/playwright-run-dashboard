@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { trendPoints, plot, domain } from '../src/components/RunTrend'
+import { trendPoints, bars, domain, PLOT_WIDTH, PLOT_HEIGHT } from '../src/components/RunTrend'
 import type { Run, RunStatus } from '../src/api'
 
 /**
@@ -86,63 +86,119 @@ describe('trendPoints', () => {
   })
 })
 
-describe('plot', () => {
-  it('spreads points evenly across the full width', () => {
-    const coords = plot(trendPoints([run('passed'), run('passed'), run('passed')]))
-    expect(coords.map((p) => p.x)).toEqual([0, 50, 100])
+describe('bars', () => {
+  it('lays one bar per run, evenly spaced and inside the plot', () => {
+    const boxes = bars(trendPoints([run('passed'), run('passed'), run('passed')]))
+
+    expect(boxes).toHaveLength(3)
+    // Evenly spaced: the gap between consecutive left edges is constant.
+    const gaps = boxes.slice(1).map((b, i) => +(b.x - boxes[i]!.x).toFixed(6))
+    expect(new Set(gaps).size).toBe(1)
+    // Nothing is drawn outside the box — the failure the old stretched
+    // viewBox papered over with `overflow: visible`.
+    expect(boxes.every((b) => b.x >= 0 && b.x + b.width <= PLOT_WIDTH + 0.001)).toBe(true)
+    expect(boxes.every((b) => b.y >= 0 && b.y + b.height <= PLOT_HEIGHT + 0.001)).toBe(true)
   })
 
-  /** `n - 1` is zero here; without a guard every coordinate is NaN. */
-  it('centres a single point instead of dividing by zero', () => {
-    const coords = plot(trendPoints([run('passed')]))
+  it('draws a single run without dividing by zero', () => {
+    const boxes = bars(trendPoints([run('passed')]))
 
-    expect(coords).toHaveLength(1)
-    expect(coords[0]!.x).toBe(50)
-    expect(Number.isNaN(coords[0]!.x)).toBe(false)
+    expect(boxes).toHaveLength(1)
+    expect(Number.isFinite(boxes[0]!.x)).toBe(true)
+    expect(Number.isFinite(boxes[0]!.height)).toBe(true)
   })
 
   /**
-   * SVG y grows downward, so the highest rate must sit nearest the top.
-   * Getting this backwards flips the chart vertically — again, not visibly
-   * broken, just wrong.
+   * SVG y grows downward and a bar hangs from its top edge, so a better run
+   * must be both taller and higher. Getting this backwards flips the chart —
+   * not visibly broken, just wrong.
    */
-  it('inverts y, so the best run is at the top and the worst at the bottom', () => {
-    const coords = plot([
+  it('makes a better run taller, and grows it upward from the floor', () => {
+    const boxes = bars([
       { rate: 100, passed: true, id: 'best' },
       { rate: 0, passed: false, id: 'worst' },
     ])
 
-    expect(coords[0]!.y).toBe(0)
-    expect(coords[1]!.y).toBe(100)
+    expect(boxes[0]!.height).toBeGreaterThan(boxes[1]!.height)
+    expect(boxes[0]!.y).toBeLessThan(boxes[1]!.y)
+    // Every bar sits on the same floor.
+    expect(boxes[0]!.y + boxes[0]!.height).toBeCloseTo(PLOT_HEIGHT, 5)
+    expect(boxes[1]!.y + boxes[1]!.height).toBeCloseTo(PLOT_HEIGHT, 5)
   })
 
   it('handles an empty list', () => {
-    expect(plot([])).toEqual([])
+    expect(bars([])).toEqual([])
   })
 
   /**
    * The reason the axis is not fixed at 0–100: a healthy suite lives in the
-   * top few percent, and on a full-scale axis every run lands on the top
-   * border with the differences between them invisible.
+   * top few percent, and on a full-scale axis every bar is the same height
+   * with the differences between them invisible.
    */
   it('spreads a narrow band of high rates across the full height', () => {
-    const coords = plot([
+    const boxes = bars([
       { rate: 100, passed: true, id: 'a' },
       { rate: 97, passed: false, id: 'b' },
     ])
 
-    // On a fixed 0-100 axis these would be y=0 and y=3 — indistinguishable.
-    expect(coords[0]!.y).toBeLessThan(coords[1]!.y)
-    expect(coords[1]!.y - coords[0]!.y).toBeGreaterThan(20)
+    // On a fixed 0–100 axis these would differ by 3% of the height.
+    expect(boxes[0]!.height - boxes[1]!.height).toBeGreaterThan(PLOT_HEIGHT * 0.2)
   })
 
   it('does not divide by zero when every run has the same rate', () => {
-    const coords = plot([
+    const boxes = bars([
       { rate: 100, passed: true, id: 'a' },
       { rate: 100, passed: true, id: 'b' },
     ])
 
-    expect(coords.every((p) => Number.isFinite(p.y))).toBe(true)
+    expect(boxes.every((b) => Number.isFinite(b.height))).toBe(true)
+  })
+
+  /**
+   * A run sitting exactly on the bottom of the drawn range maps to zero height
+   * and vanishes — so the run that failed hardest, the one most worth seeing,
+   * is the one that disappears.
+   *
+   * `domain` pads the range, so reaching the true floor takes a spread wide
+   * enough that the padding is clamped away at both ends: 0 and 100 do it,
+   * because neither can be padded past the limits of a percentage.
+   */
+  it('still draws a run sitting on the floor of the range', () => {
+    const boxes = bars([
+      { rate: 100, passed: true, id: 'top' },
+      { rate: 0, passed: false, id: 'floor' },
+    ])
+
+    const { min } = domain([
+      { rate: 100, passed: true, id: 'top' },
+      { rate: 0, passed: false, id: 'floor' },
+    ])
+    // Confirms this test is exercising the floor rather than a padded value.
+    expect(min).toBe(0)
+    expect(boxes[1]!.height).toBeGreaterThan(0)
+  })
+
+  /**
+   * Many runs must not thin the bars into invisible hairlines.
+   *
+   * Reachable in practice: a page holds up to 100 runs and the reader can load
+   * more than one page, at which point the natural width drops below 2 units
+   * and the chart becomes a grey smear. 150 is past where the floor engages —
+   * a smaller count would pass whether or not the guard existed.
+   */
+  it('keeps a usable bar width when there are many runs', () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({
+      rate: 90 + (i % 10),
+      passed: true,
+      id: `r${i}`,
+    }))
+
+    // Without the floor these would be ~1.6 units wide.
+    expect(PLOT_WIDTH / many.length).toBeLessThan(3)
+
+    const boxes = bars(many)
+    expect(boxes).toHaveLength(150)
+    expect(boxes.every((b) => b.width >= 3)).toBe(true)
   })
 })
 
