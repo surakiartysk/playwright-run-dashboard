@@ -10,8 +10,19 @@ export type Role = 'demo' | 'dev' | 'qa' | 'admin'
 
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'error' | 'timeout'
 
+/** Which suite ran — and so which repository the run was dispatched to. */
+export type Suite = 'api' | 'ui'
+
+export const SUITES: readonly Suite[] = ['api', 'ui'] as const
+
+export const SUITE_LABELS: Record<Suite, string> = {
+  api: 'API',
+  ui: 'UI',
+}
+
 export interface Run {
   id: string
+  suite: Suite
   service: string
   tags: string
   workers: number | null
@@ -138,13 +149,20 @@ export const api = {
    * list could only truncate silently, which is what it used to do. `cursor`
    * asks for the page after a given row; `nextCursor` is null on the last page.
    */
-  listRuns: (options: { cursor?: string | null; limit?: number } = {}) => {
+  listRuns: (options: { cursor?: string | null; limit?: number; suite?: Suite | null } = {}) => {
     const query = new URLSearchParams({ limit: String(options.limit ?? RUNS_PER_PAGE) })
     if (options.cursor) query.set('cursor', options.cursor)
+    if (options.suite) query.set('suite', options.suite)
     return request<RunPage>(`/runs?${query}`)
   },
 
-  createRun: (input: { service: string; tags: string; workers?: number; ref?: string }) =>
+  createRun: (input: {
+    suite?: Suite
+    service: string
+    tags: string
+    workers?: number
+    ref?: string
+  }) =>
     request<{ runId: string; simulated: boolean }>('/runs', {
       method: 'POST',
       body: JSON.stringify(input),

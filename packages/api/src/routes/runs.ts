@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
-import { toView } from '../types'
+import { toView, isSuite, SUITES } from '../types'
 import { dispatchWorkflow } from '../github'
 import { simulateRun } from '../simulate'
 import { signReportToken } from '../crypto'
@@ -124,6 +124,13 @@ runRoutes.post('/', async (c) => {
   const { service, tags, workers } = body
   const ref = body.ref ?? 'main'
 
+  // Defaulted rather than required: a client written before the second suite
+  // existed sends no `suite`, and it meant the only one there was.
+  const suite = body.suite ?? 'api'
+  if (!isSuite(suite)) {
+    return c.json({ error: `suite must be one of: ${SUITES.join(', ')}` }, 422)
+  }
+
   if (!service || !SERVICE_RE.test(service)) {
     return c.json({ error: 'service must match /^[a-z][a-z0-9-]*$/' }, 422)
   }
@@ -224,11 +231,12 @@ runRoutes.post('/', async (c) => {
   // someone asked for, and it should be visible with its error rather than
   // vanishing.
   await c.env.DB.prepare(
-    `INSERT INTO runs (id, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'queued', ?6, ?7, ?8, ?9)`,
+    `INSERT INTO runs (id, suite, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8, ?9, ?10)`,
   )
     .bind(
       id,
+      suite,
       service,
       tags,
       workers ?? null,
@@ -246,7 +254,7 @@ runRoutes.post('/', async (c) => {
     )
     .run()
 
-  const dispatch = await dispatchWorkflow(c.env, id, role, { service, tags, workers, ref })
+  const dispatch = await dispatchWorkflow(c.env, id, role, { suite, service, tags, workers, ref })
 
   if (!dispatch.ok) {
     await c.env.DB.prepare(`UPDATE runs SET status = 'error', finished_at = ?2 WHERE id = ?1`)
@@ -294,7 +302,15 @@ runRoutes.get('/', async (c) => {
   const viewAs = await resolveViewRole(c)
   const limit = Math.min(100, Math.max(1, Number.parseInt(c.req.query('limit') ?? '25', 10) || 25))
   const status = c.req.query('status')
+  const suite = c.req.query('suite')
   const rawCursor = c.req.query('cursor')
+
+  // Rejected rather than ignored. A typo'd suite silently returning every run
+  // reads as "this filter does nothing", which is a worse answer than an
+  // error — the caller cannot tell a broken filter from an empty one.
+  if (suite !== undefined && !isSuite(suite)) {
+    return c.json({ error: `suite must be one of: ${SUITES.join(', ')}` }, 422)
+  }
 
   const cursor = rawCursor ? decodeCursor(rawCursor) : null
   if (rawCursor && !cursor) return c.json({ error: 'Invalid cursor' }, 400)
@@ -312,6 +328,12 @@ runRoutes.get('/', async (c) => {
   if (status) {
     conditions.push('status = ?')
     params.push(status)
+  }
+  // Added before the count below, so the total describes the filtered set
+  // rather than every run in the table.
+  if (suite) {
+    conditions.push('suite = ?')
+    params.push(suite)
   }
 
   // The total is counted against the same conditions but WITHOUT the cursor:

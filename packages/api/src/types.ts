@@ -10,12 +10,37 @@
 
 export type Role = 'demo' | 'dev' | 'qa' | 'admin'
 
+/**
+ * Which suite a run belongs to, and so which repository it is dispatched to.
+ *
+ * A closed union rather than a free string: these are the two repositories
+ * this deployment knows how to reach, and a third would need its own
+ * configuration anyway — so an unknown value is a bug, not a case to handle.
+ */
+export type Suite = 'api' | 'ui'
+
+export const SUITES: readonly Suite[] = ['api', 'ui'] as const
+
+export const isSuite = (value: unknown): value is Suite =>
+  typeof value === 'string' && (SUITES as readonly string[]).includes(value)
+
 export interface Bindings {
   DB: D1Database
   REPORTS: R2Bucket
 
   GITHUB_REPO: string
   GITHUB_WORKFLOW: string
+  /**
+   * The UI suite's repository and workflow.
+   *
+   * Optional, and the reason is compatibility: a deployment that predates the
+   * second suite has neither var set, and must keep working rather than
+   * failing at startup for a suite nobody has asked it for. `resolveTarget`
+   * turns the absence into a 422 on the one request that needs it, which is a
+   * better answer than a 503 on every route.
+   */
+  GITHUB_UI_REPO?: string
+  GITHUB_UI_WORKFLOW?: string
   SIMULATE_DISPATCH?: string
 
   GITHUB_TOKEN?: string
@@ -34,6 +59,8 @@ export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'error' | '
 /** A run as stored. Column names are snake_case because SQL is. */
 export interface RunRow {
   id: string
+  /** 'api' for every run created before the second suite existed — see 0008. */
+  suite: Suite
   service: string
   tags: string
   workers: number | null
@@ -58,6 +85,7 @@ export interface RunRow {
 /** A run as the UI sees it — camelCase, with the report link resolved. */
 export interface RunView {
   id: string
+  suite: Suite
   service: string
   tags: string
   workers: number | null
@@ -84,6 +112,12 @@ export interface RunView {
 }
 
 export interface CreateRunRequest {
+  /**
+   * Which suite to run. Optional, defaulting to 'api': every client written
+   * before the second suite existed omits it, and those callers meant the
+   * suite that was the only one at the time.
+   */
+  suite?: Suite
   service: string
   tags: string
   workers?: number
@@ -108,6 +142,7 @@ export interface WebhookPayload {
 
 export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   id: row.id,
+  suite: row.suite,
   service: row.service,
   tags: row.tags,
   workers: row.workers,

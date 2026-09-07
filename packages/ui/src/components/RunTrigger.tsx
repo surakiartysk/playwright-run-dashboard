@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { api, type Role, type RolePolicy } from '../api'
+import { api, SUITES, SUITE_LABELS, type Role, type RolePolicy, type Suite } from '../api'
 import { c, status } from '../theme'
 
 /**
@@ -13,8 +13,27 @@ import { c, status } from '../theme'
  * The server still validates. This is a convenience, not a control.
  */
 
-const SERVICES = ['all', 'items', 'reservations', 'maintenance-logs', 'core']
-const TAGS = ['smoke', 'isolated', 'flow']
+/*
+ * What each suite can be sliced by.
+ *
+ * Two suites, two vocabularies: the API suite runs services, the UI suite runs
+ * journey groups. Sharing one list would offer `reservations` to a suite that
+ * has no such thing — the server would accept it (the column is free-form) and
+ * the run would match no tests and report a green nothing.
+ *
+ * Duplicated from the suites rather than fetched: these change when a suite
+ * gains a service, which is rare and always accompanied by a deploy. An
+ * endpoint to serve them would be a network round trip to learn a constant.
+ */
+const SUITE_SERVICES: Record<Suite, string[]> = {
+  api: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
+  ui: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+}
+
+const SUITE_TAGS: Record<Suite, string[]> = {
+  api: ['smoke', 'isolated', 'flow'],
+  ui: ['smoke'],
+}
 
 export function RunTrigger({
   policy,
@@ -25,6 +44,7 @@ export function RunTrigger({
   role: Role
   onStarted: () => void
 }) {
+  const [suite, setSuite] = useState<Suite>('api')
   const [service, setService] = useState('items')
   const [tags, setTags] = useState('smoke')
   const [ref, setRef] = useState('main')
@@ -66,11 +86,27 @@ export function RunTrigger({
     ? ['main', 'develop', 'release', 'feature/example']
     : policy.allowedRefs
 
+  /*
+   * Switching suite resets what it selects.
+   *
+   * Without this, choosing UI while `reservations` is selected sends a service
+   * the UI suite has never heard of. The server accepts it — `service` is a
+   * free-form string by design — and the run matches nothing, reporting a
+   * green zero. Silently passing on a slice that does not exist is the worst
+   * of the available failures, so the selection is narrowed to what the new
+   * suite actually offers.
+   */
+  function changeSuite(next: Suite) {
+    setSuite(next)
+    if (!SUITE_SERVICES[next].includes(service)) setService(SUITE_SERVICES[next][1] ?? 'all')
+    if (!SUITE_TAGS[next].includes(tags)) setTags(SUITE_TAGS[next][0] ?? 'smoke')
+  }
+
   async function start() {
     setBusy(true)
     setError(null)
     try {
-      await api.createRun({ service, tags, ref, workers })
+      await api.createRun({ suite, service, tags, ref, workers })
       onStarted()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the run')
@@ -83,13 +119,27 @@ export function RunTrigger({
     <section style={s.card}>
       <header style={s.head}>
         <h2 style={s.title}>New run</h2>
-        <span style={s.hint}>Runs against the bundled suite</span>
+        <span style={s.hint}>Runs against the published suites</span>
       </header>
 
       <div style={s.grid}>
+        <Field label="Suite">
+          <select
+            style={s.control}
+            value={suite}
+            onChange={(e) => changeSuite(e.target.value as Suite)}
+          >
+            {SUITES.map((v) => (
+              <option key={v} value={v}>
+                {SUITE_LABELS[v]}
+              </option>
+            ))}
+          </select>
+        </Field>
+
         <Field label="Service">
           <select style={s.control} value={service} onChange={(e) => setService(e.target.value)}>
-            {SERVICES.map((v) => (
+            {SUITE_SERVICES[suite].map((v) => (
               <option key={v}>{v}</option>
             ))}
           </select>
@@ -97,7 +147,7 @@ export function RunTrigger({
 
         <Field label="Scope">
           <select style={s.control} value={tags} onChange={(e) => setTags(e.target.value)}>
-            {TAGS.map((v) => (
+            {SUITE_TAGS[suite].map((v) => (
               <option key={v}>{v}</option>
             ))}
           </select>
