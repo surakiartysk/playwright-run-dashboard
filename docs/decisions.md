@@ -1145,6 +1145,83 @@ password would otherwise let anyone rewrite the history to name someone else.
 
 ---
 
+## 24. A second suite, and why it is a column rather than a naming convention
+
+This dashboard was built to trigger one repository. A second suite makes
+"which one?" a real question: a UI journey run and an API contract run are
+different work, dispatched to different repositories, and a history that cannot
+tell them apart cannot answer "is the UI red, or is it just the API?" — which
+is the first thing anyone asks when a bar goes red.
+
+`service` could have carried it. A `ui-` prefix costs no migration and reads
+fine in a list.
+
+It was rejected because a convention encoded inside a free-form string is
+invisible to SQL. Filtering, grouping and the trend chart would each re-derive
+the suite by parsing, and each could parse it differently — the kind of drift
+that produces two screens disagreeing about the same run. A column the database
+understands is filterable and groupable for free, and 0008 backfills every
+existing row to `api`, which is what they all were.
+
+### The configuration is deliberately asymmetric
+
+The API suite keeps `GITHUB_REPO` and `GITHUB_WORKFLOW`. The UI suite gets
+`GITHUB_UI_REPO` and `GITHUB_UI_WORKFLOW`.
+
+Renaming both pairs symmetrically would have been tidier and would have broken
+every existing deploy line _silently_: the Worker would still start, `/health`
+would still say ok, and dispatch would fail only when someone pressed Run. The
+ugliness is the price of not breaking what is already deployed, and the new
+pair is optional for the same reason — a deployment that predates this keeps
+working and simply cannot run the second suite.
+
+### An unconfigured suite is refused, not redirected
+
+`resolveTarget` returns null rather than falling back to the other repository.
+A UI run that quietly executed the API suite would report green against tests
+nobody asked for — a passing run that proves nothing is worse than an error,
+because nobody investigates green.
+
+### Both workflows take the same three inputs
+
+GitHub rejects a dispatch carrying an input the workflow does not declare: the
+whole request fails rather than the extra being ignored. So a dispatch body
+that branched per suite would be a second thing to keep in step, and the two
+`on-demand.yml` files deliberately declare the same `style`, `scope` and
+`run_id`.
+
+What differs is what they _mean_. The API suite's `scope` is a tag; the UI
+suite's is a spec file, because those journeys are grouped by file. Getting
+that wrong is not a loud failure — `--grep @auth` against file-grouped tests
+matches nothing, and Playwright reports "no tests found" as a **success with
+zero tests**. The dashboard would record a green run that asserted nothing.
+
+`integration-contract.test.ts` now holds both workflows' accepted values,
+copied by hand, and fails if this dashboard could offer a slice a workflow
+would refuse. Copying is the test: deriving the lists from the other repos
+would need them checked out, and asserting against a list this repo generates
+would agree by construction and prove nothing. That mismatch has already
+happened once — a service name sent in an input that only accepted package
+names, which would have rejected every dispatch, and which neither repo could
+see alone.
+
+### Trade-offs
+
+- **Two vocabularies to keep in step.** The dashboard's dropdown lists services
+  per suite, and those lists live here rather than in the suites that own them.
+  The contract test catches drift, but only when someone runs it — a suite that
+  renames a spec file and never triggers CI here will drift until the next run
+  fails.
+- **The asymmetric variable names will confuse someone.** `GITHUB_REPO` meaning
+  "the API one" is only obvious once you know the history. A comment in
+  `wrangler.toml` and `github.ts` carries that history, which is weaker than a
+  name that explains itself.
+- **`suite` is closed at two.** A third would need its own variable pair and a
+  migration to widen the CHECK constraint. That is deliberate — the alternative
+  is a generic registry table for a system that has two entries.
+
+---
+
 ## How to add a decision
 
 Write it when the reasoning is still fresh, and include the cost. If the
