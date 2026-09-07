@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
 import { c, mono, status as sc } from '../theme'
+import { relative } from './RunHistory'
 
 /**
  * Pass rate over the recent runs, oldest to newest — one bar per run.
@@ -32,6 +33,28 @@ import { c, mono, status as sc } from '../theme'
  * run order, which is what "the last ten runs" means.
  */
 
+/**
+ * One bar, in words.
+ *
+ * Exported for its own test: it is the only place the chart says what a run
+ * *was*, and a hover layer is the easiest thing in a UI to break without
+ * noticing — nothing renders differently when it goes wrong.
+ *
+ * Deliberately the same facts the table row shows, in the same order, so the
+ * two never tell different stories about the same run.
+ */
+export function describe(point: TrendPoint): string {
+  const result = point.passed
+    ? `${point.passedCount}/${point.total} passed`
+    : `${point.passedCount}/${point.total} — ${point.total - point.passedCount} failed`
+
+  return [
+    `${point.service} @${point.tags} · ${point.ref}`,
+    result,
+    `by ${point.triggeredBy} · ${relative(point.startedAt)}`,
+  ].join('\n')
+}
+
 /** Below this there is no trend to read, only noise dressed as one. */
 const MINIMUM_POINTS = 3
 
@@ -40,6 +63,21 @@ export interface TrendPoint {
   rate: number
   passed: boolean
   id: string
+  /*
+   * Carried so a bar can say what it is.
+   *
+   * A bar chart of anonymous bars answers "is it getting worse" and nothing
+   * else: a reader who spots the red one still has to go hunting through the
+   * table below to find out which run it was. These are what the table's own
+   * row shows, so hovering a bar and reading a row tell the same story.
+   */
+  service: string
+  tags: string
+  ref: string
+  triggeredBy: string
+  passedCount: number
+  total: number
+  startedAt: string
 }
 
 /**
@@ -56,6 +94,13 @@ export function trendPoints(runs: Run[]): TrendPoint[] {
       rate: ((run.passed ?? 0) / (run.total ?? 1)) * 100,
       passed: run.status === 'passed',
       id: run.id,
+      service: run.service,
+      tags: run.tags,
+      ref: run.ref,
+      triggeredBy: run.triggeredBy,
+      passedCount: run.passed ?? 0,
+      total: run.total ?? 0,
+      startedAt: run.startedAt,
     }))
     .reverse() // The API returns newest first; a trend reads left to right.
 }
@@ -264,7 +309,7 @@ export function RunTrend({ runs }: { runs: Run[] }) {
               fill={point.passed ? sc.pass : sc.fail}
               opacity={point.passed ? 0.85 : 1}
             >
-              <title>{`${Math.round(point.rate)}% — ${point.passed ? 'passed' : 'failed'}`}</title>
+              <title>{describe(point)}</title>
             </rect>
           )
         })}
@@ -315,6 +360,19 @@ export function RunTrend({ runs }: { runs: Run[] }) {
         </span>
         <span>newest</span>
       </div>
+
+      {/*
+        What the rightmost bar is, in words.
+
+        The per-bar detail is a `title`, which is a hover layer — and hover does
+        not exist on a phone. Naming the newest run here means the chart says
+        something concrete on every device, and it is the bar a reader looks at
+        first anyway.
+      */}
+      <p style={s.latestLine}>
+        Newest: {latest.service} @{latest.tags} · {latest.ref} · {latest.passedCount}/{latest.total}{' '}
+        by {latest.triggeredBy}
+      </p>
     </section>
   )
 }
@@ -371,5 +429,14 @@ const s: Record<string, CSSProperties> = {
   range: {
     ...mono,
     fontVariantNumeric: 'tabular-nums',
+  },
+  /* A footnote, not a heading: it repeats what the last bar already shows,
+     for readers who cannot hover it. */
+  latestLine: {
+    ...mono,
+    margin: '8px 0 0',
+    fontSize: 11.5,
+    color: c.t5,
+    lineHeight: 1.5,
   },
 }

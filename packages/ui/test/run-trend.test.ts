@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { trendPoints, bars, domain, PLOT_WIDTH, PLOT_HEIGHT } from '../src/components/RunTrend'
+import {
+  trendPoints,
+  bars,
+  describe as describeBar,
+  domain,
+  PLOT_WIDTH,
+  PLOT_HEIGHT,
+} from '../src/components/RunTrend'
 import type { Run, RunStatus } from '../src/api'
 
 /**
@@ -238,5 +245,44 @@ describe('domain', () => {
 
   it('falls back to the full range for an empty list', () => {
     expect(domain([])).toEqual({ min: 0, max: 100 })
+  })
+})
+
+describe('describe — what one bar says', () => {
+  const point = {
+    rate: 90,
+    passed: false,
+    id: '20260907-1200-items-abc123',
+    service: 'items',
+    tags: 'smoke',
+    ref: 'main',
+    triggeredBy: 'qa',
+    passedCount: 9,
+    total: 10,
+    startedAt: new Date().toISOString(),
+  }
+
+  it('names the run, not just its percentage', () => {
+    const text = describeBar(point)
+    // The whole reason this exists: a reader who spots the red bar should not
+    // have to go hunting through the table to find out which run it was.
+    expect(text).toContain('items')
+    expect(text).toContain('@smoke')
+    expect(text).toContain('main')
+  })
+
+  it('says who started it', () => {
+    expect(describeBar(point)).toContain('by qa')
+  })
+
+  it('counts the failures rather than leaving the reader to subtract', () => {
+    expect(describeBar(point)).toContain('9/10')
+    expect(describeBar(point)).toContain('1 failed')
+  })
+
+  it('does not claim failures on a passing run', () => {
+    const green = { ...point, passed: true, passedCount: 10, total: 10 }
+    expect(describeBar(green)).toContain('10/10 passed')
+    expect(describeBar(green)).not.toContain('failed')
   })
 })
