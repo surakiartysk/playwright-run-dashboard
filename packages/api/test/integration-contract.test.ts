@@ -4,7 +4,7 @@ import { env } from 'cloudflare:test'
 import { dispatchWorkflow } from '../src/github'
 import { signReportToken } from '../src/crypto'
 import { DEV_TOKEN_SECRET } from '../src/config'
-import type { Bindings } from '../src/types'
+import type { Bindings, Suite } from '../src/types'
 
 beforeAll(migrate)
 
@@ -104,46 +104,77 @@ describe('the callback the suite workflow sends', () => {
  * If `on-demand.yml` changes its accepted values, this list goes stale and the
  * mismatch shows up here rather than as a 422 from GitHub in production.
  */
-const WORKFLOW_ACCEPTS = {
-  style: ['both', 'functional-style', 'class-style'],
-  scope: ['all', 'smoke', 'isolated', 'flow', 'items', 'reservations', 'maintenance-logs', 'core'],
+const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[] }> = {
+  api: {
+    style: ['both', 'functional-style', 'class-style'],
+    scope: [
+      'all',
+      'smoke',
+      'isolated',
+      'flow',
+      'items',
+      'reservations',
+      'maintenance-logs',
+      'core',
+    ],
+  },
+  // The UI suite's own on-demand.yml. Same three input names — GitHub rejects
+  // a dispatch carrying an input a workflow does not declare — but a different
+  // vocabulary: its journeys are grouped by spec file rather than by tag.
+  ui: {
+    style: ['both', 'locator-first', 'page-first'],
+    scope: ['all', 'smoke', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+  },
 }
 
 describe('the dispatch the dashboard sends', () => {
   /** Captures the body without reaching the network. */
-  async function dispatchBody(input: {
-    service: string
-    tags: string
-    workers?: number
-    ref?: string
-  }) {
+  async function dispatchCall(
+    input: {
+      suite?: Suite
+      service: string
+      tags: string
+      workers?: number
+      ref?: string
+    },
+    env: Partial<Bindings> = {},
+  ) {
     let captured: Record<string, string> = {}
+    let url = ''
 
-    const fetchMock = async (_url: string, init: RequestInit) => {
+    const fetchMock = async (requested: string, init: RequestInit) => {
+      url = String(requested)
       captured = (JSON.parse(String(init.body)) as { inputs: Record<string, string> }).inputs
       return new Response(null, { status: 204 })
     }
 
     const previous = globalThis.fetch
     globalThis.fetch = fetchMock as typeof fetch
+    let result
     try {
-      await dispatchWorkflow(
+      result = await dispatchWorkflow(
         {
           SIMULATE_DISPATCH: 'false',
           GITHUB_TOKEN: 'test-token',
           GITHUB_REPO: 'owner/repo',
           GITHUB_WORKFLOW: 'on-demand.yml',
+          GITHUB_UI_REPO: 'owner/ui-repo',
+          GITHUB_UI_WORKFLOW: 'on-demand.yml',
+          ...env,
         } as Bindings,
         'run-1',
         'admin',
-        input,
+        { suite: 'api', ...input },
       )
     } finally {
       globalThis.fetch = previous
     }
 
-    return captured
+    return { inputs: captured, url, result }
   }
+
+  const dispatchBody = async (input: Parameters<typeof dispatchCall>[0]) =>
+    (await dispatchCall(input)).inputs
 
   it.each([
     ['items', 'smoke'],
@@ -153,8 +184,8 @@ describe('the dispatch the dashboard sends', () => {
   ])('sends a service (%s) in an input the workflow accepts', async (service, tags) => {
     const body = await dispatchBody({ service, tags })
 
-    expect(WORKFLOW_ACCEPTS.scope).toContain(body.scope)
-    expect(WORKFLOW_ACCEPTS.style).toContain(body.style)
+    expect(WORKFLOW_ACCEPTS.api.scope).toContain(body.scope)
+    expect(WORKFLOW_ACCEPTS.api.style).toContain(body.style)
   })
 
   /**
@@ -185,6 +216,100 @@ describe('the dispatch the dashboard sends', () => {
     const body = await dispatchBody({ service: 'items', tags: 'smoke', workers: 8 })
 
     expect(body.workers).toBe('8')
+  })
+
+  /*
+   * Which repository a suite reaches.
+   *
+   * Asserted on the URL rather than on `resolveTarget`'s return value: the
+   * bug this guards against is a run dispatched to the wrong repository, and
+   * only the URL proves where the request actually went.
+   */
+  it('sends an api run to the api repository', async () => {
+    const { url } = await dispatchCall({ suite: 'api', service: 'items', tags: 'smoke' })
+
+    expect(url).toContain('/repos/owner/repo/')
+  })
+
+  it('sends a ui run to the ui repository', async () => {
+    const { url } = await dispatchCall({ suite: 'ui', service: 'checkout', tags: 'smoke' })
+
+    expect(url).toContain('/repos/owner/ui-repo/')
+    expect(url).not.toContain('/repos/owner/repo/')
+  })
+
+  /*
+   * Both workflows declare the same three inputs, and GitHub rejects a
+   * dispatch carrying one a workflow does not declare — so a body that
+   * branched per suite would fail the whole request, not degrade quietly.
+   */
+  it('sends the same input names to either suite', async () => {
+    const api = await dispatchBody({ suite: 'api', service: 'items', tags: 'smoke' })
+    const ui = await dispatchBody({ suite: 'ui', service: 'checkout', tags: 'smoke' })
+
+    expect(Object.keys(ui).sort()).toEqual(Object.keys(api).sort())
+  })
+
+  /*
+   * An unconfigured suite must not fall back to the other one's repository:
+   * a UI run silently executing the API suite would report green against
+   * tests nobody asked for.
+   */
+  /*
+   * Every slice the UI offers has to be a slice the workflow accepts.
+   *
+   * The API pairing already shipped one mismatch of this kind — a service name
+   * sent in an input that only took package names, which would have rejected
+   * every dispatch. That was invisible to either repo alone, and so is this:
+   * the dashboard's dropdown and the workflow's `options:` are edited in
+   * different repositories, months apart.
+   *
+   * `SUITE_SERVICES` is duplicated here rather than imported: the dashboard's
+   * UI package is a separate build, and importing across it would make this
+   * agree by construction — which is the one thing a contract test must not do.
+   */
+  const DASHBOARD_OFFERS: Record<Suite, { services: string[]; tags: string[] }> = {
+    api: {
+      services: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
+      tags: ['smoke', 'isolated', 'flow'],
+    },
+    ui: {
+      services: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+      tags: ['smoke'],
+    },
+  }
+
+  it.each(['api', 'ui'] as const)('only offers %s slices the workflow accepts', async (suite) => {
+    const offered = DASHBOARD_OFFERS[suite]
+
+    // `service` goes to `scope`, except 'all', where the tag does instead —
+    // so both lists have to be acceptable values for that one input.
+    for (const service of offered.services) {
+      const body = await dispatchBody({ suite, service, tags: offered.tags[0]! })
+      expect(WORKFLOW_ACCEPTS[suite].scope).toContain(body.scope)
+    }
+
+    for (const tags of offered.tags) {
+      const body = await dispatchBody({ suite, service: 'all', tags })
+      expect(WORKFLOW_ACCEPTS[suite].scope).toContain(body.scope)
+    }
+  })
+
+  it.each(['api', 'ui'] as const)('sends a package selector %s accepts', async (suite) => {
+    const body = await dispatchBody({ suite, service: 'all', tags: 'smoke' })
+
+    expect(WORKFLOW_ACCEPTS[suite].style).toContain(body.style)
+  })
+
+  it('refuses a suite with no repository rather than falling back', async () => {
+    const { result, url } = await dispatchCall(
+      { suite: 'ui', service: 'checkout', tags: 'smoke' },
+      { GITHUB_UI_REPO: undefined, GITHUB_UI_WORKFLOW: undefined },
+    )
+
+    expect(result?.ok).toBe(false)
+    expect(result?.error).toContain('ui')
+    expect(url).toBe('')
   })
 })
 

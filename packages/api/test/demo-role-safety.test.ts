@@ -54,7 +54,7 @@ describe('dispatchWorkflow — demo always simulates', () => {
         } as Bindings,
         'run-1',
         role,
-        { service: 'items', tags: 'smoke' },
+        { suite: 'api', service: 'items', tags: 'smoke' },
       )
     } finally {
       globalThis.fetch = previous
@@ -85,7 +85,7 @@ describe('dispatchWorkflow — demo always simulates', () => {
       } as Bindings,
       'run-1',
       'demo',
-      { service: 'items', tags: 'smoke' },
+      { suite: 'api', service: 'items', tags: 'smoke' },
     )
 
     expect(result).toEqual({ ok: true, simulated: true })

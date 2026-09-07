@@ -76,7 +76,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, leak check, tests
-pnpm test          # 410 tests — 327 in the Worker, 83 in the UI
+pnpm test          # 419 tests — 335 in the Worker, 84 in the UI
 pnpm check:leak    # the vocabulary and branding tripwire alone
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
@@ -151,12 +151,21 @@ Migrations first, then the Worker, then the UI:
 
 ```bash
 wrangler d1 migrations apply run-dashboard --remote   # 1. schema
-wrangler deploy --var GITHUB_REPO:<owner/repo> \
+wrangler deploy --var GITHUB_REPO:<owner/api-repo> \
                 --var GITHUB_WORKFLOW:on-demand.yml \
+                --var GITHUB_UI_REPO:<owner/ui-repo> \
+                --var GITHUB_UI_WORKFLOW:on-demand.yml \
                 --var SIMULATE_DISPATCH:false        # 2. the Worker
 pnpm --filter @run-dashboard/ui build                 # 3. the UI
 wrangler pages deploy dist --project-name <project>
 ```
+
+`GITHUB_UI_REPO` and `GITHUB_UI_WORKFLOW` are the only optional pair. A
+deployment that omits them keeps working for the API suite and refuses a UI
+run with a 502 naming the unconfigured suite — rather than falling back to the
+other repository, which would report green against tests nobody asked for.
+The API suite keeps the original unprefixed names so an existing deploy line
+does not silently break.
 
 Deploying the Worker before its migration gives a **500 on every callback** —
 the new code selects a column the database does not have yet, and the only
@@ -186,17 +195,34 @@ the report into R2 directly rather than through this API — see
 [decision 14](docs/decisions.md#14-one-real-allure-report-shared-by-every-simulated-run).
 Without them the run still reports its numbers; it just has no report link.
 
-## The companion repository
+## The companion repositories
 
-This dashboard triggers a suite; that suite is published too:
+This dashboard triggers two suites, and both are published:
 
 **`playwright-api-automation-patterns`** —
 the same API suite built twice, functional-style and class-first, against one
 OpenAPI contract.
 
-They meet at three points: this dashboard dispatches that repo's
+**`playwright-ui-automation-patterns`** —
+the same twenty UI journeys built twice, locator-first and page-first, against
+a public demo storefront.
+
+Each meets this dashboard at the same three points: it dispatches that repo's
 `on-demand.yml`, that workflow uploads its Allure report into this deployment's
 R2 bucket, and then posts its result back to `/webhook` here.
+
+Which repository a run reaches is decided by its `suite` — `api` or `ui`, a
+column on every run since migration 0008. The two workflows deliberately
+declare the **same three inputs**, because GitHub rejects a dispatch carrying
+an input the workflow does not declare, so a body that branched per suite would
+be a second thing to keep in step. What differs is what the inputs mean: the
+API suite slices by tag, the UI suite by spec file.
+
+`packages/api/test/integration-contract.test.ts` holds both workflows'
+accepted values, copied by hand, and fails when this dashboard could offer a
+slice a workflow would refuse. That mismatch has happened once already — a
+service name sent in an input that only took package names, which neither repo
+could see on its own.
 
 ## Docs
 

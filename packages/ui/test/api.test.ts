@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { ApiError, api, isPending, type RunStatus } from '../src/api'
+import { ApiError, SUITES, SUITE_LABELS, api, isPending, type RunStatus } from '../src/api'
 
 /**
  * The UI's logic, not its rendering.
@@ -143,5 +143,20 @@ describe('the gate endpoint', () => {
     })
 
     await expect(api.gate()).resolves.toMatchObject({ opensAt: '2026-01-01T09:00:00.000Z' })
+  })
+})
+
+/**
+ * The suite badge's lookup.
+ *
+ * `SUITE_LABELS[run.suite]` renders a label for a value that arrives from the
+ * database. A suite the map has no entry for renders `undefined` into the
+ * table — visible, but only to whoever is looking at that row.
+ */
+describe('suite labels', () => {
+  it('names every suite the API can return', () => {
+    for (const suite of SUITES) {
+      expect(SUITE_LABELS[suite]).toBeTruthy()
+    }
   })
 })

@@ -1,5 +1,13 @@
 import { Fragment, useState, type CSSProperties } from 'react'
-import { RUNS_PER_PAGE, api, isPending, type Role, type Run, type RunStatus } from '../api'
+import {
+  RUNS_PER_PAGE,
+  SUITE_LABELS,
+  api,
+  isPending,
+  type Role,
+  type Run,
+  type RunStatus,
+} from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { c, mono, status as sc } from '../theme'
 
@@ -267,6 +275,13 @@ export function RunHistory({
 
                       <td style={s.td}>
                         <div style={s.runCell}>
+                          {/*
+                            In the existing cell rather than a column of its
+                            own: the table already carries six, and a seventh
+                            for a two-value field would cost width on every
+                            screen to answer a question asked once.
+                          */}
+                          <span style={s.runSuite}>{SUITE_LABELS[run.suite]}</span>
                           <span style={s.runService}>{run.service}</span>
                           <span style={s.runTags}>@{run.tags}</span>
                           <span style={s.runRef}>{run.ref}</span>
@@ -488,6 +503,16 @@ const s: Record<string, CSSProperties> = {
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
   runCell: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
+  runSuite: {
+    ...mono,
+    fontSize: 10.5,
+    letterSpacing: '0.04em',
+    color: c.t4,
+    background: c.surface,
+    border: `1px solid ${c.border}`,
+    borderRadius: 5,
+    padding: '1px 5px',
+  },
   runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
   runTags: { ...mono, fontSize: 11.5, color: c.t4 },
   runRef: { ...mono, fontSize: 11.5, color: c.t5 },

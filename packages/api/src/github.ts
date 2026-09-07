@@ -1,4 +1,4 @@
-import type { Bindings, Role } from './types'
+import type { Bindings, Role, Suite } from './types'
 
 /**
  * Dispatches a workflow run — or pretends to.
@@ -26,11 +26,42 @@ export interface DispatchResult {
   error?: string
 }
 
+/** Where a suite's runs are dispatched. */
+export interface Target {
+  repo: string
+  workflow: string
+}
+
+/**
+ * Maps a suite to the repository that runs it.
+ *
+ * The API suite reads the original `GITHUB_REPO`/`GITHUB_WORKFLOW` rather than
+ * a new `GITHUB_API_REPO`. Renaming them would have been tidier and would have
+ * broken every existing deployment's `wrangler deploy` line silently — the
+ * Worker would start, and dispatch would fail only when someone pressed Run.
+ * The asymmetry is the cost of not breaking what is already deployed.
+ *
+ * Returns null when the suite has no configuration, so the caller can say
+ * which suite is unconfigured instead of dispatching to `undefined/undefined`
+ * and reporting GitHub's 404 as if the request were at fault.
+ */
+export function resolveTarget(env: Bindings, suite: Suite): Target | null {
+  if (suite === 'api') {
+    return env.GITHUB_REPO && env.GITHUB_WORKFLOW
+      ? { repo: env.GITHUB_REPO, workflow: env.GITHUB_WORKFLOW }
+      : null
+  }
+
+  return env.GITHUB_UI_REPO && env.GITHUB_UI_WORKFLOW
+    ? { repo: env.GITHUB_UI_REPO, workflow: env.GITHUB_UI_WORKFLOW }
+    : null
+}
+
 export async function dispatchWorkflow(
   env: Bindings,
   runId: string,
   role: Role,
-  inputs: { service: string; tags: string; workers?: number; ref?: string },
+  inputs: { suite: Suite; service: string; tags: string; workers?: number; ref?: string },
 ): Promise<DispatchResult> {
   const simulate = role === 'demo' || env.SIMULATE_DISPATCH !== 'false'
 
@@ -48,8 +79,20 @@ export async function dispatchWorkflow(
     }
   }
 
+  // Checked after the token, because "no token" is the deployment-wide problem
+  // and reporting the suite-specific one first would send someone configuring
+  // a second repository to fix something that was never the cause.
+  const target = resolveTarget(env, inputs.suite)
+  if (!target) {
+    return {
+      ok: false,
+      simulated: false,
+      error: `No repository is configured for the '${inputs.suite}' suite`,
+    }
+  }
+
   const response = await fetch(
-    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${env.GITHUB_WORKFLOW}/dispatches`,
+    `https://api.github.com/repos/${target.repo}/actions/workflows/${target.workflow}/dispatches`,
     {
       method: 'POST',
       headers: {
@@ -71,6 +114,12 @@ export async function dispatchWorkflow(
           // `style` is what this did originally, and the workflow would have
           // rejected every dispatch: `style` accepts three package names and
           // nothing else. Neither repo could see the mismatch alone.
+          //
+          // Both suites' workflows are kept to the same three input names, so
+          // this body does not branch. GitHub rejects a dispatch carrying an
+          // input the workflow does not declare — a mismatch fails the whole
+          // request rather than being ignored — so "same inputs" is a contract
+          // between the repos, checked by `check:parity` on the suite side.
           run_id: runId,
           scope: inputs.service === 'all' ? inputs.tags : inputs.service,
           style: 'both',

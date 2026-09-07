@@ -30,6 +30,16 @@ bucket_name = "run-dashboard-reports"
 GITHUB_REPO = "your-org/playwright-api-automation-patterns"
 GITHUB_WORKFLOW = "on-demand.yml"
 
+# The second suite, dispatched when a run asks for `suite: ui`. Same treatment
+# as the pair above: a placeholder here, the real value passed at deploy time.
+#
+# Unprefixed names were kept for the API suite rather than renaming both pairs
+# symmetrically. Renaming would have been tidier and would have broken every
+# existing deploy line silently — the Worker would still start, and dispatch
+# would fail only when someone pressed Run.
+GITHUB_UI_REPO = "your-org/playwright-ui-automation-patterns"
+GITHUB_UI_WORKFLOW = "on-demand.yml"
+
 # With no GitHub token present the Worker simulates a dispatch instead of
 # making one, so the whole flow is exercisable offline. See src/github.ts.
 #
