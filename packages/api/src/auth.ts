@@ -27,34 +27,96 @@ const isRole = (value: string): value is Role => (ROLES as readonly string[]).in
 export interface Session {
   role: Role
   expiresAt: number
+  /**
+   * Who said they were signing in. A claim, never a proof.
+   *
+   * The password grants the role; this only labels the person using it, so a
+   * shared password stops producing a history where every row says the same
+   * thing. Anyone holding the password can type any name, which is exactly why
+   * it answers "who should I ask about this run" and nothing more.
+   *
+   * Optional: a session created before this existed, or by a caller that did
+   * not offer a name, is still a valid session.
+   */
+  name?: string
 }
+
+/**
+ * Names are base64url-encoded inside the token.
+ *
+ * The payload is dot-delimited, and a name is free text — "J. Smith" would
+ * split into an extra part and fail verification, silently signing people out
+ * the moment they used a full stop. Encoding sidesteps the whole class:
+ * whatever someone types, the token still has exactly four parts.
+ */
+const encodeName = (name: string) => btoa(unescape(encodeURIComponent(name)))
+const decodeName = (encoded: string) => decodeURIComponent(escape(atob(encoded)))
+
+/** Trimmed, and capped so a token cannot be inflated by a long name. */
+export const MAX_NAME_LENGTH = 40
 
 export async function createToken(
   secret: string,
   role: Role,
+  name?: string,
 ): Promise<Session & { token: string }> {
   const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
-  const payload = `${expiresAt}.${role}`
-  return { token: `${payload}.${await hmacHex(secret, payload)}`, role, expiresAt }
+  const trimmed = name?.trim().slice(0, MAX_NAME_LENGTH)
+  const encoded = trimmed ? encodeName(trimmed) : ''
+
+  // The name is part of the signed payload, so it cannot be edited after
+  // sign-in without invalidating the session.
+  const payload = `${expiresAt}.${role}.${encoded}`
+  return {
+    token: `${payload}.${await hmacHex(secret, payload)}`,
+    role,
+    expiresAt,
+    ...(trimmed ? { name: trimmed } : {}),
+  }
 }
 
-/** Returns the role a token carries, or null if it is invalid or expired. */
-export async function verifyToken(secret: string, token: string): Promise<Role | null> {
+/**
+ * Returns the session a token carries, or null if it is invalid or expired.
+ *
+ * Returns the whole session rather than the role alone: the name travels with
+ * the role and separating them here would mean a second parse somewhere else,
+ * which is a second place for the two to disagree.
+ *
+ * Tokens signed before the name existed have three parts, not four. They stay
+ * valid — nobody is signed out by a deployment — and simply carry no name.
+ */
+export async function verifyToken(secret: string, token: string): Promise<Session | null> {
   const parts = token.split('.')
-  if (parts.length !== 3) return null
+  if (parts.length !== 3 && parts.length !== 4) return null
 
-  const [expRaw, roleRaw, signature] = parts as [string, string, string]
+  const hasName = parts.length === 4
+  const [expRaw, roleRaw] = parts as [string, string, ...string[]]
+  const encodedName = hasName ? (parts[2] as string) : ''
+  const signature = (hasName ? parts[3] : parts[2]) as string
+  const payload = hasName ? `${expRaw}.${roleRaw}.${encodedName}` : `${expRaw}.${roleRaw}`
 
   // Signature is checked before anything is trusted, including the expiry —
   // otherwise an attacker picks their own expiry and only the signature stops
   // them, which is the same thing but harder to reason about.
-  if (!(await verifyHmac(secret, `${expRaw}.${roleRaw}`, signature))) return null
+  if (!(await verifyHmac(secret, payload, signature))) return null
 
   const exp = Number.parseInt(expRaw, 10)
   if (Number.isNaN(exp) || Date.now() / 1000 > exp) return null
   if (!isRole(roleRaw)) return null
 
-  return roleRaw
+  let name: string | undefined
+  if (encodedName) {
+    try {
+      name = decodeName(encodedName)
+    } catch {
+      // A signed token whose name will not decode is a bug on the writing
+      // side, not an attack — the signature already passed. Drop the name
+      // rather than refusing a session the password legitimately earned.
+      name = undefined
+    }
+  }
+
+  return { role: roleRaw, expiresAt: exp, ...(name ? { name } : {}) }
 }
 
 /** Which password maps to which role. */
@@ -98,6 +160,15 @@ declare module 'hono' {
      * (see signPreviewRole/verifyPreviewRole below).
      */
     sessionExpiresAt: number
+    /**
+     * What the person signing in said their name was, if they said anything.
+     *
+     * A claim, not a proof — see the note on `Session.name`. Handlers attach it
+     * to a run so a shared password stops producing a history where every row
+     * says the same role and nothing else. Undefined for an API key, for a
+     * session created before names existed, and for anyone who left it blank.
+     */
+    sessionName?: string
     /** Set by the config check in index.ts; empty when the deployment is sound. */
     configProblems: string[]
     /**
@@ -260,15 +331,15 @@ export async function requireSession(c: Context<HonoEnv>, next: Next) {
 
   if (!token) return c.json({ error: 'Sign in first' }, 401)
 
-  const role = await verifyToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, token)
-  if (!role) return c.json({ error: 'Session is invalid or expired' }, 401)
+  const session = await verifyToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, token)
+  if (!session) return c.json({ error: 'Session is invalid or expired' }, 401)
 
-  // verifyToken has already checked the signature and expiry by this point, so
-  // re-reading exp off the same token here is just extracting a field from
-  // something already trusted, not a second trust decision.
-  const [expRaw] = token.split('.')
-  c.set('role', role)
-  c.set('sessionExpiresAt', Number.parseInt(expRaw ?? '', 10))
+  // Straight off the verified session. This used to re-split the token to read
+  // the expiry back out, which was correct but meant the same string was
+  // parsed twice by two pieces of code that had to agree about its shape.
+  c.set('role', session.role)
+  c.set('sessionExpiresAt', session.expiresAt)
+  c.set('sessionName', session.name)
   await next()
   return undefined
 }

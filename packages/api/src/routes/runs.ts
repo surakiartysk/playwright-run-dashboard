@@ -224,8 +224,8 @@ runRoutes.post('/', async (c) => {
   // someone asked for, and it should be visible with its error rather than
   // vanishing.
   await c.env.DB.prepare(
-    `INSERT INTO runs (id, service, tags, workers, triggered_by, status, ref, started_at, api_key_id)
-     VALUES (?1, ?2, ?3, ?4, ?5, 'queued', ?6, ?7, ?8)`,
+    `INSERT INTO runs (id, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by)
+     VALUES (?1, ?2, ?3, ?4, ?5, 'queued', ?6, ?7, ?8, ?9)`,
   )
     .bind(
       id,
@@ -239,6 +239,10 @@ runRoutes.post('/', async (c) => {
       // an existing reader is unaffected; this only adds the answer to "which
       // pipeline?" that the role alone cannot give.
       apiKey?.id ?? null,
+      // And the person's side of the same question. Null for a key: a key has
+      // an id and a label already, and inventing a person for it would be a
+      // worse answer than none.
+      apiKey ? null : (c.get('sessionName') ?? null),
     )
     .run()
 

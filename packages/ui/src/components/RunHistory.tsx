@@ -304,7 +304,17 @@ export function RunHistory({
                               <span style={{ ...mono, color: c.t2 }}>{run.id}</span>
                             </Detail>
 
-                            <Detail label="Triggered by">{run.triggeredBy}</Detail>
+                            {/*
+                              The role always; the name only when someone gave
+                              one. A team sharing a password would otherwise see
+                              every row saying the same thing — which is the
+                              whole reason the name exists.
+                            */}
+                            <Detail label="Triggered by">
+                              {run.startedBy
+                                ? `${run.startedBy} · ${run.triggeredBy}`
+                                : run.triggeredBy}
+                            </Detail>
 
                             {run.workers !== null && run.workers !== undefined && (
                               <Detail label="Workers">
