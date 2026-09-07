@@ -268,7 +268,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Ninety-eight mutations were introduced
+**Every test here was proven able to fail.** Ninety-nine mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -1091,6 +1091,57 @@ Nothing pinned the other half — that one visitor cannot see another's runs, or
 delete, or reach the admin routes — which is the half the published password
 makes interesting. `demo-isolation.test.ts` covers it now, and removing the
 visibility clause turns it red.
+
+---
+
+## 23. A name on a run, and why it is a claim rather than an identity
+
+Migration 0006 stated the assumption this dashboard was built on: "there is one
+human behind each password." That is not how the passwords are used. A team
+shares one, so a history where every row says `qa` answers "who ran this?" no
+better than the machine case 0006 was written to fix — the problem it solved
+for pipelines was sitting unsolved for people the whole time.
+
+Sign-in now takes an optional name alongside the password, signs it into the
+session, and stores it on every run that session starts.
+
+### It is a claim, and the code says so
+
+Anyone holding the password can type anything, including a colleague's name.
+Nothing here checks otherwise, and the alternative — user accounts, with a user
+table, invitations and password resets — is a large answer to a question nobody
+has asked. So this is deliberately the smaller thing, labelled honestly: it
+answers "who should I ask about this run" and nothing that anyone would defend
+in a disagreement.
+
+What _is_ enforced is that the claim cannot change after sign-in. The name sits
+inside the signed payload, so editing it invalidates the session exactly as
+editing the role does — a test covers that specifically, because a shared
+password would otherwise let anyone rewrite the history to name someone else.
+
+### The details that had to be right
+
+- **Encoded, not interpolated.** The token payload is dot-delimited and a name
+  is free text; "J. Smith" would have split into an extra part and failed
+  verification, signing people out for using a full stop.
+- **Optional, never a gate.** A blank name is a valid sign-in. Requiring one
+  would turn a label into an access control, which it is not.
+- **`demo` never gets one.** Its password is published for anyone to use, so a
+  name there would be noise at best.
+- **Old tokens keep working.** Sessions signed before this have three parts
+  rather than four and stay valid, carrying no name. A deployment does not sign
+  everyone out.
+- **Null for machine keys.** A key has an id and a label already; inventing a
+  person for it would be a worse answer than none.
+
+### Trade-offs
+
+- **It looks more authoritative than it is.** A name beside a run reads like
+  attribution, and someone will eventually treat it as proof. The mitigation is
+  wording — in the migration, in the type, and in the sign-in form — which is
+  weaker than a mechanism and is the honest cost of not building accounts.
+- **Runs started before this show no name**, and always will. Backfilling would
+  mean inventing attribution, which is worse than a blank.
 
 ---
 

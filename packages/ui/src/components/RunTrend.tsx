@@ -51,7 +51,7 @@ export function describe(point: TrendPoint): string {
   return [
     `${point.service} @${point.tags} · ${point.ref}`,
     result,
-    `by ${point.triggeredBy} · ${relative(point.startedAt)}`,
+    `by ${point.startedBy ?? point.triggeredBy} · ${relative(point.startedAt)}`,
   ].join('\n')
 }
 
@@ -75,6 +75,7 @@ export interface TrendPoint {
   tags: string
   ref: string
   triggeredBy: string
+  startedBy: string | null
   passedCount: number
   total: number
   startedAt: string
@@ -98,6 +99,7 @@ export function trendPoints(runs: Run[]): TrendPoint[] {
       tags: run.tags,
       ref: run.ref,
       triggeredBy: run.triggeredBy,
+      startedBy: run.startedBy,
       passedCount: run.passed ?? 0,
       total: run.total ?? 0,
       startedAt: run.startedAt,
@@ -371,7 +373,7 @@ export function RunTrend({ runs }: { runs: Run[] }) {
       */}
       <p style={s.latestLine}>
         Newest: {latest.service} @{latest.tags} · {latest.ref} · {latest.passedCount}/{latest.total}{' '}
-        by {latest.triggeredBy}
+        by {latest.startedBy ?? latest.triggeredBy}
       </p>
     </section>
   )

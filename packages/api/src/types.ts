@@ -38,6 +38,8 @@ export interface RunRow {
   tags: string
   workers: number | null
   triggered_by: string
+  /** What the person said their name was. Null for a key, and for older runs. */
+  started_by: string | null
   status: RunStatus
   total: number | null
   passed: number | null
@@ -60,6 +62,13 @@ export interface RunView {
   tags: string
   workers: number | null
   triggeredBy: string
+  /**
+   * Who said they started it — a claim, not an identity.
+   *
+   * Null for a machine key, for runs started before names existed, and for
+   * anyone who signed in without giving one.
+   */
+  startedBy: string | null
   status: RunStatus
   total: number | null
   passed: number | null
@@ -103,6 +112,7 @@ export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   tags: row.tags,
   workers: row.workers,
   triggeredBy: row.triggered_by,
+  startedBy: row.started_by,
   status: row.status,
   ref: row.ref,
   total: row.total,

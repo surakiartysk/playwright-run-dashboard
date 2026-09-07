@@ -16,6 +16,8 @@ export interface Run {
   tags: string
   workers: number | null
   triggeredBy: string
+  /** Who said they started it — a claim, not an identity. Null for a key. */
+  startedBy: string | null
   status: RunStatus
   ref: string
   total: number | null
@@ -83,15 +85,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  login: (password: string) =>
-    request<{ role: Role; expiresAt: number }>('/auth/login', {
+  login: (password: string, name?: string) =>
+    request<{ role: Role; expiresAt: number; name?: string }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, ...(name ? { name } : {}) }),
     }),
 
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
 
-  me: () => request<{ role: Role }>('/auth/me'),
+  me: () => request<{ role: Role; name?: string }>('/auth/me'),
 
   devCredentials: () =>
     request<{ mode: 'full' | 'demo-only'; passwords: Partial<Record<Role, string>> }>(

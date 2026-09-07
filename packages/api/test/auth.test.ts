@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { createToken, verifyToken, roleForPassword, readSessionCookie } from '../src/auth'
+import {
+  createToken,
+  verifyToken,
+  roleForPassword,
+  readSessionCookie,
+  MAX_NAME_LENGTH,
+} from '../src/auth'
 import { hmacHex } from '../src/crypto'
 import { DEV_PASSWORDS } from '../src/config'
 import type { Bindings, Role } from '../src/types'
@@ -11,7 +17,7 @@ afterEach(() => vi.useRealTimers())
 describe('session tokens', () => {
   it.each(['dev', 'qa', 'admin'] as Role[])('round-trips a %s session', async (role) => {
     const { token } = await createToken(SECRET, role)
-    expect(await verifyToken(SECRET, token)).toBe(role)
+    expect(await verifyToken(SECRET, token)).toMatchObject({ role })
   })
 
   it('rejects a token signed with a different secret', async () => {
@@ -26,9 +32,9 @@ describe('session tokens', () => {
    */
   it('rejects a dev token edited to say admin', async () => {
     const { token } = await createToken(SECRET, 'dev')
-    const [exp, , signature] = token.split('.')
+    const [exp, , name, signature] = token.split('.')
 
-    expect(await verifyToken(SECRET, `${exp}.admin.${signature}`)).toBeNull()
+    expect(await verifyToken(SECRET, `${exp}.admin.${name}.${signature}`)).toBeNull()
   })
 
   /**
@@ -38,14 +44,14 @@ describe('session tokens', () => {
    */
   it('rejects a token whose expiry was pushed into the future', async () => {
     const { token } = await createToken(SECRET, 'dev')
-    const [, role, signature] = token.split('.')
+    const [, role, name, signature] = token.split('.')
 
-    expect(await verifyToken(SECRET, `9999999999.${role}.${signature}`)).toBeNull()
+    expect(await verifyToken(SECRET, `9999999999.${role}.${name}.${signature}`)).toBeNull()
   })
 
   it('rejects a token once it has expired', async () => {
     const { token } = await createToken(SECRET, 'qa')
-    expect(await verifyToken(SECRET, token)).toBe('qa')
+    expect(await verifyToken(SECRET, token)).toMatchObject({ role: 'qa' })
 
     // The TTL is eight hours; step past it.
     vi.useFakeTimers()
@@ -118,5 +124,76 @@ describe('readSessionCookie', () => {
   // A cookie named `not_session` must not satisfy a prefix match.
   it('does not match a cookie whose name merely ends in session', () => {
     expect(readSessionCookie('not_session=abc')).toBeNull()
+  })
+})
+
+/**
+ * The name a session carries.
+ *
+ * It is a claim, not an identity — anyone holding a shared password can type
+ * anything. What these pin down is the part that *is* enforceable: the claim
+ * cannot be changed after sign-in, a name with awkward characters does not
+ * break the token, and a session from before names existed still works.
+ */
+describe('session names', () => {
+  it('round-trips the name alongside the role', async () => {
+    const { token } = await createToken(SECRET, 'qa', 'Ada Lovelace')
+    expect(await verifyToken(SECRET, token)).toMatchObject({
+      role: 'qa',
+      name: 'Ada Lovelace',
+    })
+  })
+
+  it('carries no name when none was given', async () => {
+    const { token } = await createToken(SECRET, 'qa')
+    const session = await verifyToken(SECRET, token)
+    expect(session?.name).toBeUndefined()
+  })
+
+  /*
+   * The payload is dot-delimited and a name is free text. Encoding it is what
+   * stops "J. Smith" splitting the token into an extra part and failing
+   * verification — which would sign someone out for using a full stop.
+   */
+  it('survives a name containing the delimiter', async () => {
+    const { token } = await createToken(SECRET, 'dev', 'J. Smith')
+    expect(await verifyToken(SECRET, token)).toMatchObject({ name: 'J. Smith' })
+  })
+
+  it('survives a name that is not ASCII', async () => {
+    const { token } = await createToken(SECRET, 'dev', 'สุรเกียรติ')
+    expect(await verifyToken(SECRET, token)).toMatchObject({ name: 'สุรเกียรติ' })
+  })
+
+  /*
+   * The name is inside the signed payload, so editing it is the same class of
+   * attack as editing the role — and has to fail the same way. Without this,
+   * a shared password would let anyone rewrite the history to name a colleague.
+   */
+  it('rejects a token whose name was edited after signing', async () => {
+    const { token } = await createToken(SECRET, 'qa', 'Ada')
+    const [exp, role, , signature] = token.split('.')
+    const forged = btoa('Grace')
+
+    expect(await verifyToken(SECRET, `${exp}.${role}.${forged}.${signature}`)).toBeNull()
+  })
+
+  it('trims a name and caps its length', async () => {
+    const { name } = await createToken(SECRET, 'qa', `  ${'a'.repeat(80)}  `)
+    expect(name).toHaveLength(MAX_NAME_LENGTH)
+  })
+
+  /*
+   * A deployment must not sign everyone out. Tokens minted before this feature
+   * have three parts rather than four, and stay valid — carrying no name.
+   */
+  it('still accepts a token signed before names existed', async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600
+    const payload = `${expiresAt}.qa`
+    const signature = await hmacHex(SECRET, payload)
+
+    const session = await verifyToken(SECRET, `${payload}.${signature}`)
+    expect(session).toMatchObject({ role: 'qa' })
+    expect(session?.name).toBeUndefined()
   })
 })

@@ -21,6 +21,7 @@ import { brandPanelBackground, c } from '../theme'
  */
 export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [reveal, setReveal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -35,11 +36,11 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
       .catch(() => setHints(null))
   }, [])
 
-  async function signIn(secret: string) {
+  async function signIn(secret: string, who?: string) {
     setBusy(true)
     setError(null)
     try {
-      const { role } = await api.login(secret)
+      const { role } = await api.login(secret, who)
       onSignedIn(role)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign-in failed')
@@ -50,7 +51,7 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    await signIn(password)
+    await signIn(password, name)
   }
 
   /*
@@ -137,6 +138,31 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
                 </div>
               </>
             )}
+
+            {/*
+              Optional, and above the password because it is answered first.
+
+              The password decides what someone may do; this only says who was
+              at the keyboard, so a team sharing one password stops producing a
+              history where every run says the same role and nothing else.
+
+              It is a claim, not an identity — anyone with the password can
+              type anything — so it is never required and never blocks a
+              sign-in. The hint says as much rather than implying a check that
+              does not happen.
+            */}
+            <label htmlFor="who" style={s.label}>
+              Your name <span style={s.optional}>optional</span>
+            </label>
+
+            <input
+              id="who"
+              value={name}
+              placeholder="shown on the runs you start"
+              onChange={(e) => setName(e.target.value)}
+              maxLength={40}
+              style={{ ...s.input, paddingLeft: 13, marginBottom: 16 }}
+            />
 
             <label htmlFor="password" style={s.label}>
               Password
@@ -477,6 +503,7 @@ const s: Record<string, CSSProperties> = {
   formSub: { margin: '6px 0 30px', color: c.t4, fontSize: 15, fontWeight: 300 },
 
   label: { display: 'block', fontSize: 13, fontWeight: 500, color: c.t2, marginBottom: 8 },
+  optional: { color: c.t5, fontWeight: 400, fontSize: 12 },
   inputWrap: { position: 'relative' },
   lockIcon: {
     position: 'absolute',

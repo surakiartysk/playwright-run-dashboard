@@ -1,0 +1,17 @@
+-- Who started a run, when a person did.
+--
+-- `triggered_by` holds the role, and 0006 assumed "there is one human behind
+-- each password". That is not how the passwords are used: a team shares one,
+-- so a history of runs all saying 'qa' cannot answer "who ran this?" any
+-- better than the machine case 0006 was written to fix.
+--
+-- This is a claim, not proof. The name is typed at sign-in and signed into the
+-- session so it cannot be edited afterwards, but nothing stops someone typing
+-- a colleague's name — the password is what grants access, and everyone
+-- holding it can make any claim. Useful for "who should I ask about this run",
+-- not for anything anyone would defend in a disagreement.
+--
+-- NULL for runs started before this column existed, and for every run a
+-- machine key started: a key has an id and an owner already, and inventing a
+-- person for it would be a worse answer than none.
+ALTER TABLE runs ADD COLUMN started_by TEXT;
