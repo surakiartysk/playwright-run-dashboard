@@ -1182,13 +1182,13 @@ A UI run that quietly executed the API suite would report green against tests
 nobody asked for — a passing run that proves nothing is worse than an error,
 because nobody investigates green.
 
-### Both workflows take the same three inputs
+### Both workflows take the same inputs
 
 GitHub rejects a dispatch carrying an input the workflow does not declare: the
 whole request fails rather than the extra being ignored. So a dispatch body
 that branched per suite would be a second thing to keep in step, and the two
-`on-demand.yml` files deliberately declare the same `style`, `scope` and
-`run_id`.
+`on-demand.yml` files deliberately declare the same `style`, `scope`,
+`workers` and `run_id`.
 
 What differs is what they _mean_. The API suite's `scope` is a tag; the UI
 suite's is a spec file, because those journeys are grouped by file. Getting

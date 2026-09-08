@@ -214,7 +214,7 @@ R2 bucket, and then posts its result back to `/webhook` here.
 Which repository a run reaches is decided by its `suite` — `api` or `ui`, a
 column on every run since migration 0008 (see
 [decision 24](docs/decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)). The two workflows deliberately
-declare the **same three inputs**, because GitHub rejects a dispatch carrying
+declare the **same inputs**, because GitHub rejects a dispatch carrying
 an input the workflow does not declare, so a body that branched per suite would
 be a second thing to keep in step. What differs is what the inputs mean: the
 API suite slices by tag, the UI suite by spec file.
