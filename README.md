@@ -231,6 +231,7 @@ could see on its own.
 - [`architecture.md`](docs/architecture.md) — the request paths end to end
 - [`provenance.md`](docs/provenance.md) — where this came from, and how AI was used
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — what runs when, how to mutation-test, how to add an endpoint
+- [`CLAUDE.md`](CLAUDE.md) — the rules you break first, and why they exist
 
 ## Licence
 
