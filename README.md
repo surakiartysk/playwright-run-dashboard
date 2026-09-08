@@ -26,7 +26,7 @@ want the reasoning rather than the code.
 
 **Live at [testbydesign.dev](https://testbydesign.dev)** — one button, no
 password to type. That deployment is real: real D1, real R2, a real GitHub
-token that can dispatch the companion suite below. `demo` cannot reach any of
+token that can dispatch either companion suite below. `demo` cannot reach any of
 that — see
 [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real)
 for why a role can be handed a genuine login to a real deployment and still be

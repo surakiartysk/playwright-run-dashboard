@@ -98,8 +98,8 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
           <div style={s.divider} className="login-panel-detail" />
 
           <p style={s.brandNote} className="login-panel-detail">
-            Trigger the API suite against any branch and read the report — without waiting for QA or
-            digging through CI artifacts.
+            Trigger the API or UI suite against any branch and read the report — without waiting for
+            QA or digging through CI artifacts.
           </p>
 
           <div style={s.pill} className="login-panel-detail">
