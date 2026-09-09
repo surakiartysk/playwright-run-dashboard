@@ -18,11 +18,11 @@ sequenceDiagram
     UI->>W: POST /auth/login
     W-->>UI: Set-Cookie: session (signed, 8h)
 
-    D->>UI: pick service + scope + branch, press Run
+    D->>UI: pick suite + service + scope + branch, press Run
     UI->>W: POST /runs  (session cookie)
     W->>W: policy check — may this role use this ref?
-    W->>DB: INSERT status='queued'
-    W->>GH: workflow_dispatch
+    W->>DB: INSERT status='queued', suite
+    W->>GH: workflow_dispatch (to the suite's own repo)
     W-->>UI: 201 { runId }
 
     Note over UI,W: UI polls only while a run is pending
@@ -44,9 +44,10 @@ The run row is written **before** GitHub is called. A run that fails to dispatch
 is still a run someone asked for, and it should appear with its error rather
 than vanish.
 
-## The contract with the suite
+## The contract with the suites
 
-Two repositories, no shared code, meeting at exactly three points. Nothing but
+Three repositories, no shared code. This dashboard dispatches either suite —
+API or UI — and each meets it at exactly the same three points. Nothing but
 tests stops them drifting — and they had drifted: this dashboard sent a service
 name in a workflow input that only accepts package names, and the workflow had
 no callback step at all. Both repos' docs claimed the integration worked.
@@ -56,15 +57,28 @@ no callback step at all. Both repos' docs claimed the integration worked.
 | Input     | Value                                        | Note                                             |
 | --------- | -------------------------------------------- | ------------------------------------------------ |
 | `run_id`  | the run id created here                      | The callback names it, or the result is orphaned |
-| `scope`   | the chosen service, or the tag when it's all | The workflow greps `@<scope>`; services are tags |
+| `scope`   | the chosen service, or the tag when it's all | Means different things per suite — see below     |
 | `style`   | `both`                                       | Which package to run — not this dashboard's axis |
 | `workers` | a **string**                                 | GitHub accepts nothing else                      |
 
 `scope` and `style` are the workflow's names, not this dashboard's, and they do
 not line up with its vocabulary. That mismatch is the whole reason the tests in
 [`integration-contract.test.ts`](../packages/api/test/integration-contract.test.ts)
-exist: they pin the workflow's accepted values as a hand-copied list, so a
-change on either side surfaces here rather than as a 422 from GitHub.
+exist: they pin both workflows' accepted values as a hand-copied list, so a
+change on any side surfaces here rather than as a 422 from GitHub.
+
+**The input names are identical for both suites, and that is deliberate.**
+GitHub rejects a dispatch carrying an input the workflow does not declare — the
+whole request fails rather than the extra being ignored — so a body that
+branched per suite would be a second thing to keep in step.
+
+What differs is what `scope` _means_. The API suite greps a tag; the UI suite
+names a spec file, because its journeys are grouped by file. Getting that wrong
+is not a loud failure: `--grep @auth` against file-grouped tests matches
+nothing, and Playwright reports "no tests found" as a **success with zero
+tests** — a green run that asserted nothing. Which is why the contract test
+checks that every slice this dashboard can offer is one the target workflow
+accepts.
 
 **Callback — what comes back:**
 
@@ -174,6 +188,12 @@ anyone scanning the list is actually asking.
 The random suffix is not decoration: without it, two runs of the same service in
 the same minute collide on the PRIMARY KEY. That was a real 500 — see
 [decision 9](decisions.md#9-the-bugs-the-tests-actually-found).
+
+`suite` is a column rather than a convention inside `service`, because a `ui-`
+prefix would be invisible to SQL: filtering, grouping and the trend chart would
+each re-derive it by parsing, and each could parse it differently. It is also
+what decides which repository a run is dispatched to. See
+[decision 24](decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention).
 
 ## Polling
 
