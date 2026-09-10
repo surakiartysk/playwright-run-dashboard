@@ -46,8 +46,9 @@ than vanish.
 
 ## The contract with the suites
 
-Three repositories, no shared code. This dashboard dispatches either suite —
-API or UI — and each meets it at exactly the same three points. Nothing but
+Three repositories, no shared code, meeting at exactly three points. This
+dashboard dispatches either suite — API or UI — and each meets it the same
+way. Nothing but
 tests stops them drifting — and they had drifted: this dashboard sent a service
 name in a workflow input that only accepts package names, and the workflow had
 no callback step at all. Both repos' docs claimed the integration worked.
