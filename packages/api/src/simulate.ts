@@ -1,4 +1,4 @@
-import type { Bindings, RunStatus } from './types'
+import type { Bindings, RunStatus, Suite } from './types'
 import { DEMO_REPORT_PREFIX } from './config'
 
 /**
@@ -28,12 +28,34 @@ interface SimulatedOutcome {
 }
 
 /**
+ * Roughly how many tests each suite has.
+ *
+ * Approximate on purpose, and deliberately not checked against the suites: a
+ * simulated run is openly fake, and a number that had to track the real
+ * repositories would be one more thing to keep in step for no gain. Round
+ * values say "about this many" rather than claiming a count.
+ *
+ * What matters is that they differ. A single hardcoded figure was used for
+ * every run until the second suite arrived, and the demo then reported the
+ * same size whichever suite was picked — for the UI suite, roughly twice the
+ * tests it has.
+ */
+const SUITE_SIZE: Record<Suite, number> = {
+  api: 190,
+  ui: 40,
+}
+
+/**
  * Most runs pass. A failure appears roughly one time in five so the red path
  * is reachable without editing code — the state nobody remembers to design for
  * until it happens in front of someone.
  */
-function outcome(service: string): SimulatedOutcome {
-  const total = service === 'all' ? 83 : 20 + Math.floor(Math.random() * 30)
+function outcome(suite: Suite, service: string): SimulatedOutcome {
+  const size = SUITE_SIZE[suite]
+  // A slice is some fraction of the suite, floored so the smallest group is
+  // still a plausible run rather than a handful of tests.
+  const total =
+    service === 'all' ? size : Math.max(4, Math.round(size * (0.1 + Math.random() * 0.3)))
   const shouldFail = Math.random() < 0.2
 
   if (!shouldFail) return { status: 'passed', total, passed: total, failed: 0 }
@@ -42,7 +64,12 @@ function outcome(service: string): SimulatedOutcome {
   return { status: 'failed', total, passed: total - failed, failed }
 }
 
-export async function simulateRun(env: Bindings, runId: string, service: string): Promise<void> {
+export async function simulateRun(
+  env: Bindings,
+  runId: string,
+  suite: Suite,
+  service: string,
+): Promise<void> {
   // Queued → running, fast enough that a user watching sees the transition.
   await sleep(1500)
   await env.DB.prepare(`UPDATE runs SET status = 'running' WHERE id = ?1 AND status = 'queued'`)
@@ -51,7 +78,7 @@ export async function simulateRun(env: Bindings, runId: string, service: string)
 
   await sleep(2500 + Math.random() * 2000)
 
-  const result = outcome(service)
+  const result = outcome(suite, service)
 
   /**
    * Points at the shared Allure report rather than writing one.
