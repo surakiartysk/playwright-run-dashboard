@@ -159,6 +159,88 @@ if (distinct.size > 1) {
   )
 }
 
+// ── 3. The dropdown and the contract test's copy of it ─────────────────────
+//
+// `integration-contract.test.ts` holds `DASHBOARD_OFFERS`, a hand-copied
+// duplicate of the dropdown lists in `RunTrigger.tsx`. The duplication is
+// deliberate and explained there: importing the real lists would make that
+// test agree with the dashboard by construction, which is the one thing a
+// contract test must not do.
+//
+// The cost is that the copy can go stale. Add a service to the dropdown,
+// forget the copy, and the test still passes — it is comparing its own
+// snapshot against the workflow, not the list a user actually sees. The
+// dropdown then offers a slice the workflow rejects, and the run errors the
+// moment someone picks it.
+//
+// So a third party reads both files as text and compares them. That catches
+// drift without either side importing the other.
+
+const listOf = (text) => [...text.matchAll(/'([^']+)'/g)].map((m) => m[1])
+
+function dropdownLists() {
+  const src = readFileSync(join(ROOT, 'packages/ui/src/components/RunTrigger.tsx'), 'utf8')
+  const grab = (name, suite) => {
+    const block = src.match(new RegExp(`const ${name}[\\s\\S]*?\\n\\}`))?.[0]
+    if (!block) return undefined
+    const inner = block.match(new RegExp(`\\b${suite}:\\s*\\[([^\\]]*)\\]`))?.[1]
+    return inner === undefined ? undefined : listOf(inner)
+  }
+  return {
+    api: { services: grab('SUITE_SERVICES', 'api'), tags: grab('SUITE_TAGS', 'api') },
+    ui: { services: grab('SUITE_SERVICES', 'ui'), tags: grab('SUITE_TAGS', 'ui') },
+  }
+}
+
+function contractCopy() {
+  const src = readFileSync(join(ROOT, 'packages/api/test/integration-contract.test.ts'), 'utf8')
+  const block = src.match(/const DASHBOARD_OFFERS[\s\S]*?\n {2}\}/)?.[0]
+  if (!block) return undefined
+  const grab = (suite) => {
+    const seg = block.match(new RegExp(`\\b${suite}:\\s*\\{([\\s\\S]*?)\\}`))?.[1]
+    if (seg === undefined) return undefined
+    const services = seg.match(/services:\s*\[([^\]]*)\]/)?.[1]
+    const tags = seg.match(/tags:\s*\[([^\]]*)\]/)?.[1]
+    if (services === undefined || tags === undefined) return undefined
+    return { services: listOf(services), tags: listOf(tags) }
+  }
+  return { api: grab('api'), ui: grab('ui') }
+}
+
+{
+  const offered = dropdownLists()
+  const copied = contractCopy()
+
+  // A check that cannot find what it reads must say so rather than pass. This
+  // is the failure the hub's own tripwire hit: a rewrite moved the wording it
+  // grepped for, and it correctly refused to report success it could not
+  // verify.
+  if (!copied) {
+    problems.push(
+      'integration-contract.test.ts: could not read DASHBOARD_OFFERS — this check cannot compare it to the dropdown',
+    )
+  }
+
+  for (const suite of ['api', 'ui']) {
+    for (const kind of ['services', 'tags']) {
+      const mine = offered[suite]?.[kind]
+      const theirs = copied?.[suite]?.[kind]
+      if (!mine) {
+        problems.push(
+          `RunTrigger.tsx: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
+        )
+        continue
+      }
+      if (!theirs) continue
+      if (mine.join() !== theirs.join()) {
+        problems.push(
+          `the ${suite} ${kind} dropdown offers [${mine.join(', ')}] but integration-contract.test.ts checks [${theirs.join(', ')}]`,
+        )
+      }
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('\n✖ check:claims — the docs advertise something that is not true.\n')
   for (const problem of problems) console.error(`  ${problem}`)
