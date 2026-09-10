@@ -264,7 +264,7 @@ runRoutes.post('/', async (c) => {
   }
 
   if (dispatch.simulated) {
-    c.executionCtx.waitUntil(simulateRun(c.env, id, service))
+    c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service))
   }
 
   return c.json({ runId: id, status: 'queued', simulated: dispatch.simulated }, 201)

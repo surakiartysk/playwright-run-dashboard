@@ -28,9 +28,38 @@ describe('simulateRun', { timeout: 20_000 }, () => {
   it('advances a queued run to a finished state', async () => {
     const id = await seedRun({ status: 'queued' })
 
-    await simulateRun(env, id, 'items')
+    await simulateRun(env, id, 'api', 'items')
 
     expect(['passed', 'failed']).toContain(await statusOf(id))
+  })
+
+  /**
+   * A simulated run reports a size that belongs to the suite it claims.
+   *
+   * One figure was hardcoded for every run before the second suite existed,
+   * so the demo reported the same total whichever suite was picked — for the
+   * UI suite, roughly twice the tests it has, on the most visible page of the
+   * deployment.
+   *
+   * The bound is deliberately loose. Pinning an exact number would make this
+   * fail every time a suite gains a test, which is not what it is protecting:
+   * the bug was a *category* error, one suite reporting the other's size.
+   * Verified able to fail — with the suite argument ignored and the API size
+   * used for both, the `ui` case reports well past 60 and this goes red.
+   */
+  it.each([
+    ['api', 60, 400],
+    ['ui', 1, 60],
+  ] as const)('reports a %s-sized run', async (suite, min, max) => {
+    const id = await seedRun({ status: 'queued' })
+
+    await simulateRun(env, id, suite, 'all')
+
+    const row = await env.DB.prepare('SELECT total FROM runs WHERE id = ?1')
+      .bind(id)
+      .first<{ total: number }>()
+    expect(row?.total).toBeGreaterThanOrEqual(min)
+    expect(row?.total).toBeLessThanOrEqual(max)
   })
 
   /**
@@ -51,7 +80,7 @@ describe('simulateRun', { timeout: 20_000 }, () => {
       httpMetadata: { contentType: 'text/html' },
     })
 
-    await simulateRun(env, id, 'items')
+    await simulateRun(env, id, 'api', 'items')
 
     const row = await env.DB.prepare('SELECT report_path FROM runs WHERE id = ?1')
       .bind(id)
@@ -81,7 +110,7 @@ describe('simulateRun', { timeout: 20_000 }, () => {
     })
     expect(webhook.status).toBe(200)
 
-    await simulateRun(env, id, 'items')
+    await simulateRun(env, id, 'api', 'items')
 
     const row = await env.DB.prepare('SELECT status, total, passed FROM runs WHERE id = ?1')
       .bind(id)
@@ -96,7 +125,7 @@ describe('simulateRun', { timeout: 20_000 }, () => {
     async (status) => {
       const id = await seedRun({ status })
 
-      await simulateRun(env, id, 'items')
+      await simulateRun(env, id, 'api', 'items')
 
       expect(await statusOf(id)).toBe(status)
     },
@@ -106,7 +135,7 @@ describe('simulateRun', { timeout: 20_000 }, () => {
     const target = await seedRun({ status: 'queued' })
     const bystander = await seedRun({ status: 'queued' })
 
-    await simulateRun(env, target, 'items')
+    await simulateRun(env, target, 'api', 'items')
 
     expect(await statusOf(bystander)).toBe('queued')
   })
