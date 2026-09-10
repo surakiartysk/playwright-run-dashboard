@@ -253,6 +253,7 @@ describe('describe — what one bar says', () => {
     rate: 90,
     passed: false,
     id: '20260907-1200-items-abc123',
+    suite: 'api' as const,
     service: 'items',
     tags: 'smoke',
     ref: 'main',
@@ -273,6 +274,25 @@ describe('describe — what one bar says', () => {
 
   it('says who started it', () => {
     expect(describeBar(point)).toContain('by qa')
+  })
+
+  /*
+   * The suite, because the table row shows a badge for it.
+   *
+   * This chart was written when there was one suite and kept saying so after
+   * a second arrived: a red bar could belong to either, and the row it is
+   * supposed to agree with had a badge the bar did not.
+   *
+   * Asserted on the label a reader sees rather than the stored value, because
+   * `SUITE_LABELS[undefined]` is `undefined` and renders as the string
+   * "undefined" in the tooltip — silently, since nothing about a hover layer
+   * looks wrong when it goes wrong. Verified able to fail: dropping `suite`
+   * from `describe` leaves this red and every other test here green.
+   */
+  it('names the suite, so a red bar is attributable to one', () => {
+    expect(describeBar(point)).toContain('API')
+    expect(describeBar({ ...point, suite: 'ui' as const })).toContain('UI')
+    expect(describeBar(point)).not.toContain('undefined')
   })
 
   it('counts the failures rather than leaving the reader to subtract', () => {

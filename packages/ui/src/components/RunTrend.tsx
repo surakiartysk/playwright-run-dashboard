@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { isPending, type Run } from '../api'
+import { SUITE_LABELS, isPending, type Run, type Suite } from '../api'
 import { c, mono, status as sc } from '../theme'
 import { relative } from './RunHistory'
 
@@ -49,7 +49,7 @@ export function describe(point: TrendPoint): string {
     : `${point.passedCount}/${point.total} — ${point.total - point.passedCount} failed`
 
   return [
-    `${point.service} @${point.tags} · ${point.ref}`,
+    `${SUITE_LABELS[point.suite]} · ${point.service} @${point.tags} · ${point.ref}`,
     result,
     `by ${point.startedBy ?? point.triggeredBy} · ${relative(point.startedAt)}`,
   ].join('\n')
@@ -71,6 +71,16 @@ export interface TrendPoint {
    * table below to find out which run it was. These are what the table's own
    * row shows, so hovering a bar and reading a row tell the same story.
    */
+  /*
+   * The suite, because the table row shows it.
+   *
+   * Added when the dashboard learned to dispatch two suites and this chart did
+   * not: a red bar could belong to either, and the row it was supposed to
+   * agree with had a badge the bar did not. Without it the chart cannot answer
+   * "is the UI red, or is it just the API?" — which is the question the suite
+   * column exists to make answerable.
+   */
+  suite: Suite
   service: string
   tags: string
   ref: string
@@ -95,6 +105,7 @@ export function trendPoints(runs: Run[]): TrendPoint[] {
       rate: ((run.passed ?? 0) / (run.total ?? 1)) * 100,
       passed: run.status === 'passed',
       id: run.id,
+      suite: run.suite,
       service: run.service,
       tags: run.tags,
       ref: run.ref,
@@ -372,8 +383,8 @@ export function RunTrend({ runs }: { runs: Run[] }) {
         first anyway.
       */}
       <p style={s.latestLine}>
-        Newest: {latest.service} @{latest.tags} · {latest.ref} · {latest.passedCount}/{latest.total}{' '}
-        by {latest.startedBy ?? latest.triggeredBy}
+        Newest: {SUITE_LABELS[latest.suite]} · {latest.service} @{latest.tags} · {latest.ref} ·{' '}
+        {latest.passedCount}/{latest.total} by {latest.startedBy ?? latest.triggeredBy}
       </p>
     </section>
   )

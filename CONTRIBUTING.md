@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                         |
 | ------------------- | ------------------------------------------------------------ |
-| `pnpm test`         | Both packages — 337 Worker tests, then 84 UI tests           |
+| `pnpm test`         | Both packages — 337 Worker tests, then 85 UI tests           |
 | `pnpm verify`       | Everything CI runs: format, lint, types, leak, tests, claims |
 | `pnpm check:leak`   | The vocabulary and branding tripwire alone                   |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale      |
