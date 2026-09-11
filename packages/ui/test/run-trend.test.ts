@@ -8,6 +8,7 @@ import {
   PLOT_HEIGHT,
 } from '../src/components/RunTrend'
 import type { Run, RunStatus } from '../src/api'
+import { point, run as fixture } from './fixtures'
 
 /**
  * The two things a trend chart gets silently wrong.
@@ -24,23 +25,7 @@ import type { Run, RunStatus } from '../src/api'
 const run = (
   status: RunStatus,
   { total = 10, passed = 10, id = Math.random().toString(36).slice(2, 8) } = {},
-): Run => ({
-  id,
-  service: 'items',
-  tags: 'smoke',
-  workers: null,
-  triggeredBy: 'demo',
-  status,
-  ref: 'main',
-  total,
-  passed,
-  failed: total - passed,
-  startedAt: '2026-01-01T12:00:00Z',
-  finishedAt: null,
-  durationMs: 1000,
-  reportUrl: null,
-  workflowUrl: null,
-})
+): Run => fixture({ status, total, passed, id })
 
 describe('trendPoints', () => {
   /**
@@ -122,8 +107,8 @@ describe('bars', () => {
    */
   it('makes a better run taller, and grows it upward from the floor', () => {
     const boxes = bars([
-      { rate: 100, passed: true, id: 'best' },
-      { rate: 0, passed: false, id: 'worst' },
+      point({ rate: 100, passed: true, id: 'best' }),
+      point({ rate: 0, passed: false, id: 'worst' }),
     ])
 
     expect(boxes[0]!.height).toBeGreaterThan(boxes[1]!.height)
@@ -144,8 +129,8 @@ describe('bars', () => {
    */
   it('spreads a narrow band of high rates across the full height', () => {
     const boxes = bars([
-      { rate: 100, passed: true, id: 'a' },
-      { rate: 97, passed: false, id: 'b' },
+      point({ rate: 100, passed: true, id: 'a' }),
+      point({ rate: 97, passed: false, id: 'b' }),
     ])
 
     // On a fixed 0–100 axis these would differ by 3% of the height.
@@ -154,8 +139,8 @@ describe('bars', () => {
 
   it('does not divide by zero when every run has the same rate', () => {
     const boxes = bars([
-      { rate: 100, passed: true, id: 'a' },
-      { rate: 100, passed: true, id: 'b' },
+      point({ rate: 100, passed: true, id: 'a' }),
+      point({ rate: 100, passed: true, id: 'b' }),
     ])
 
     expect(boxes.every((b) => Number.isFinite(b.height))).toBe(true)
@@ -172,13 +157,13 @@ describe('bars', () => {
    */
   it('still draws a run sitting on the floor of the range', () => {
     const boxes = bars([
-      { rate: 100, passed: true, id: 'top' },
-      { rate: 0, passed: false, id: 'floor' },
+      point({ rate: 100, passed: true, id: 'top' }),
+      point({ rate: 0, passed: false, id: 'floor' }),
     ])
 
     const { min } = domain([
-      { rate: 100, passed: true, id: 'top' },
-      { rate: 0, passed: false, id: 'floor' },
+      point({ rate: 100, passed: true, id: 'top' }),
+      point({ rate: 0, passed: false, id: 'floor' }),
     ])
     // Confirms this test is exercising the floor rather than a padded value.
     expect(min).toBe(0)
@@ -194,11 +179,9 @@ describe('bars', () => {
    * a smaller count would pass whether or not the guard existed.
    */
   it('keeps a usable bar width when there are many runs', () => {
-    const many = Array.from({ length: 150 }, (_, i) => ({
-      rate: 90 + (i % 10),
-      passed: true,
-      id: `r${i}`,
-    }))
+    const many = Array.from({ length: 150 }, (_, i) =>
+      point({ rate: 90 + (i % 10), passed: true, id: `r${i}` }),
+    )
 
     // Without the floor these would be ~1.6 units wide.
     expect(PLOT_WIDTH / many.length).toBeLessThan(3)
@@ -212,8 +195,8 @@ describe('bars', () => {
 describe('domain', () => {
   it('never claims a rate above 100 or below 0', () => {
     const { min, max } = domain([
-      { rate: 100, passed: true, id: 'a' },
-      { rate: 0, passed: false, id: 'b' },
+      point({ rate: 100, passed: true, id: 'a' }),
+      point({ rate: 0, passed: false, id: 'b' }),
     ])
 
     expect(max).toBeLessThanOrEqual(100)
@@ -226,8 +209,8 @@ describe('domain', () => {
    */
   it('keeps a minimum window, so a tiny wobble does not fill the chart', () => {
     const { min, max } = domain([
-      { rate: 100, passed: true, id: 'a' },
-      { rate: 99.5, passed: true, id: 'b' },
+      point({ rate: 100, passed: true, id: 'a' }),
+      point({ rate: 99.5, passed: true, id: 'b' }),
     ])
 
     expect(max - min).toBeGreaterThanOrEqual(10)
@@ -235,8 +218,8 @@ describe('domain', () => {
 
   it('widens to fit a genuinely large spread', () => {
     const { min, max } = domain([
-      { rate: 100, passed: true, id: 'a' },
-      { rate: 20, passed: false, id: 'b' },
+      point({ rate: 100, passed: true, id: 'a' }),
+      point({ rate: 20, passed: false, id: 'b' }),
     ])
 
     expect(min).toBeLessThan(20)
@@ -255,6 +238,7 @@ describe('describe — what one bar says', () => {
     id: '20260907-1200-items-abc123',
     suite: 'api' as const,
     service: 'items',
+    startedBy: null,
     tags: 'smoke',
     ref: 'main',
     triggeredBy: 'qa',

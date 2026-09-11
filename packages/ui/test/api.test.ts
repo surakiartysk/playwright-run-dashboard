@@ -36,7 +36,7 @@ describe('the request wrapper', () => {
   const respondWith = (status: number, body: unknown) =>
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify(body), { status })),
+      vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status })),
     )
 
   it('returns the parsed body on success', async () => {
@@ -65,7 +65,7 @@ describe('the request wrapper', () => {
   it('still throws when the error body is not JSON', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response('<html>502</html>', { status: 502 })),
+      vi.fn<typeof fetch>(async () => new Response('<html>502</html>', { status: 502 })),
     )
 
     await expect(api.listRuns()).rejects.toMatchObject({ status: 502 })
@@ -76,7 +76,7 @@ describe('the request wrapper', () => {
    * for it. Forgetting this makes every call 401 in the cross-origin dev setup.
    */
   it('sends credentials, or the session cookie never leaves the browser', async () => {
-    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
     await api.listRuns()
@@ -85,7 +85,9 @@ describe('the request wrapper', () => {
   })
 
   it('sends the role as JSON when previewing', async () => {
-    const fetchMock = vi.fn(async () => new Response('{"previewing":"admin"}', { status: 200 }))
+    const fetchMock = vi.fn<typeof fetch>(
+      async () => new Response('{"previewing":"admin"}', { status: 200 }),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await api.previewRole('admin')
@@ -100,7 +102,7 @@ describe('the gate endpoint', () => {
   const respondWith = (body: unknown) =>
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify(body), { status: 200 })),
+      vi.fn<typeof fetch>(async () => new Response(JSON.stringify(body), { status: 200 })),
     )
 
   it('reports a closed gate that applies to the caller', async () => {

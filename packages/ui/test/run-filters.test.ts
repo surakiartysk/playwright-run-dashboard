@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyFilter, counts, type StatusFilter } from '../src/components/RunFilters'
+import { run as fixture } from './fixtures'
 import type { Run, RunStatus } from '../src/api'
 
 /**
@@ -12,23 +13,7 @@ import type { Run, RunStatus } from '../src/api'
  * "All", which is the opposite of what a filter is for.
  */
 
-const run = (status: RunStatus): Run => ({
-  id: `run-${status}-${Math.random().toString(36).slice(2, 8)}`,
-  service: 'items',
-  tags: 'smoke',
-  workers: null,
-  triggeredBy: 'demo',
-  status,
-  ref: 'main',
-  total: 10,
-  passed: 10,
-  failed: 0,
-  startedAt: '2026-01-01T12:00:00Z',
-  finishedAt: null,
-  durationMs: 1000,
-  reportUrl: null,
-  workflowUrl: null,
-})
+const run = (status: RunStatus): Run => fixture({ status })
 
 const statuses = (runs: Run[]) => runs.map((r) => r.status).sort()
 

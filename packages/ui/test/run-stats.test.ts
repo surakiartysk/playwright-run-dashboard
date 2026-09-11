@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { summarise } from '../src/components/RunStats'
 import type { Run, RunStatus } from '../src/api'
+import { run as fixture } from './fixtures'
 
 /**
  * The arithmetic behind the summary bar.
@@ -14,23 +15,8 @@ import type { Run, RunStatus } from '../src/api'
  * so these assert the exact numbers rather than that something was returned.
  */
 
-const run = (status: RunStatus, durationMs: number | null = 1000): Run => ({
-  id: `run-${Math.random().toString(36).slice(2, 8)}`,
-  service: 'items',
-  tags: 'smoke',
-  workers: null,
-  triggeredBy: 'demo',
-  status,
-  ref: 'main',
-  total: 10,
-  passed: status === 'passed' ? 10 : 9,
-  failed: status === 'passed' ? 0 : 1,
-  startedAt: '2026-01-01T12:00:00Z',
-  finishedAt: null,
-  durationMs,
-  reportUrl: null,
-  workflowUrl: null,
-})
+const run = (status: RunStatus, durationMs: number | null = 1000): Run =>
+  fixture({ status, durationMs })
 
 describe('summarise', () => {
   it('returns nulls rather than NaN for an empty list', () => {
