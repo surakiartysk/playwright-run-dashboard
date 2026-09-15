@@ -78,7 +78,7 @@ each role may do cannot drift from what the API enforces.
 **Trade-off.** A table of constants does not express rules like "QA may use
 release branches, but only during a freeze". The moment a rule needs context
 beyond the role, this shape stops being enough and wants a real policy
-evaluator. It is the right size for three roles and the wrong size for thirty.
+evaluator. It is the right size for four roles and the wrong size for thirty.
 
 ---
 
@@ -699,11 +699,17 @@ shape for rules that change when someone's job changes; it is the wrong shape
 for facts that change on a Tuesday afternoon.
 
 _The second:_ the dashboard offers a list of services and tags that is **copied
-by hand from the suite's workflow**, and it now lives in three places —
-`RunTrigger.tsx`, `WORKFLOW_ACCEPTS` in `integration-contract.test.ts`, and
-`on-demand.yml` itself. Adding a service to the suite means remembering all
-three. The contract test catches a mismatch between two of them; nothing catches
-the workflow drifting from both.
+by hand from each suite's workflow**, and every suite multiplies the copies.
+Per suite it lives in four places — `SUITE_SERVICES`/`SUITE_TAGS` in
+`RunTrigger.tsx`, `DASHBOARD_OFFERS` and `WORKFLOW_ACCEPTS` in
+`integration-contract.test.ts`, and `on-demand.yml` itself, which is in another
+repository. Adding a service means remembering all four.
+
+Two of those pairs are now checked: `check:claims` compares the dropdown with
+`DASHBOARD_OFFERS`, and the contract test compares `DASHBOARD_OFFERS` with
+`WORKFLOW_ACCEPTS`. **Nothing catches `WORKFLOW_ACCEPTS` drifting from the
+workflow it claims to copy** — the one comparison that crosses a repository
+boundary is the one no test here can make.
 
 Both are the same failure: **a fact about the suite is stored in the dashboard**,
 and the two go out of step because nothing makes them agree.

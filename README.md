@@ -75,7 +75,7 @@ packages/ui     React + Vite
 ## Tests
 
 ```bash
-pnpm verify        # what CI runs: format, lint, types, leak check, tests
+pnpm verify        # what CI runs: format, lint, types, leak, tests, claims
 pnpm test          # 422 tests — 337 in the Worker, 85 in the UI
 pnpm check:leak    # the vocabulary and branding tripwire alone
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
@@ -128,7 +128,19 @@ wrangler secret put TOKEN_SECRET     # signs report links
 wrangler secret put ADMIN_PASSWORD
 wrangler secret put QA_PASSWORD
 wrangler secret put DEV_PASSWORD
+wrangler secret put GITHUB_TOKEN     # dispatches the workflows
 ```
+
+`GITHUB_TOKEN` is the one secret `/health` does **not** report as missing, and
+the reason is that it is not always needed: a deployment left simulating never
+reads it. Its absence surfaces as a failed dispatch naming it, on the first
+real run. It needs `actions: write` on **both** suite repositories — a token
+scoped to one of them dispatches that suite and fails on the other, with
+GitHub's 404 rather than anything this dashboard can explain.
+
+`DEMO_PASSWORD` is deliberately absent. `demo` is expected to keep a guessable
+password, because what makes it safe is that it can never dispatch for real —
+see [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
 
 ### Routing
 
@@ -178,11 +190,14 @@ tracked file deliberately holds `SIMULATE_DISPATCH = "true"` and a placeholder
 so a plain `wrangler deploy` silently reverts a live deployment to simulating —
 the dashboard keeps working, and quietly stops dispatching anything real.
 
-Then in `wrangler.toml`: set `database_id` to a real D1 database, `GITHUB_REPO`
-to the repository whose workflow you are dispatching, and `SIMULATE_DISPATCH`
-to `"false"`. That last one also stops the login screen offering dev/qa/admin
-at all, leaving the `demo` button — which is not a secret being kept, since
-demo cannot dispatch anything real and hiding it would protect nothing.
+The one thing that **does** belong in `wrangler.toml` is `database_id`: it
+names the D1 database this deployment owns, `wrangler deploy` has no `--var`
+equivalent for a binding, and it is not a credential. Everything else in
+`[vars]` stays on the deploy line.
+
+`SIMULATE_DISPATCH:false` also stops the login screen offering dev/qa/admin at
+all, leaving the `demo` button — which is not a secret being kept, since demo
+cannot dispatch anything real and hiding it would protect nothing.
 
 The suite side needs `DASHBOARD_WEBHOOK_URL` as a repository variable and
 `DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching `WEBHOOK_SECRET`

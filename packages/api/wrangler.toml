@@ -43,16 +43,22 @@ GITHUB_UI_WORKFLOW = "on-demand.yml"
 # With no GitHub token present the Worker simulates a dispatch instead of
 # making one, so the whole flow is exercisable offline. See src/github.ts.
 #
-# Committed as "true" on purpose, even though a real deployment exists. Both
-# vars are overridden at deploy time with `wrangler deploy --var`, which never
-# touches this file — so the tracked default stays the safe one this repo
+# Committed as "true" on purpose, even though a real deployment exists. Every
+# var above is overridden at deploy time with `wrangler deploy --var`, which
+# never touches this file — so the tracked default stays the safe one this repo
 # argues for in decision 6, and a clone never inherits someone else's live
 # GITHUB_REPO by accident.
 SIMULATE_DISPATCH = "true"
 
 # Secrets — set with `wrangler secret put <NAME>` for a real deployment, or in
 # `.dev.vars` locally. Defaults exist for all of them so a clone runs as-is:
-#   GITHUB_TOKEN     dispatches the workflow
-#   WEBHOOK_SECRET   signs the result callback
+#   GITHUB_TOKEN     dispatches either suite's workflow, so it needs access to
+#                    BOTH repositories above. Not checked by assertDeployable:
+#                    it is only read once SIMULATE_DISPATCH is false, and its
+#                    absence is reported by the dispatch that needed it.
+#   WEBHOOK_SECRET   signs the result callback — must match DASHBOARD_WEBHOOK_SECRET
+#                    on both suite repositories
 #   TOKEN_SECRET     signs report-access links
-#   ADMIN_PASSWORD   the single login
+#   DEV_PASSWORD     one login per role — see config.ts. `demo` is the exception:
+#   QA_PASSWORD      its password is meant to stay guessable, because what makes
+#   ADMIN_PASSWORD   it safe is that it can never dispatch for real (decision 12).

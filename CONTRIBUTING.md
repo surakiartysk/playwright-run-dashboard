@@ -208,8 +208,8 @@ this repo is meant to be cloned and run, so a broken build is a broken front
 door.
 
 There is deliberately no scheduled workflow. This repo is the thing that
-_triggers_ runs, not the thing that gets run on a timer; the suite it dispatches
-has its own schedule.
+_triggers_ runs, not the thing that gets run on a timer; the suites it
+dispatches have their own schedules.
 
 ## Two gates worth understanding before you trip them
 
@@ -225,8 +225,18 @@ code around it. A check nobody trusts gets disabled.
 
 ### `check:claims`
 
-Fails when the docs advertise a test count that no longer matches reality, or
-when the three documents stating the mutation count disagree.
+Three things, all of which have gone stale before:
+
+- **Test counts.** Fails when the docs advertise a count that no longer matches
+  reality, or when the three documents stating the mutation count disagree.
+- **The dropdown against the contract test.** `SUITE_SERVICES` and `SUITE_TAGS`
+  in [`RunTrigger.tsx`](packages/ui/src/components/RunTrigger.tsx) are what a
+  user can actually pick; `DASHBOARD_OFFERS` in
+  [`integration-contract.test.ts`](packages/api/test/integration-contract.test.ts)
+  is the hand-copied list that gets checked against both workflows. A slice
+  added to the dropdown and not to the copy is never tested against the
+  workflow that would refuse it — the contract test would still pass, having
+  been asked about a different list.
 
 This exists because the mistake happened twice in a week — the docs here said
 132 tests after the suite reached 140, and the companion repo said 82 after it
@@ -234,6 +244,10 @@ reached 83. A number written in prose has no way to notice it has gone stale.
 
 Add a test and this gate will fail. That is the point: update the number in
 `README.md`, or the claim stops being true.
+
+What it does **not** check is the third copy: `options:` in each suite's
+`on-demand.yml`, which lives in a repository this one cannot see. That gap is
+the subject of [decision 16](docs/decisions.md#16-what-can-be-switched-off-and-what-the-two-repos-agree-on).
 
 ## Adding an endpoint
 
