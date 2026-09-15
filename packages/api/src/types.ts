@@ -2,8 +2,9 @@
  * Worker bindings and the shapes crossing the wire.
  *
  * Every secret has a development default. That is a deliberate trade: a repo
- * that cannot start without four secrets is a repo nobody starts. The defaults
- * are obviously fake, and `POST /runs` refuses to dispatch for real while
+ * that cannot start without a handful of secrets is a repo nobody starts. The
+ * defaults are obviously fake, `assertDeployable` refuses to let them reach a
+ * real deployment, and `POST /runs` refuses to dispatch for real while
  * `SIMULATE_DISPATCH` is on — so a misconfigured deployment fails loudly
  * rather than quietly using them.
  */
@@ -36,8 +37,9 @@ export interface Bindings {
    * Optional, and the reason is compatibility: a deployment that predates the
    * second suite has neither var set, and must keep working rather than
    * failing at startup for a suite nobody has asked it for. `resolveTarget`
-   * turns the absence into a 422 on the one request that needs it, which is a
-   * better answer than a 503 on every route.
+   * returns null, which `POST /runs` reports as a 502 naming the unconfigured
+   * suite — the dispatch really did fail upstream — on the one request that
+   * needs it, rather than a 503 on every route.
    */
   GITHUB_UI_REPO?: string
   GITHUB_UI_WORKFLOW?: string

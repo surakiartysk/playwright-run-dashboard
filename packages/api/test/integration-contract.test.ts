@@ -11,34 +11,52 @@ beforeAll(migrate)
 /**
  * The contract with the suite this dashboard triggers.
  *
- * Two repositories meet at exactly three points: the workflow inputs sent on
+ * Three repositories meet at exactly three points: the workflow inputs sent on
  * dispatch, the report uploaded into this bucket, and the callback posted when
- * the run finishes. Neither side can import the other, so nothing but a test
- * like this stops them drifting — and they had drifted: the dashboard was
- * sending a service name in an input the workflow only accepted a package name
- * for, and the workflow had no callback step at all.
+ * the run finishes. Two of those repositories are suites — API and UI — and
+ * each meets this one the same way.
  *
- * The payload below is the exact shape `.github/workflows/on-demand.yml`
- * builds in its "Report the result" step. If that step changes, this fails.
+ * None of them can import the others, so nothing but a test like this stops
+ * them drifting — and they had drifted: the dashboard was sending a service
+ * name in an input the workflow only accepted a package name for, and the
+ * workflow had no callback step at all.
+ *
+ * The payload below is the exact shape both `.github/workflows/on-demand.yml`
+ * files build in their "Report the result" step. If either changes, this fails.
  */
 describe('the callback the suite workflow sends', () => {
-  it('is accepted, and records the totals', async () => {
+  /*
+   * Every field both workflows' "Report the result" step builds, on the path
+   * where everything worked: the suite ran, the report uploaded, and the
+   * callback carries the lot.
+   *
+   * Listing all of them is the point. A payload holding only the four totals
+   * would still pass while the dashboard dropped `durationMs` on the floor —
+   * which is exactly what a partial version of this test did until the
+   * workflows started sending it.
+   */
+  it('is accepted, and records everything it carries', async () => {
     const id = await seedRun({ status: 'running' })
 
-    // Field-for-field what the workflow posts.
     const response = await postWebhook({
       runId: id,
       status: 'passed',
       total: 92,
       passed: 92,
       failed: 0,
+      durationMs: 41_200,
+      reportPath: `runs/${id}/index.html`,
       workflowUrl: 'https://github.com/owner/repo/actions/runs/123',
+      suiteVersion: '1.0.0',
+      suiteSha: '0f2c1ab',
     })
 
     expect(response.status).toBe(200)
 
     const row = await env.DB.prepare(
-      'SELECT status, total, passed, failed, workflow_url FROM runs WHERE id = ?1',
+      `SELECT status, total, passed, failed, duration_ms, report_path,
+              workflow_url, suite_version, suite_sha
+         FROM runs WHERE id = ?1`,
     )
       .bind(id)
       .first<{
@@ -46,7 +64,11 @@ describe('the callback the suite workflow sends', () => {
         total: number
         passed: number
         failed: number
+        duration_ms: number
+        report_path: string
         workflow_url: string
+        suite_version: string
+        suite_sha: string
       }>()
 
     expect(row).toMatchObject({
@@ -54,7 +76,11 @@ describe('the callback the suite workflow sends', () => {
       total: 92,
       passed: 92,
       failed: 0,
+      duration_ms: 41_200,
+      report_path: `runs/${id}/index.html`,
       workflow_url: 'https://github.com/owner/repo/actions/runs/123',
+      suite_version: '1.0.0',
+      suite_sha: '0f2c1ab',
     })
   })
 
@@ -75,9 +101,11 @@ describe('the callback the suite workflow sends', () => {
   })
 
   /**
-   * The workflow omits `reportPath` — it uploads its report as a GitHub
-   * artifact rather than to this dashboard's bucket. The callback must not
-   * fail for that, and must not invent a report link.
+   * The workflow omits `reportPath` when its upload step did not succeed —
+   * that step is `continue-on-error`, so a failed upload still reaches the
+   * callback. The callback must not fail for that, and must not invent a
+   * report link. The same omission happens on a run whose deployment has no
+   * R2 credentials configured at all.
    */
   it('accepts a callback with no report path', async () => {
     const id = await seedRun({ status: 'running', reportPath: null })
@@ -118,7 +146,7 @@ const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[] }> = {
       'core',
     ],
   },
-  // The UI suite's own on-demand.yml. Same three input names — GitHub rejects
+  // The UI suite's own on-demand.yml. Same four input names — GitHub rejects
   // a dispatch carrying an input a workflow does not declare — but a different
   // vocabulary: its journeys are grouped by spec file rather than by tag.
   ui: {
@@ -239,7 +267,7 @@ describe('the dispatch the dashboard sends', () => {
   })
 
   /*
-   * Both workflows declare the same three inputs, and GitHub rejects a
+   * Both workflows declare the same four inputs, and GitHub rejects a
    * dispatch carrying one a workflow does not declare — so a body that
    * branched per suite would fail the whole request, not degrade quietly.
    */

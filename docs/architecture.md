@@ -90,12 +90,25 @@ accepts.
   "total": 80,
   "passed": 80,
   "failed": 0,
+  "durationMs": 41200,
   "suiteVersion": "1.0.0",
   "suiteSha": "…",
   "reportPath": "runs/…/index.html",
   "workflowUrl": "https://github.com/…/actions/runs/…"
 }
 ```
+
+`durationMs` is how long the **suite** took, which is not how long the workflow
+took — checkout, install and the browser download are not the suite. The two
+workflows compute it differently and both are right: the API suite sums its
+packages, because they run one after the other (they both bind port 4010 for
+their own mock); the UI suite takes the longest, because its packages run at
+once and adding them would report roughly twice the elapsed time.
+
+Every field but `runId` and `status` is optional, and the three that name a
+result — `reportPath`, `suiteVersion`, `suiteSha` — are `COALESCE`d rather than
+overwritten, so a callback that omits one does not erase what an earlier one
+recorded.
 
 Signed over `timestamp.body` with a shared secret, and the workflow sends it
 whether the suite passed or failed — a red run that never reports leaves the
