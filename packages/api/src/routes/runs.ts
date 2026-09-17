@@ -455,9 +455,31 @@ runRoutes.delete('/:id', requireRole('admin'), async (c) => {
   const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()
   if (result.meta.changes === 0) return c.json({ error: 'No such run' }, 404)
 
-  // The report outlives the row otherwise, and R2 is billed by what it holds.
-  const listed = await c.env.REPORTS.list({ prefix: `runs/${id}/` })
-  await Promise.all(listed.objects.map((object) => c.env.REPORTS.delete(object.key)))
+  /*
+   * The report outlives the row otherwise, and R2 is billed by what it holds.
+   *
+   * Walked with a cursor rather than listed once: R2 returns at most 1000 keys
+   * per call, and this used to take that one page as the whole report. A real
+   * Allure report is well past it — a JSON file per test, plus attachments —
+   * so deleting a run left most of its objects in the bucket permanently, and
+   * answered with a `deletedObjects` count that was really just the page size.
+   *
+   * Deleted page by page rather than collecting every key first: the whole
+   * point is that a report can be large, and accumulating its key list in
+   * memory to avoid a few round trips trades one unbounded thing for another.
+   */
+  let deletedObjects = 0
+  let cursor: string | undefined
 
-  return c.json({ ok: true, deletedObjects: listed.objects.length })
+  for (;;) {
+    const listed = await c.env.REPORTS.list({ prefix: `runs/${id}/`, cursor })
+    if (listed.objects.length > 0) {
+      await Promise.all(listed.objects.map((object) => c.env.REPORTS.delete(object.key)))
+      deletedObjects += listed.objects.length
+    }
+    if (!listed.truncated) break
+    cursor = listed.cursor
+  }
+
+  return c.json({ ok: true, deletedObjects })
 })
