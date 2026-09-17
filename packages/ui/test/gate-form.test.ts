@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modeFromStatus, toLocalInput } from '../src/gate-form'
+import { modeFromStatus, pausedReason, toLocalInput } from '../src/gate-form'
 
 /**
  * The gate form's two silent failure modes.
@@ -63,5 +63,38 @@ describe('showing an instant in a datetime-local input', () => {
 
   it('falls back to now when nothing is configured', () => {
     expect(toLocalInput(null)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+  })
+})
+
+/**
+ * What a blocked developer is told.
+ *
+ * Migration 0003 gives `updated_by` one job — "so 'why can't I run anything?'
+ * has an answer" — and until now the answer stopped at the database: the
+ * column recorded a role, and no endpoint read it back. Now that it carries a
+ * person and GET /gate returns it, this is the sentence that has to spend it.
+ */
+describe('pausedReason', () => {
+  it('names who paused it when the gate says', () => {
+    expect(pausedReason({ opensAt: null, updatedBy: 'Nok (admin)' })).toBe(
+      'Runs are paused for your role, by Nok (admin). QA and admin are unaffected.',
+    )
+  })
+
+  it('says when it lifts, alongside who paused it', () => {
+    const message = pausedReason({ opensAt: '2026-01-01T14:00:00Z', updatedBy: 'Nok (admin)' })
+
+    expect(message).toContain('Nok (admin)')
+    expect(message).toContain(new Date('2026-01-01T14:00:00Z').toLocaleString())
+  })
+
+  /*
+   * A gate nobody has touched since the migration seeded it has no name to
+   * give. The sentence has to stay a sentence rather than trailing "by null".
+   */
+  it('leaves the attribution out entirely when there is none', () => {
+    expect(pausedReason({ opensAt: null, updatedBy: null })).toBe(
+      'Runs are paused for your role. QA and admin are unaffected.',
+    )
   })
 })

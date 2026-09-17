@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api, SUITES, SUITE_LABELS, type Role, type RolePolicy, type Suite } from '../api'
 import { c, status } from '../theme'
+import { pausedReason } from '../gate-form'
 
 /**
  * The form that starts a run.
@@ -51,7 +52,9 @@ export function RunTrigger({
   const [workers, setWorkers] = useState(Math.min(4, policy.maxWorkers))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [gate, setGate] = useState<{ closed: boolean; opensAt: string | null } | null>(null)
+  const [gate, setGate] = useState<{ opensAt: string | null; updatedBy: string | null } | null>(
+    null,
+  )
 
   /**
    * The gate, read up front rather than discovered by pressing Run.
@@ -69,7 +72,9 @@ export function RunTrigger({
       .gate()
       .then((g) =>
         setGate(
-          g.appliesToYou && g.state === 'closed' ? { closed: true, opensAt: g.opensAt } : null,
+          g.appliesToYou && g.state === 'closed'
+            ? { opensAt: g.opensAt, updatedBy: g.updatedBy }
+            : null,
         ),
       )
       .catch(() => setGate(null))
@@ -181,13 +186,9 @@ export function RunTrigger({
         </button>
       </div>
 
-      {gate && (
-        <p style={s.paused}>
-          Runs are paused for your role
-          {gate.opensAt ? ` until ${new Date(gate.opensAt).toLocaleString()}` : ''}. QA and admin
-          are unaffected.
-        </p>
-      )}
+      {/* Built by `pausedReason` rather than inline, so what it says is
+          testable without rendering — see gate-form.ts. */}
+      {gate && <p style={s.paused}>{pausedReason(gate)}</p>}
 
       {error && <p style={s.error}>{error}</p>}
     </section>

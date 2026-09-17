@@ -317,3 +317,39 @@ describe('listing and revoking', () => {
     expect(response.status).toBe(404)
   })
 })
+
+/**
+ * `created_by` has the same problem `updated_by` had on the gate.
+ *
+ * 0005 calls the column "the admin who issued it", and it was bound to the
+ * role — so every key claimed to be issued by 'admin'. With one shared admin
+ * password that identifies nobody, which is the whole reason a key carries a
+ * label: someone eventually has to decide whether revoking it is safe, and
+ * "who issued this?" is half of that decision.
+ */
+describe('a key records who issued it', () => {
+  it('records the name the admin signed in with', async () => {
+    const { token } = await createToken(DEV_TOKEN_SECRET, 'admin', 'Nok')
+
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
+    })
+
+    expect(response.status).toBe(201)
+    const { key } = (await response.json()) as { key: { createdBy: string } }
+    expect(key.createdBy).toContain('Nok')
+  })
+
+  it('falls back to the role when the admin gave no name', async () => {
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: await auth('admin'),
+      body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
+    })
+
+    const { key } = (await response.json()) as { key: { createdBy: string } }
+    expect(key.createdBy).toBe('admin')
+  })
+})

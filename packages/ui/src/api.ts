@@ -126,7 +126,15 @@ export const api = {
 
   stopPreview: () => request<{ ok: true }>('/demo/stop-preview', { method: 'POST' }),
 
-  gate: () => request<GateStatus & { appliesToYou: boolean }>('/gate'),
+  /**
+   * `updatedBy` and `updatedAt` say who last changed the gate. Returned to
+   * every role, not only admins: the developer who cannot run is precisely who
+   * migration 0003 created the column for.
+   */
+  gate: () =>
+    request<
+      GateStatus & { appliesToYou: boolean; updatedBy: string | null; updatedAt: string | null }
+    >('/gate'),
 
   /**
    * Admin only; the API rejects every other role.
@@ -216,7 +224,11 @@ export type ApiKey = {
   role: Role
   allowedRefs: string[] | null
   maxWorkers: number | null
-  createdBy: Role
+  /**
+   * Who issued it — a name and role, or a role alone when none was given.
+   * Not a `Role`: with one shared admin password that identified nobody.
+   */
+  createdBy: string
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null

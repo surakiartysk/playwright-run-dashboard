@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { HonoEnv, Role } from '../types'
-import { requireRole, requireSession } from '../auth'
+import { actorFor, requireRole, requireSession } from '../auth'
 import { DEV_TOKEN_SECRET } from '../config'
 import { mintKey, type ApiKeyRow } from '../apiKeys'
 import { ROLES } from '../auth'
@@ -101,7 +101,9 @@ keyRoutes.post('/', async (c) => {
     role: body.role as Role,
     allowedRefs: body.allowedRefs,
     maxWorkers: body.maxWorkers,
-    createdBy: c.get('role'),
+    // The person, not only the role. 0005 calls this "the admin who issued
+    // it", and with one shared admin password the role identifies nobody.
+    createdBy: actorFor(c),
   })
 
   await c.env.DB.prepare(
