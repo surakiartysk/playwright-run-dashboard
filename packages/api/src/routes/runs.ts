@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
-import { toView, isSuite, SUITES } from '../types'
+import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
 import { dispatchWorkflow } from '../github'
 import { simulateRun } from '../simulate'
 import { signReportToken } from '../crypto'
@@ -310,6 +310,14 @@ runRoutes.get('/', async (c) => {
   // error — the caller cannot tell a broken filter from an empty one.
   if (suite !== undefined && !isSuite(suite)) {
     return c.json({ error: `suite must be one of: ${SUITES.join(', ')}` }, 422)
+  }
+
+  // Same argument, same answer. This filter used to be passed through
+  // unchecked, so `?status=failedd` returned an empty list that read as "no
+  // failed runs" — the caller could not tell a broken filter from an empty one,
+  // which is the exact reason the line above rejects rather than ignores.
+  if (status !== undefined && !isRunStatus(status)) {
+    return c.json({ error: `status must be one of: ${RUN_STATUSES.join(', ')}` }, 422)
   }
 
   const cursor = rawCursor ? decodeCursor(rawCursor) : null
