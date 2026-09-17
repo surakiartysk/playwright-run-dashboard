@@ -6,7 +6,7 @@ import { dispatchWorkflow } from '../github'
 import { simulateRun } from '../simulate'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
-import { requireSession, requireRole, verifyPreviewRole } from '../auth'
+import { refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
 import { mayUseRef, policyFor, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
 
@@ -432,24 +432,22 @@ runRoutes.get('/:id', async (c) => {
 })
 
 // ── DELETE /runs/:id ────────────────────────────────────────────────────────
-runRoutes.delete('/:id', requireRole('admin'), async (c) => {
-  /*
-   * `requireRole('admin')` checks the role and nothing else, and a key carries
-   * a role — so an admin-level key reached this handler and deleted a run.
-   *
-   * Caught by a test, not by review. It is the shape of bug this whole feature
-   * invites: a key is deliberately made to look like a person by the time a
-   * handler sees it, which is what keeps every other rule working unchanged —
-   * and it means a rule enforced by role alone silently applies to keys too.
-   *
-   * Deletion is destructive, irreversible, and has no automated use case, so
-   * `effectivePolicy` refuses it for every key regardless of role. This is
-   * where that refusal is enforced.
-   */
-  if (c.get('apiKey')) {
-    return c.json({ error: 'Keys may not delete runs — sign in to do that' }, 403)
-  }
-
+/*
+ * `requireRole('admin')` checks the role and nothing else, and a key carries a
+ * role — so an admin-level key reached this handler and deleted a run.
+ *
+ * Caught by a test, not by review. It is the shape of bug this whole feature
+ * invites: a key is deliberately made to look like a person by the time a
+ * handler sees it, which is what keeps every other rule working unchanged —
+ * and it means a rule enforced by role alone silently applies to keys too.
+ *
+ * Deletion is destructive, irreversible, and has no automated use case, so
+ * `refuseKeys` turns it away regardless of role. This was an `if` in the
+ * handler until the same bug turned up on the whole /keys router; it is
+ * middleware now because one worked example is not a rule until it is
+ * reusable. See decision 25.
+ */
+runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async (c) => {
   const id = c.req.param('id')
 
   const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()

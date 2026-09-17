@@ -345,6 +345,29 @@ export async function requireSession(c: Context<HonoEnv>, next: Next) {
 }
 
 /**
+ * Refuses a request made with an API key, whatever role the key carries.
+ *
+ * Non-negotiable 5, as middleware. `requireRole` checks a role and a key
+ * carries one, so every rule written in terms of a role silently applies to
+ * keys too — which is how an admin-level key reached `DELETE /runs/:id`, and
+ * how one could mint another admin key until this existed.
+ *
+ * Deliberately a separate middleware rather than a flag on `requireRole`:
+ * "which roles may do this" and "may a machine do this at all" are different
+ * questions, and a combined helper would invite answering the second by
+ * accident whenever someone adjusts the first.
+ *
+ * @param what - Named in the refusal, so the caller is told what to do instead
+ */
+export const refuseKeys = (what: string) => async (c: Context<HonoEnv>, next: Next) => {
+  if (c.get('apiKey')) {
+    return c.json({ error: `Keys may not ${what} — sign in to do that` }, 403)
+  }
+  await next()
+  return undefined
+}
+
+/**
  * Who made this request, in the words a history can actually use.
  *
  * The role alone was what the gate and the key table recorded, and with a

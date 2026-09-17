@@ -1228,6 +1228,79 @@ see alone.
 
 ---
 
+## 25. A key may not issue a key
+
+Decision 15 gave the dashboard its own machine credentials so a pipeline would
+not need a GitHub PAT. Non-negotiable 5 records what that cost: a key carries a
+role, so every rule written in terms of a role silently applies to keys too.
+`DELETE /runs/:id` was the worked example — an admin-level key reached it and
+deleted a run, caught by a test rather than by review.
+
+One worked example is not a rule. The same shape was still live on the entire
+`/keys` router, which was guarded by `requireRole('admin')` and nothing else.
+An admin key could therefore list every key, revoke any of them, and mint a new
+admin key.
+
+Minting is the one that matters, because it is the failure that **outlives
+revocation**. Every other leaked credential has a clean remedy: revoke it and
+the access ends. A key that can issue keys does not — whoever took it makes a
+second one, and revoking the first leaves them holding a credential that was
+never in the incident report, attributed to an admin who never issued it.
+
+`keys.ts` already argued the human half of this: issuing is admin-only because
+a `qa` who could mint a `qa`-level key "has effectively been given the power to
+hand their own access to anything that can hold a string". A pipeline that
+mints its own credentials is that sentence with the safety removed.
+
+### Refused as a router, not as a handler
+
+Listing and revoking are refused alongside minting, rather than argued one at a
+time. Reading the key inventory from a pipeline is reconnaissance with no
+automated use case, and a key revoking other keys is a denial of service with
+no automated use case — but the stronger reason is that a surface where two of
+three verbs are refused invites the next reader to assume the third was
+considered and allowed. It was not considered; it was missed. That is exactly
+what happened here.
+
+### The gate is deliberately _not_ refused
+
+An admin key may still close and reopen the run gate, and this is the part
+worth stating rather than leaving as an absence.
+
+A release pipeline pausing developer runs during a deploy is not an abuse of
+the gate, it is the gate's purpose. `gate.ts` is explicit that it is a
+coordination tool which **fails open** and that anything which must not be
+bypassed belongs in `policy.ts`. Refusing keys there would remove a real
+automated use case in order to guard something that was never a guard. It is
+the same asymmetry as decision 11, applied to callers instead of to data.
+
+What made that acceptable was fixing the attribution first. `updated_by` used
+to record the caller's role, so a pipeline closing the gate was indistinguishable
+from a person doing it; `actorFor` now records `key:release pipeline`, and
+`GET /gate` reports it to the developer who is blocked.
+
+### Trade-offs
+
+- **Bootstrapping is now a person's job, permanently.** There is no way to
+  provision a key from automation — no Terraform, no cluster bootstrap, no
+  key that rotates its own successor. Rotation means an admin signs in and
+  issues the replacement by hand, and for a fleet of pipelines that is real,
+  recurring toil that this decision does not reduce.
+- **A leaked admin key is still bad, just recoverable.** It can still start
+  runs against any ref and close the gate for every developer. This narrows the
+  blast radius to things revocation actually ends; it does not make the
+  credential safe to lose.
+- **The rule now lives in two places that must agree.** `effectivePolicy`
+  hard-codes `canDelete: false` for every key, and `refuseKeys` turns keys away
+  at the route. Both are deliberate — one is what a key _may_ do, the other is
+  what a surface _accepts_ — but a future action could plausibly be added to one
+  and forgotten in the other.
+- **Someone will hit the 403 and file a bug.** "My admin key works everywhere
+  except /keys" reads as an inconsistency until you know why, and the error
+  string is the only place that explains it.
+
+---
+
 ## How to add a decision
 
 Write it when the reasoning is still fresh, and include the cost. If the

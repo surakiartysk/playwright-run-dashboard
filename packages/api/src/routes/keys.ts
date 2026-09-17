@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { HonoEnv, Role } from '../types'
-import { actorFor, requireRole, requireSession } from '../auth'
+import { actorFor, refuseKeys, requireRole, requireSession } from '../auth'
 import { DEV_TOKEN_SECRET } from '../config'
 import { mintKey, type ApiKeyRow } from '../apiKeys'
 import { ROLES } from '../auth'
@@ -8,15 +8,27 @@ import { ROLES } from '../auth'
 export const keyRoutes = new Hono<HonoEnv>()
 
 /**
- * Issuing and revoking machine credentials — admin only, all of it.
+ * Issuing and revoking machine credentials — admin only, and people only.
  *
  * Deliberately not delegated further. Handing out a credential is the decision
  * this whole feature exists to keep deliberate; a `qa` who could mint a
  * `qa`-level key has effectively been given the power to hand their own access
  * to anything that can hold a string. See decision 15.
+ *
+ * `refuseKeys` is the other half of that, and it is not implied by the line
+ * above it: a key carries a role, so `requireRole('admin')` admitted an
+ * admin-level key to this entire router. That let a key mint another key —
+ * the one failure that outlives revocation, because revoking the leaked key
+ * leaves whoever took it holding the one it issued. See decision 25.
+ *
+ * Applied to the router rather than to POST alone. Listing the inventory and
+ * revoking someone else's key have no automated use case either, and a surface
+ * where two of three verbs are refused invites the assumption that the third
+ * was considered and allowed.
  */
 keyRoutes.use('*', requireSession)
 keyRoutes.use('*', requireRole('admin'))
+keyRoutes.use('*', refuseKeys('manage API keys'))
 
 /**
  * A key as anyone may read it afterwards — everything except the secret.
