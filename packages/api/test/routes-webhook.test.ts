@@ -119,6 +119,43 @@ describe('POST /webhook — what it refuses', () => {
     expect((await postWebhook({ runId: 'x' })).status).toBe(422)
   })
 
+  /*
+   * The status is the one field whose *value* the database also has an opinion
+   * about — migration 0001 puts a CHECK on it. Without this validation a signed
+   * callback carrying a status nobody recognises reached that CHECK, D1 threw,
+   * and `app.onError` turned it into a 500 "Internal error". The three repos in
+   * this contract cannot import each other, so the only way a suite author
+   * learns they sent the wrong word is this response — and "the dashboard is
+   * broken" sends them somewhere the problem is not.
+   */
+  it('rejects a signed payload whose status is not one this suite may report', async () => {
+    const id = await seedRun()
+
+    const response = await postWebhook({ runId: id, status: 'exploded' })
+
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({
+      error: expect.stringContaining('status must be one of'),
+    })
+    expect(await statusOf(id)).toBe('queued')
+  })
+
+  /*
+   * `queued` and `running` are real run statuses and still refused here: they
+   * are this dashboard's to write, not the workflow's. A callback is how a run
+   * *ends*, and accepting one would let a late-arriving callback walk a
+   * finished run backwards into a state the UI polls forever.
+   */
+  it('refuses a callback trying to put a run back into a pending state', async () => {
+    const id = await seedRun({ status: 'passed' })
+
+    for (const status of ['queued', 'running']) {
+      expect((await postWebhook({ runId: id, status })).status).toBe(422)
+    }
+
+    expect(await statusOf(id)).toBe('passed')
+  })
+
   it('404s a signed callback for a run that does not exist', async () => {
     const response = await postWebhook({ runId: 'never-created', status: 'passed' })
     expect(response.status).toBe(404)
