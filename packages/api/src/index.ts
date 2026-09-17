@@ -110,7 +110,7 @@ app.get('/health', (c) => {
 })
 
 app.route('/auth', authRoutes)
-// Refuses outside simulation — see routes/demo.ts.
+// Read-only role preview for an authenticated `demo` session — see routes/demo.ts.
 app.route('/demo', demoRoutes)
 app.route('/runs', runRoutes)
 app.route('/gate', gateRoutes)
