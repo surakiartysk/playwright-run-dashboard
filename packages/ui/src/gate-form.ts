@@ -40,3 +40,26 @@ export function toLocalInput(iso: string | null): string {
 export function modeFromStatus(gate: Pick<GateStatus, 'state' | 'reason'>): GateMode {
   return gate.reason === 'window' ? 'window' : gate.state
 }
+
+/**
+ * The sentence shown to a role the gate has stopped.
+ *
+ * Pure, and here rather than inside `RunTrigger.tsx`, for the reason at the
+ * top of this file: what it says can be silently wrong while the component
+ * still renders. The attribution is the part worth pinning — migration 0003
+ * created `updated_by` so that "why can't I run anything?" has an answer, and
+ * the answer only becomes one at the point it is read out to the person who
+ * is blocked.
+ *
+ * Both fields are optional in practice: a gate nobody has touched since the
+ * migration seeded it carries no name, and a manual close carries no opening
+ * time. Neither may turn the sentence into one with a hole in it.
+ *
+ * @param gate - `opensAt` and `updatedBy` as `GET /gate` reports them
+ */
+export function pausedReason(gate: { opensAt: string | null; updatedBy: string | null }): string {
+  const when = gate.opensAt ? ` until ${new Date(gate.opensAt).toLocaleString()}` : ''
+  const who = gate.updatedBy ? `, by ${gate.updatedBy}` : ''
+
+  return `Runs are paused for your role${when}${who}. QA and admin are unaffected.`
+}

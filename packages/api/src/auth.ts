@@ -344,6 +344,27 @@ export async function requireSession(c: Context<HonoEnv>, next: Next) {
   return undefined
 }
 
+/**
+ * Who made this request, in the words a history can actually use.
+ *
+ * The role alone was what the gate and the key table recorded, and with a
+ * shared password that is the same non-answer migration 0007 exists to fix for
+ * runs: every row said 'admin'. The name is a claim rather than an identity —
+ * see `Session.name` — so the role stays alongside it instead of being
+ * replaced, and a reader can see both what was typed and what it unlocked.
+ *
+ * A key gets its label, which is the thing it was made to be identified by.
+ * Inventing a person for it would be a worse answer than none.
+ */
+export function actorFor(c: Context<HonoEnv>): string {
+  const key = c.get('apiKey')
+  if (key) return `key:${key.label}`
+
+  const name = c.get('sessionName')
+  const role = c.get('role')
+  return name ? `${name} (${role})` : role
+}
+
 /** Role gate. Runs after `requireSession`. */
 export const requireRole =
   (...allowed: Role[]) =>
