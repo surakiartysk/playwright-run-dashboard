@@ -16,14 +16,32 @@ export const reportRoutes = new Hono<HonoEnv>()
  * `report.css` sends no Authorization header. Scoping the token to a single
  * run is what makes that acceptable.
  *
- * A real report is not one file. Allure's `index.html` pulls a megabyte of JS,
+ * ## The asset cookie, and why it is still here
+ *
+ * Reports were multi-file once. Allure's `index.html` pulls a megabyte of JS,
  * CSS and fonts by *relative* path, and a browser does not carry the opening
  * link's query string onto those requests — so every one of them arrived with
- * no token and 401'd, leaving a report that renders as a spinner forever.
+ * no token and 401'd, leaving a report that rendered as a spinner forever.
  * Serving the entry point therefore also sets a cookie scoped to
  * `/reports/{runId}/`, and that cookie is accepted in the token's place. The
  * scope is the safety: the browser sends it only back to this run's own
  * prefix, so it opens exactly what the token that minted it already opened.
+ *
+ * **No report this system stores today needs it.** Both suites build Allure
+ * with `--single-file` and upload one object per run, and the shared demo
+ * report is the same — so in practice nothing ever asks for a second file, and
+ * the cookie is set for a page that will not use it.
+ *
+ * Kept rather than deleted, because the thing that makes it unnecessary is a
+ * flag in repositories this one cannot see (`SINGLE_FILE` in the suites'
+ * `scripts/allure-report.mjs`). Removing this would make serving reports
+ * correct only while that flag stays as it is, and the failure would be a
+ * report that renders empty — which reads as a run that produced nothing
+ * rather than as a dashboard that broke.
+ *
+ * `integration-contract.test.ts` pins the single-file shape as the fourth
+ * point the repositories meet at, so a suite moving to multi-file has to
+ * change a test on purpose rather than quietly land a blank page here.
  */
 const assetCookieName = (runId: string) => `report_${runId.replace(/[^a-zA-Z0-9]/g, '_')}`
 

@@ -378,6 +378,55 @@ describe('the report path the workflow posts back', () => {
     expect(await opened.text()).toContain('real')
   })
 
+  /*
+   * The fourth meeting point, which the other three do not cover.
+   *
+   * The documented three are the workflow inputs, this path, and the callback
+   * shape. There is a fourth, and it went uncounted: the report's *form*. Both
+   * suites build Allure with `--single-file`, and their workflows upload
+   * exactly one object — `allure-report/index.html` to `runs/{runId}/index.html`.
+   *
+   * Nothing held that. `SINGLE_FILE` is an environment variable in the suites
+   * (`scripts/allure-report.mjs`), so the multi-file build is one variable
+   * away; the upload step would still send only `index.html`, and this
+   * dashboard would serve an entry point whose ~450 relative assets all 404.
+   * A report that renders empty is not a loud failure — it looks like a run
+   * that produced nothing.
+   *
+   * So this pins the shape the contract actually relies on: an entry point
+   * that is self-contained, served without any second request. If a suite ever
+   * moves to multi-file, this is the test that has to be changed on purpose
+   * rather than a page that quietly stops rendering.
+   */
+  it('serves a report that needs nothing but its own entry point', async () => {
+    const id = await seedRun()
+
+    // One object under the prefix, which is what both workflows upload.
+    await env.REPORTS.put(`runs/${id}/index.html`, '<html><body>inlined</body></html>', {
+      httpMetadata: { contentType: 'text/html' },
+    })
+
+    await postWebhook({
+      runId: id,
+      status: 'passed',
+      total: 1,
+      passed: 1,
+      failed: 0,
+      reportPath: `runs/${id}/index.html`,
+    })
+
+    const token = await signReportToken(DEV_TOKEN_SECRET, id)
+    const opened = await request(`/reports/${id}/?token=${token}`)
+
+    expect(opened.status).toBe(200)
+    expect(await opened.text()).toContain('inlined')
+
+    // And the prefix really does hold only that one object — an assertion that
+    // fails the day an upload starts sending assets alongside it.
+    const listed = await env.REPORTS.list({ prefix: `runs/${id}/` })
+    expect(listed.objects.map((o) => o.key)).toEqual([`runs/${id}/index.html`])
+  })
+
   /**
    * The upload step is `continue-on-error`, so a failed upload still reaches
    * the callback — with `reportPath` omitted. The run must not end up claiming
