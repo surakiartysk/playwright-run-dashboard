@@ -166,16 +166,25 @@ test that only checks the visible row passes with no scoping at all.
 
 ### Local, on commit
 
-| Hook         | Runs                                              | Why                                                     |
-| ------------ | ------------------------------------------------- | ------------------------------------------------------- |
-| `pre-commit` | `lint-staged` — eslint + prettier on staged files | Under a second. Keeps mechanical noise out of the diff. |
-| `commit-msg` | `commitlint`                                      | The history is part of what this repo demonstrates.     |
+| Hook         | Runs                             | Why                                                                                         |
+| ------------ | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pre-commit` | `lint-staged`, then `check:leak` | Under a second. Noise out of the diff, and the one layer where a leak can still be stopped. |
+| `commit-msg` | `commitlint`                     | The history is part of what this repo demonstrates.                                         |
 
 The pre-commit hook deliberately does **not** run the tests. The Worker suite
 boots workerd and the simulator sleeps on purpose, so a full run is closer to a
 minute — and a hook that slow gets bypassed with `--no-verify` the first time
 someone is in a hurry. A hook people routinely skip is worse than no hook.
 Correctness is CI's job.
+
+`check:leak` is the exception, and it earns the place rather than borrowing it.
+It costs about 60ms, so it does not threaten the budget above — and unlike
+correctness, this is not something CI can do later. By the time CI runs, the
+commit is on a public repository and a leaked word is in its history
+permanently; reverting does not remove it, because unreachable objects stay
+fetchable and forks keep their own copy. It is also the only place the
+vocabulary half can run at all, since the word list is gitignored and a runner
+never has it.
 
 ### Commit format
 
@@ -218,6 +227,18 @@ dispatches have their own schedules.
 Fails on vocabulary and branding from the source material this repo restates —
 the original's domain words, its brand red in hex, `rgb()`, or bare component
 form, and invented account handles.
+
+**It runs in two places, and they check different amounts.** The pre-commit
+hook is the real one: it has `.leakwords.json`, so it checks vocabulary as well
+as structure, and it stops the commit before anything is published. CI runs the
+same script without that file, so it enforces the structural rules only and
+prints a warning saying exactly that — a tripwire that quietly checked nothing
+would be worse than none.
+
+That asymmetry is deliberate. The word list is gitignored because a denylist in
+a public repository names the very things it exists to suppress, and putting it
+somewhere a runner could read it would trade that for an alarm that rings too
+late to matter anyway.
 
 If it fires on innocent code, **narrow the pattern in
 [`scripts/check-leak.mjs`](scripts/check-leak.mjs)** rather than renaming the
