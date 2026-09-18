@@ -6,3 +6,18 @@
 # someone is in a hurry. A hook people routinely skip is worse than no hook.
 # Correctness is CI's job; this one only keeps mechanical noise out of the diff.
 pnpm exec lint-staged
+
+# The leak check, and this is the only layer where it can do its job.
+#
+# CI runs it too, but CI runs *after* the commit has reached a public
+# repository — at which point a leaked word is in the git history, publicly and
+# permanently. Reverting does not remove it: GitHub keeps unreachable objects
+# fetchable, and any fork keeps its own copy. A CI failure here is a fire alarm
+# that rings after the building has burned.
+#
+# It is also the only layer where the vocabulary half can run at all. The word
+# list is gitignored and never published, so it exists only where someone is
+# writing — which is here, and not on a runner. See scripts/check-leak.mjs.
+#
+# Fast enough to survive: ~60ms warm, which is the test the comment above sets.
+pnpm check:leak
