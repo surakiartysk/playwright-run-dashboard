@@ -456,15 +456,25 @@ runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async 
   /*
    * The report outlives the row otherwise, and R2 is billed by what it holds.
    *
-   * Walked with a cursor rather than listed once: R2 returns at most 1000 keys
-   * per call, and this used to take that one page as the whole report. A real
-   * Allure report is well past it — a JSON file per test, plus attachments —
-   * so deleting a run left most of its objects in the bucket permanently, and
-   * answered with a `deletedObjects` count that was really just the page size.
+   * Walked with a cursor rather than listed once, and the reason is narrower
+   * than it looks. Every report this system stores today is a *single* object:
+   * both suites build Allure with `--single-file`, and their workflows upload
+   * exactly `runs/{runId}/index.html`. One `list` would be enough, and it was.
    *
-   * Deleted page by page rather than collecting every key first: the whole
-   * point is that a report can be large, and accumulating its key list in
-   * memory to avoid a few round trips trades one unbounded thing for another.
+   * What it would not be is enough *by construction*. R2 returns at most 1000
+   * keys per call, so a single `list` is correct only while something outside
+   * this repository keeps choosing to inline the report — a flag in the suites
+   * (`SINGLE_FILE`), not a property of this code. The multi-file form is ~450
+   * objects, and nothing here would notice the day it arrived: the delete would
+   * silently keep whatever it did not see, and answer with a `deletedObjects`
+   * count that was really the page size.
+   *
+   * So this is not a fix for a leak that was happening. It is refusing to hold
+   * a correctness argument that depends on another repository's build flag.
+   *
+   * Deleted page by page rather than collecting every key first: if a report
+   * ever is large, accumulating its whole key list in memory to save a few
+   * round trips trades one unbounded thing for another.
    */
   let deletedObjects = 0
   let cursor: string | undefined
