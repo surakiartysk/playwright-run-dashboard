@@ -210,16 +210,17 @@ describe('DELETE /runs/:id', () => {
   })
 
   /*
-   * A real Allure report is not two files.
+   * Deliberately a size no report in this system currently reaches.
    *
-   * R2 returns at most 1000 keys per `list`, and the handler called it once and
-   * deleted what came back — so a report larger than that left the remainder in
-   * the bucket forever, and reported a `deletedObjects` count that was simply
-   * the page size. The comment above that code says R2 is billed by what it
-   * holds, which is exactly the bill this was still running up.
+   * Both suites build Allure with `--single-file` and upload exactly one
+   * object, so a real `runs/{id}/` prefix holds one key and a single `list`
+   * would pass this test's smaller sibling above forever. That is the point:
+   * the one-object shape is a choice made in *other repositories*, by a flag
+   * (`SINGLE_FILE`) this repo cannot see, and the multi-file form is ~450
+   * objects. This pins the delete to being correct without that assumption.
    *
-   * 1000 is the page boundary, so the fixture has to cross it. Allure writes a
-   * JSON file per test plus attachments, so a suite of any size is past it.
+   * 1000 is R2's page boundary, so the fixture has to cross it — below it,
+   * a truncated list and a complete one are indistinguishable.
    */
   it('removes every report object, past the page R2 returns in one list', async () => {
     const id = await seedRun({ reportPath: 'x' })
