@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
-import { requireRole, requireSession } from '../auth'
+import { actorFor, requireRole, requireSession } from '../auth'
 import { gateApplies, loadGate, resolveGate, type GateMode } from '../gate'
 
 export const gateRoutes = new Hono<HonoEnv>()
@@ -16,12 +16,24 @@ gateRoutes.use('*', requireSession)
  */
 gateRoutes.get('/', async (c) => {
   const role = c.get('role')
-  const status = resolveGate(await loadGate(c.env.DB), new Date())
+  const row = await loadGate(c.env.DB)
+  const status = resolveGate(row, new Date())
 
   return c.json({
     ...status,
     // What it means *for you*. `qa` sees a closed gate and is still unblocked.
     appliesToYou: gateApplies(role),
+    /*
+     * Who last changed it, passed through rather than dropped.
+     *
+     * Migration 0003 gives the column exactly this purpose — "so 'why can't I
+     * run anything?' has an answer" — and no endpoint read it back, so the
+     * answer existed in the database and nowhere a blocked developer could
+     * reach it. Null on a database nobody has touched since the migration
+     * seeded it.
+     */
+    updatedBy: row?.updated_by ?? null,
+    updatedAt: row?.updated_at ?? null,
   })
 })
 
@@ -71,7 +83,9 @@ gateRoutes.put('/', requireRole('admin'), async (c) => {
       mode === 'window' ? (body.opensAt ?? null) : null,
       mode === 'window' ? (body.closesAt ?? null) : null,
       new Date().toISOString(),
-      c.get('role'),
+      // The person, not only the role — see actorFor. Every row said 'admin'
+      // before this, which is what migration 0003 wrote the column to avoid.
+      actorFor(c),
     )
     .run()
 

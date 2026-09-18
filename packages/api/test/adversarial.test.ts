@@ -14,26 +14,88 @@ beforeAll(migrate)
  * that a checked property rather than a claim, and what would fail if someone
  * later interpolated a filter value "just this once".
  */
+const INJECTIONS: [string, string][] = [
+  ['a classic injection', "passed' OR '1'='1"],
+  ['a comment terminator', "passed'--"],
+  ['a stacked statement', "passed'; DROP TABLE runs;--"],
+  ['a UNION attempt', "passed' UNION SELECT * FROM runs--"],
+]
+
+/**
+ * Nothing here may ever have removed the table it was aimed at.
+ *
+ * Asked of sqlite_master rather than by counting rows: a count only proves
+ * anything when the table happens to be non-empty, which depends on what else
+ * in the file ran first. The stacked-statement payload is trying to DROP it,
+ * so existence is the property worth checking.
+ */
+const tableSurvived = async () => {
+  const row = await env.DB.prepare(
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'runs'`,
+  ).first<{ name: string }>()
+  expect(row?.name).toBe('runs')
+}
+
 describe('GET /runs — hostile query strings', () => {
-  it.each([
-    ['a classic injection', "passed' OR '1'='1"],
-    ['a comment terminator', "passed'--"],
-    ['a stacked statement', "passed'; DROP TABLE runs;--"],
-    ['a UNION attempt', "passed' UNION SELECT * FROM runs--"],
-  ])('treats %s as a literal status, matching nothing', async (_label, status) => {
-    const service = uniqueService()
-    await seedRun({ service, ref: 'main', status: 'passed' })
+  /*
+   * `status` is an allowlist now, so these never reach SQL at all — which is a
+   * stronger position than binding them, and a weaker test if it were left
+   * asserting "matched nothing": an endpoint that refuses everything would pass
+   * that too. So this pins the refusal itself, and the cursor test below is
+   * what keeps the binding property honest.
+   */
+  it.each(INJECTIONS)('refuses %s in the status filter outright', async (_label, status) => {
+    await seedRun({ service: uniqueService(), ref: 'main', status: 'passed' })
 
     const response = await as('admin', `/runs?status=${encodeURIComponent(status)}&limit=100`)
-    expect(response.status).toBe(200)
 
-    const { runs } = (await response.json()) as { runs: RunView[] }
-    expect(runs.filter((r) => r.service === service)).toHaveLength(0)
-
-    // The table is still there — a stacked statement would have dropped it.
-    const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM runs').first<{ n: number }>()
-    expect(row?.n).toBeGreaterThan(0)
+    expect(response.status).toBe(422)
+    await tableSurvived()
   })
+
+  /*
+   * The cursor is where free-form input still reaches the query.
+   *
+   * `status` and `suite` are closed sets, but a cursor decodes to a timestamp
+   * and an id that are whatever the caller base64'd — so this is now the only
+   * user-controlled value the listing binds, and therefore the one that has to
+   * prove it is bound rather than interpolated. This is the test that fails if
+   * someone later builds the cursor clause by string concatenation.
+   */
+  /*
+   * Every payload here starts with `0` on purpose.
+   *
+   * Bound, the clause is `started_at < '0…'`, and no ISO timestamp sorts below
+   * a leading zero — so a cursor that is genuinely a bound string returns
+   * nothing at all. Interpolated, each of these closes the quote and makes the
+   * condition true, returning rows. That gap is the whole assertion: a payload
+   * starting with a letter would return rows either way and prove nothing,
+   * which is exactly how the first draft of this test passed against an
+   * interpolated cursor.
+   */
+  const CURSOR_INJECTIONS: [string, string][] = [
+    ['a classic injection', "0' OR '1'='1"],
+    ['a comment terminator', "0'--"],
+    ['a stacked statement', "0'; DROP TABLE runs;--"],
+    ['a UNION attempt', "0' UNION SELECT * FROM runs--"],
+  ]
+
+  it.each(CURSOR_INJECTIONS)(
+    'treats %s inside a cursor as a literal value',
+    async (_label, payload) => {
+      await seedRun({ service: uniqueService(), ref: 'main', status: 'passed' })
+
+      const cursor = btoa(`${payload}\u0000${payload}`)
+      const response = await as('admin', `/runs?cursor=${encodeURIComponent(cursor)}&limit=100`)
+
+      expect(response.status).toBe(200)
+
+      const { runs } = (await response.json()) as { runs: RunView[] }
+      expect(runs).toHaveLength(0)
+
+      await tableSurvived()
+    },
+  )
 
   /**
    * `limit` is interpolated as a bound parameter but parsed by hand, so the

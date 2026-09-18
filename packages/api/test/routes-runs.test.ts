@@ -209,6 +209,43 @@ describe('DELETE /runs/:id', () => {
     expect((await env.REPORTS.list({ prefix: `runs/${id}/` })).objects).toHaveLength(0)
   })
 
+  /*
+   * A real Allure report is not two files.
+   *
+   * R2 returns at most 1000 keys per `list`, and the handler called it once and
+   * deleted what came back — so a report larger than that left the remainder in
+   * the bucket forever, and reported a `deletedObjects` count that was simply
+   * the page size. The comment above that code says R2 is billed by what it
+   * holds, which is exactly the bill this was still running up.
+   *
+   * 1000 is the page boundary, so the fixture has to cross it. Allure writes a
+   * JSON file per test plus attachments, so a suite of any size is past it.
+   */
+  it('removes every report object, past the page R2 returns in one list', async () => {
+    const id = await seedRun({ reportPath: 'x' })
+
+    const keys = Array.from({ length: 1050 }, (_, i) => `runs/${id}/data/test-${i}.json`)
+    await Promise.all(keys.map((key) => env.REPORTS.put(key, '{}')))
+
+    const response = await as('admin', `/runs/${id}`, { method: 'DELETE' })
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ deletedObjects: keys.length })
+
+    // Walked with a cursor, because a single list would not see a leftover
+    // past 1000 either — the assertion would inherit the bug it is checking.
+    let remaining = 0
+    let cursor: string | undefined
+    for (let guard = 0; guard < 20; guard++) {
+      const page = await env.REPORTS.list({ prefix: `runs/${id}/`, cursor })
+      remaining += page.objects.length
+      if (!page.truncated) break
+      cursor = page.cursor
+    }
+
+    expect(remaining).toBe(0)
+  })
+
   it('does not touch another run’s report', async () => {
     const doomed = await seedRun()
     const keep = await seedRun()

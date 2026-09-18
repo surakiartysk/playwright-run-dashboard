@@ -151,6 +151,29 @@ describe('GET /runs pagination', () => {
     expect(((await response.json()) as { error: string }).error).toMatch(/cursor/i)
   })
 
+  /*
+   * The same argument routes/runs.ts already makes for `?suite=`, applied to
+   * the filter next to it.
+   *
+   * A typo'd filter value that returns zero rows is indistinguishable from a
+   * filter that matched nothing, so the caller reads "there are no failed runs"
+   * when what happened is that `?status=failedd` matched no row in the table.
+   * Both filters are pinned here because the inconsistency is the bug: one of
+   * them refused and the other shrugged.
+   */
+  it('rejects a filter value that is not a real status or suite', async () => {
+    for (const query of ['status=failedd', 'suite=API']) {
+      const response = await as('admin', `/runs?${query}`)
+      expect(response.status).toBe(422)
+    }
+  })
+
+  it('still accepts every status and suite that is real', async () => {
+    for (const query of ['status=queued', 'status=running', 'status=timeout', 'suite=ui']) {
+      expect((await as('admin', `/runs?${query}`)).status).toBe(200)
+    }
+  })
+
   it('keeps every cursor page inside the caller’s visibility scope', async () => {
     /*
      * The one that matters. A dev is scoped to `main`, and the cursor clause is

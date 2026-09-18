@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { HonoEnv, WebhookPayload } from '../types'
+import { REPORTABLE_STATUSES, isReportableStatus } from '../types'
 import { verifyHmac } from '../crypto'
 import { DEV_WEBHOOK_SECRET } from '../config'
 
@@ -53,6 +54,19 @@ webhookRoutes.post('/', async (c) => {
 
   if (!payload.runId || !payload.status) {
     return c.json({ error: 'runId and status are required' }, 422)
+  }
+
+  /*
+   * Checked here rather than left to the CHECK constraint in migration 0001.
+   *
+   * The database does refuse a bad status, but it refuses by throwing, and the
+   * caller was told "Internal error" with a 500 — which points a suite author
+   * at a dashboard that is working fine. This is a contract between three
+   * repositories that cannot import each other, so this response is the only
+   * place the mismatch can be named.
+   */
+  if (!isReportableStatus(payload.status)) {
+    return c.json({ error: `status must be one of: ${REPORTABLE_STATUSES.join(', ')}` }, 422)
   }
 
   const result = await c.env.DB.prepare(
