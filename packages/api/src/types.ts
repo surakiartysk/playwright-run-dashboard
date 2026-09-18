@@ -58,6 +58,42 @@ export type HonoEnv = { Bindings: Bindings }
 
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'error' | 'timeout'
 
+/**
+ * The statuses a workflow may report, as a value rather than only a type.
+ *
+ * `WebhookPayload.status` has always excluded `queued` and `running`, but a
+ * type excludes nothing at runtime: a signed callback carrying anything at all
+ * went straight to the INSERT, where migration 0001's CHECK threw and the
+ * handler answered 500. This is the same contract, enforced where the request
+ * actually arrives.
+ *
+ * The two it leaves out are deliberate. They are this dashboard's to write —
+ * `queued` before dispatch, `running` by the simulator — and a callback is how
+ * a run *ends*. Accepting one would let a late callback walk a finished run
+ * backwards into a state the UI polls forever.
+ */
+export const RUN_STATUSES: readonly RunStatus[] = [
+  'queued',
+  'running',
+  'passed',
+  'failed',
+  'error',
+  'timeout',
+] as const
+
+export const isRunStatus = (value: unknown): value is RunStatus =>
+  typeof value === 'string' && (RUN_STATUSES as readonly string[]).includes(value)
+
+export const REPORTABLE_STATUSES: readonly RunStatus[] = [
+  'passed',
+  'failed',
+  'error',
+  'timeout',
+] as const
+
+export const isReportableStatus = (value: unknown): value is WebhookPayload['status'] =>
+  typeof value === 'string' && (REPORTABLE_STATUSES as readonly string[]).includes(value)
+
 /** A run as stored. Column names are snake_case because SQL is. */
 export interface RunRow {
   id: string

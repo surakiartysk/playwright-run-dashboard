@@ -317,3 +317,142 @@ describe('listing and revoking', () => {
     expect(response.status).toBe(404)
   })
 })
+
+/**
+ * `created_by` has the same problem `updated_by` had on the gate.
+ *
+ * 0005 calls the column "the admin who issued it", and it was bound to the
+ * role — so every key claimed to be issued by 'admin'. With one shared admin
+ * password that identifies nobody, which is the whole reason a key carries a
+ * label: someone eventually has to decide whether revoking it is safe, and
+ * "who issued this?" is half of that decision.
+ */
+describe('a key records who issued it', () => {
+  it('records the name the admin signed in with', async () => {
+    const { token } = await createToken(DEV_TOKEN_SECRET, 'admin', 'Nok')
+
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
+    })
+
+    expect(response.status).toBe(201)
+    const { key } = (await response.json()) as { key: { createdBy: string } }
+    expect(key.createdBy).toContain('Nok')
+  })
+
+  it('falls back to the role when the admin gave no name', async () => {
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: await auth('admin'),
+      body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
+    })
+
+    const { key } = (await response.json()) as { key: { createdBy: string } }
+    expect(key.createdBy).toBe('admin')
+  })
+})
+
+/**
+ * A key may not touch the key surface at all.
+ *
+ * This is non-negotiable 5 — "a key is not a person" — in the place it bites
+ * hardest. `requireRole('admin')` checks a role, an admin key carries that
+ * role, so the entire /keys router was reachable with one: an admin key could
+ * mint a fresh admin key, which is the failure that outlives revocation.
+ * Revoke the leaked key and whoever took it still holds the one it issued.
+ *
+ * DELETE /runs/:id is the worked example the repo already had. It refused keys
+ * because deletion is destructive and has no automated use case. Issuing a
+ * credential is the same argument one step further: keys.ts says handing one
+ * out is "the decision this whole feature exists to keep deliberate", and a
+ * pipeline that mints its own credentials has taken that decision away from
+ * the person who was supposed to make it.
+ *
+ * Listing and revoking go with it rather than being argued case by case. A
+ * pipeline reading the key inventory is reconnaissance with no use case, and
+ * a key revoking other keys is a denial-of-service with no use case — and a
+ * surface where two of three verbs are refused invites someone to assume the
+ * third is fine.
+ */
+describe('an API key may not reach the key surface', () => {
+  const adminKey = async () => {
+    const { plaintext } = await issue({ label: 'admin pipeline', role: 'admin' })
+    return withKey(plaintext)
+  }
+
+  it('refuses to mint a key when the caller is a key', async () => {
+    const headers = await adminKey()
+
+    const response = await request('/keys', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ label: 'spawned', role: 'admin' }),
+    })
+
+    expect(response.status).toBe(403)
+
+    // And nothing was created — a refusal that still wrote the row would be
+    // worse than no refusal, because it would look safe.
+    const { results } = await env.DB.prepare(
+      `SELECT id FROM api_keys WHERE label = 'spawned'`,
+    ).all()
+    expect(results).toHaveLength(0)
+  })
+
+  it('refuses to list keys to a key', async () => {
+    expect((await request('/keys', { headers: await adminKey() })).status).toBe(403)
+  })
+
+  it('refuses to revoke a key on a key’s say-so', async () => {
+    const headers = await adminKey()
+    const { id } = await issue({ label: 'victim', role: 'qa' })
+
+    const response = await request(`/keys/${id}`, { method: 'DELETE', headers })
+
+    expect(response.status).toBe(403)
+
+    const row = await env.DB.prepare(`SELECT revoked_at FROM api_keys WHERE id = ?1`)
+      .bind(id)
+      .first<{ revoked_at: string | null }>()
+    expect(row?.revoked_at).toBeNull()
+  })
+
+  it('still lets a signed-in admin do all three', async () => {
+    const headers = await auth('admin')
+    const { id } = await issue({ label: 'still works', role: 'qa' })
+
+    expect((await request('/keys', { headers })).status).toBe(200)
+    expect((await request(`/keys/${id}`, { method: 'DELETE', headers })).status).toBe(200)
+  })
+})
+
+/**
+ * The gate is the deliberate exception, and it is worth stating as a test
+ * rather than leaving as an absence.
+ *
+ * Closing the gate during a deploy is exactly what a release pipeline is for,
+ * and gate.ts is explicit that the gate is a coordination tool which fails
+ * open — not a security boundary. Refusing keys here would remove a real
+ * automated use case to guard something that was never guarding anything.
+ * `actorFor` records the key's label, so the audit trail names the pipeline.
+ */
+describe('an API key may still work the run gate', () => {
+  it('lets an admin key close and reopen it, recorded under the key’s label', async () => {
+    const { plaintext } = await issue({ label: 'release pipeline', role: 'admin' })
+
+    const response = await request('/gate', {
+      method: 'PUT',
+      headers: withKey(plaintext),
+      body: JSON.stringify({ mode: 'closed' }),
+    })
+
+    expect(response.status).toBe(200)
+
+    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
+      updated_by: string
+    }>()
+    expect(row?.updated_by).toBe('key:release pipeline')
+  })
+})

@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeAll, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, as, uniqueService, runsForService } from './helpers'
+import { migrate, as, request, uniqueService, runsForService } from './helpers'
+import { createToken } from '../src/auth'
+import { DEV_TOKEN_SECRET } from '../src/config'
 
 beforeAll(migrate)
 
@@ -160,5 +162,58 @@ describe('PUT /gate', () => {
     })
 
     expect(response.status).toBe(422)
+  })
+})
+
+/**
+ * Who closed the gate, and whether anyone can find out.
+ *
+ * Migration 0003 gives `updated_by` its reason in one line: "Who last changed
+ * it, so 'why can't I run anything?' has an answer." It was not answering.
+ * The column was bound to the caller's *role*, and the admin password is
+ * shared — so every row said 'admin', which is the same non-answer that
+ * migration 0007 exists to fix for runs. And nothing read the column back:
+ * GET /gate returned the resolved state and dropped it, so even the wrong
+ * answer never reached anyone.
+ */
+describe('PUT /gate — who changed it', () => {
+  const putGate = async (name: string | undefined, mode = 'closed') => {
+    const { token } = await createToken(DEV_TOKEN_SECRET, 'admin', name)
+    return request('/gate', {
+      method: 'PUT',
+      headers: { Cookie: `session=${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    })
+  }
+
+  it('records the name the admin signed in with, not just the role', async () => {
+    expect((await putGate('Nok')).status).toBe(200)
+
+    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
+      updated_by: string
+    }>()
+
+    expect(row?.updated_by).toContain('Nok')
+  })
+
+  it('falls back to the role when the admin gave no name', async () => {
+    expect((await putGate(undefined)).status).toBe(200)
+
+    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
+      updated_by: string
+    }>()
+
+    expect(row?.updated_by).toBe('admin')
+  })
+
+  it('shows a blocked dev who closed the gate and when', async () => {
+    await putGate('Nok')
+
+    const response = await as('dev', '/gate')
+    const body = (await response.json()) as { updatedBy: string | null; updatedAt: string | null }
+
+    // The developer who cannot run is precisely who this column was for.
+    expect(body.updatedBy).toContain('Nok')
+    expect(body.updatedAt).toBeTruthy()
   })
 })

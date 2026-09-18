@@ -51,8 +51,11 @@ data lets runs through. That asymmetry is deliberate — see
 
 **5. A key is not a person.** An API key carries a role, so a rule enforced by
 role alone silently applies to keys too. That is exactly how an admin-level key
-once reached the delete handler. Where an action has no automated use case,
-refuse keys explicitly — `DELETE /runs/:id` is the worked example.
+once reached the delete handler, and later how one could mint another admin key.
+Where an action has no automated use case, refuse keys explicitly with
+`refuseKeys` — `requireRole('admin')` never does it for you. The gate is the
+one deliberate exception, and
+[decision 25](docs/decisions.md#25-a-key-may-not-issue-a-key) says why.
 
 **6. `demo` always simulates, whatever the deployment says.** Its password is
 published, so a real dispatch behind it would let anyone spend Actions minutes

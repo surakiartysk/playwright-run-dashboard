@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
-import { toView, isSuite, SUITES } from '../types'
+import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
 import { dispatchWorkflow } from '../github'
 import { simulateRun } from '../simulate'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
-import { requireSession, requireRole, verifyPreviewRole } from '../auth'
+import { refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
 import { mayUseRef, policyFor, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
 
@@ -312,6 +312,14 @@ runRoutes.get('/', async (c) => {
     return c.json({ error: `suite must be one of: ${SUITES.join(', ')}` }, 422)
   }
 
+  // Same argument, same answer. This filter used to be passed through
+  // unchecked, so `?status=failedd` returned an empty list that read as "no
+  // failed runs" — the caller could not tell a broken filter from an empty one,
+  // which is the exact reason the line above rejects rather than ignores.
+  if (status !== undefined && !isRunStatus(status)) {
+    return c.json({ error: `status must be one of: ${RUN_STATUSES.join(', ')}` }, 422)
+  }
+
   const cursor = rawCursor ? decodeCursor(rawCursor) : null
   if (rawCursor && !cursor) return c.json({ error: 'Invalid cursor' }, 400)
 
@@ -424,32 +432,52 @@ runRoutes.get('/:id', async (c) => {
 })
 
 // ── DELETE /runs/:id ────────────────────────────────────────────────────────
-runRoutes.delete('/:id', requireRole('admin'), async (c) => {
-  /*
-   * `requireRole('admin')` checks the role and nothing else, and a key carries
-   * a role — so an admin-level key reached this handler and deleted a run.
-   *
-   * Caught by a test, not by review. It is the shape of bug this whole feature
-   * invites: a key is deliberately made to look like a person by the time a
-   * handler sees it, which is what keeps every other rule working unchanged —
-   * and it means a rule enforced by role alone silently applies to keys too.
-   *
-   * Deletion is destructive, irreversible, and has no automated use case, so
-   * `effectivePolicy` refuses it for every key regardless of role. This is
-   * where that refusal is enforced.
-   */
-  if (c.get('apiKey')) {
-    return c.json({ error: 'Keys may not delete runs — sign in to do that' }, 403)
-  }
-
+/*
+ * `requireRole('admin')` checks the role and nothing else, and a key carries a
+ * role — so an admin-level key reached this handler and deleted a run.
+ *
+ * Caught by a test, not by review. It is the shape of bug this whole feature
+ * invites: a key is deliberately made to look like a person by the time a
+ * handler sees it, which is what keeps every other rule working unchanged —
+ * and it means a rule enforced by role alone silently applies to keys too.
+ *
+ * Deletion is destructive, irreversible, and has no automated use case, so
+ * `refuseKeys` turns it away regardless of role. This was an `if` in the
+ * handler until the same bug turned up on the whole /keys router; it is
+ * middleware now because one worked example is not a rule until it is
+ * reusable. See decision 25.
+ */
+runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async (c) => {
   const id = c.req.param('id')
 
   const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()
   if (result.meta.changes === 0) return c.json({ error: 'No such run' }, 404)
 
-  // The report outlives the row otherwise, and R2 is billed by what it holds.
-  const listed = await c.env.REPORTS.list({ prefix: `runs/${id}/` })
-  await Promise.all(listed.objects.map((object) => c.env.REPORTS.delete(object.key)))
+  /*
+   * The report outlives the row otherwise, and R2 is billed by what it holds.
+   *
+   * Walked with a cursor rather than listed once: R2 returns at most 1000 keys
+   * per call, and this used to take that one page as the whole report. A real
+   * Allure report is well past it — a JSON file per test, plus attachments —
+   * so deleting a run left most of its objects in the bucket permanently, and
+   * answered with a `deletedObjects` count that was really just the page size.
+   *
+   * Deleted page by page rather than collecting every key first: the whole
+   * point is that a report can be large, and accumulating its key list in
+   * memory to avoid a few round trips trades one unbounded thing for another.
+   */
+  let deletedObjects = 0
+  let cursor: string | undefined
 
-  return c.json({ ok: true, deletedObjects: listed.objects.length })
+  for (;;) {
+    const listed = await c.env.REPORTS.list({ prefix: `runs/${id}/`, cursor })
+    if (listed.objects.length > 0) {
+      await Promise.all(listed.objects.map((object) => c.env.REPORTS.delete(object.key)))
+      deletedObjects += listed.objects.length
+    }
+    if (!listed.truncated) break
+    cursor = listed.cursor
+  }
+
+  return c.json({ ok: true, deletedObjects })
 })
