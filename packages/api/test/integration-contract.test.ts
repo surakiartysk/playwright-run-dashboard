@@ -144,6 +144,7 @@ const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[] }> = {
       'reservations',
       'maintenance-logs',
       'core',
+      'cross-service',
     ],
   },
   // The UI suite's own on-demand.yml. Same four input names — GitHub rejects
@@ -299,7 +300,7 @@ describe('the dispatch the dashboard sends', () => {
   const DASHBOARD_OFFERS: Record<Suite, { services: string[]; tags: string[] }> = {
     api: {
       services: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
-      tags: ['smoke', 'isolated', 'flow'],
+      tags: ['smoke', 'isolated', 'flow', 'cross-service'],
     },
     ui: {
       services: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],

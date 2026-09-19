@@ -32,7 +32,7 @@ const SUITE_SERVICES: Record<Suite, string[]> = {
 }
 
 const SUITE_TAGS: Record<Suite, string[]> = {
-  api: ['smoke', 'isolated', 'flow'],
+  api: ['smoke', 'isolated', 'flow', 'cross-service'],
   ui: ['smoke'],
 }
 
