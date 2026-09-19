@@ -76,7 +76,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, leak, tests, claims
-pnpm test          # 445 tests — 357 in the Worker, 88 in the UI
+pnpm test          # 446 tests — 358 in the Worker, 88 in the UI
 pnpm check:leak    # the vocabulary and branding tripwire alone
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```

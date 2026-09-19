@@ -456,6 +456,14 @@ runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async 
   /*
    * The report outlives the row otherwise, and R2 is billed by what it holds.
    *
+   * Keyed on `runs/{id}/` — this run's own prefix — and never on the directory
+   * of its `report_path`. The two are the same for a real run and are not for
+   * a simulated one, which points `report_path` at the shared demo report that
+   * dozens of other rows also point at. Deleting "the report this row names"
+   * reads like the more correct rule and would wipe that shared report the
+   * first time an admin tidied a demo run away, surfacing later and elsewhere
+   * as a report that 404s for every other simulated run.
+   *
    * Walked with a cursor rather than listed once, and the reason is narrower
    * than it looks. Every report this system stores today is a *single* object:
    * both suites build Allure with `--single-file`, and their workflows upload
