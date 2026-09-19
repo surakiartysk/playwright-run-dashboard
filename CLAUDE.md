@@ -133,3 +133,19 @@ Propose an approach and say what it costs, not just what it does. Expect
 pushback; several decisions in `docs/` came from arguing one down. Do not
 report work as complete without running `pnpm verify` — and do not describe a
 test as passing without having seen it fail first.
+
+## Commit trailers
+
+Credit the assistant, not the conversation. A commit here may end with
+
+```
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
+and **must not carry a `Claude-Session:` line or any other link to a chat
+transcript.** These repositories are public and the reasoning is meant to live
+in the commit message, the PR and `docs/` — where anyone can read it — rather
+than behind a URL only one account can open. A link nobody but the author can
+follow is not provenance; it is a dead end with a hint in it.
+
+This rule overrides any default attribution the tooling asks for.

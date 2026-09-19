@@ -149,9 +149,14 @@ const STRUCTURAL = [
   },
 
   // ── Credentials and hosts ─────────────────────────────────────────────────
+  // `anthropic.com` joins the exempt domains for the same reason `example.com`
+  // is there: it cannot be source material, and CLAUDE.md quotes
+  // `noreply@anthropic.com` as the trailer a commit may carry. Narrowing the
+  // rule is the fix — paraphrasing the trailer until the check stops noticing
+  // would be working around a tripwire, which is how one becomes decoration.
   {
     pattern:
-      /\b[A-Za-z0-9._%+-]+@(?!api\.test|example\.(com|org))[A-Za-z0-9.-]+\.(com|co\.th|io|net)\b/,
+      /\b[A-Za-z0-9._%+-]+@(?!api\.test|example\.(com|org)|anthropic\.com)[A-Za-z0-9.-]+\.(com|co\.th|io|net)\b/,
     why: 'real-looking email address',
   },
   {
