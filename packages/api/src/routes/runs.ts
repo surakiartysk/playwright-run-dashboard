@@ -137,6 +137,33 @@ runRoutes.post('/', async (c) => {
   if (!tags || !TAG_RE.test(tags)) {
     return c.json({ error: 'tags must match /^[a-z][a-z0-9-]*$/' }, 422)
   }
+
+  /*
+   * The suites filter on one axis, and this used to accept two.
+   *
+   * `scope` is a single workflow input whose accepted values are a union of
+   * tag names and service names — see `dispatchWorkflow`, which sends the
+   * service unless it is `all`, in which case it sends the tag. So a request
+   * naming both had its tag dropped on the way out, and the row still recorded
+   * it: `service=items, tags=smoke` ran the whole `items` slice while the
+   * history, the chart tooltip and the newest-run line all said `items @smoke`.
+   * Sixteen of the twenty combinations the dashboard offered were that.
+   *
+   * Rejected rather than silently narrowed, for the reason the suite and status
+   * filters above are: a filter that quietly does nothing is a worse answer
+   * than an error, because the caller cannot tell it from one that worked.
+   */
+  if (service !== 'all' && tags !== 'all') {
+    return c.json(
+      {
+        error:
+          `The suite filters by one axis: name a service ('${service}') or a tag ` +
+          `('${tags}'), not both. Send tags='all' to run the whole service, or ` +
+          `service='all' to run the tag across every service.`,
+      },
+      422,
+    )
+  }
   if (!REF_RE.test(ref)) {
     return c.json({ error: 'ref contains characters that are not valid in a git ref' }, 422)
   }

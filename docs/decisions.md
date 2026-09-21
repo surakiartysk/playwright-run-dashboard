@@ -34,6 +34,7 @@ interviewer should press on hardest.
 23. [A name on a run, and why it is a claim rather than an identity](#23-a-name-on-a-run-and-why-it-is-a-claim-rather-than-an-identity)
 24. [A second suite, and why it is a column rather than a naming convention](#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)
 25. [A key may not issue a key](#25-a-key-may-not-issue-a-key)
+26. [The run form has one axis, because the suites do](#26-the-run-form-has-one-axis-because-the-suites-do)
 
 ---
 
@@ -1288,6 +1289,61 @@ from a person doing it; `actorFor` now records `key:release pipeline`, and
 - **Someone will hit the 403 and file a bug.** "My admin key works everywhere
   except /keys" reads as an inconsistency until you know why, and the error
   string is the only place that explains it.
+
+---
+
+## 26. The run form has one axis, because the suites do
+
+**Context.** The form offered two dropdowns — Service and Scope — and sent both.
+The workflow on the other side takes one input, `scope`, whose accepted values
+are a union of tag names and service names: `all`, `smoke`, `isolated`, `flow`,
+`cross-service`, `items`, `reservations`, `maintenance-logs`, `core`. One value,
+not two.
+
+So `dispatchWorkflow` had to choose, and it chose the service unless the service
+was `all`. Measured against the dispatch body:
+
+```
+service=all    tags=smoke         -> scope=smoke   (tag honoured)
+service=items  tags=smoke         -> scope=items   (tag discarded)
+service=items  tags=flow          -> scope=items   (tag discarded)
+service=core   tags=cross-service -> scope=core    (tag discarded)
+```
+
+Sixteen of the twenty combinations the form offered discarded the tag — and the
+row kept it. The history, the chart tooltip and the newest-run line all said
+`items @smoke` for a run of the whole `items` slice. Nothing in either
+repository could see it: the dashboard knew what it recorded, the workflow knew
+what it received, and no test compared the two.
+
+**Decision.** The dashboard presents the axis that exists. `POST /runs` refuses
+a request naming a service _and_ a tag with a 422 that says which to drop, and
+the form clears the tag when a service is picked rather than leaving a selection
+the API will refuse.
+
+422 rather than a silent narrowing, for the same reason `?status=failedd` is
+rejected rather than ignored: a filter that quietly does nothing cannot be told
+from one that worked. And the rule is the API's rather than the form's, because
+the form is not the only caller — a pipeline holding a key was producing the
+same false rows.
+
+**Trade-off.**
+
+- **A combination people will ask for is now explicitly unavailable.** "Smoke
+  tests of `items`" is a reasonable thing to want, and the honest answer is that
+  it never worked — but the form used to _look_ like it did, and looking like it
+  works is what a demo rewards. This trades an appealing screen for a true one.
+- **It is a breaking change for any caller sending both.** Those callers were
+  getting a run they did not ask for, so the break is the fix arriving; it is
+  still a 422 where there used to be a 201.
+- **The fix is in the wrong repository to be complete.** Making the combination
+  genuinely work means a second workflow input in both suites and a wider
+  `scope` vocabulary — three repositories that cannot import each other, per
+  [decision 24](#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention).
+  This closes the lie without opening the feature.
+- **`tags='all'` reads oddly in the history.** A run of a whole service records
+  a tag that means "no tag", and `items @all` is a slightly awkward sentence.
+  It is a true one, which the previous sentence was not.
 
 ---
 

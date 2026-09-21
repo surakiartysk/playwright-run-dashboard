@@ -106,14 +106,14 @@ describe('GET /runs/:id — visibility', () => {
 
 describe('POST /runs — policy enforcement', () => {
   it('lets dev run against main', async () => {
-    const response = await create('dev', { service: uniqueService(), tags: 'smoke', ref: 'main' })
+    const response = await create('dev', { service: uniqueService(), tags: 'all', ref: 'main' })
     expect(response.status).toBe(201)
   })
 
   it('refuses dev a branch it may not use, with 403 rather than 422', async () => {
     const response = await create('dev', {
       service: uniqueService(),
-      tags: 'smoke',
+      tags: 'all',
       ref: 'develop',
     })
 
@@ -123,14 +123,14 @@ describe('POST /runs — policy enforcement', () => {
 
   it('records no run when the ref is refused', async () => {
     const service = uniqueService()
-    await create('dev', { service, tags: 'smoke', ref: 'develop' })
+    await create('dev', { service, tags: 'all', ref: 'develop' })
 
     expect(await runsForService(service)).toHaveLength(0)
   })
 
   it('refuses more workers than the role may use', async () => {
     const service = uniqueService()
-    const response = await create('dev', { service, tags: 'smoke', workers: 8 })
+    const response = await create('dev', { service, tags: 'all', workers: 8 })
 
     expect(response.status).toBe(403)
     expect(await runsForService(service)).toHaveLength(0)
@@ -138,17 +138,17 @@ describe('POST /runs — policy enforcement', () => {
 
   it('allows qa the worker count it refuses dev', async () => {
     expect(
-      (await create('dev', { service: uniqueService(), tags: 'smoke', workers: 8 })).status,
+      (await create('dev', { service: uniqueService(), tags: 'all', workers: 8 })).status,
     ).toBe(403)
-    expect(
-      (await create('qa', { service: uniqueService(), tags: 'smoke', workers: 8 })).status,
-    ).toBe(201)
+    expect((await create('qa', { service: uniqueService(), tags: 'all', workers: 8 })).status).toBe(
+      201,
+    )
   })
 
   it('lets admin use a branch no other role may', async () => {
     const response = await create('admin', {
       service: uniqueService(),
-      tags: 'smoke',
+      tags: 'all',
       ref: 'feature/whatever',
     })
     expect(response.status).toBe(201)
@@ -156,19 +156,58 @@ describe('POST /runs — policy enforcement', () => {
 
   it.each([
     ['a service with a slash', { service: 'items/x', tags: 'smoke' }],
-    ['a service starting with a digit', { service: '1items', tags: 'smoke' }],
+    ['a service starting with a digit', { service: '1items', tags: 'all' }],
     ['an empty service', { service: '', tags: 'smoke' }],
     ['an uppercase tag', { service: 'items', tags: 'Smoke' }],
-    ['a ref with a space', { service: 'items', tags: 'smoke', ref: 'ma in' }],
-    ['zero workers', { service: 'items', tags: 'smoke', workers: 0 }],
-    ['fractional workers', { service: 'items', tags: 'smoke', workers: 1.5 }],
+    ['a ref with a space', { service: 'items', tags: 'all', ref: 'ma in' }],
+    ['zero workers', { service: 'items', tags: 'all', workers: 0 }],
+    ['fractional workers', { service: 'items', tags: 'all', workers: 1.5 }],
   ])('rejects %s with 422', async (_label, body) => {
     expect((await create('admin', body)).status).toBe(422)
   })
 
+  /*
+   * The combination the dashboard offered and the suite could never run.
+   *
+   * `scope` is one workflow input, and `dispatchWorkflow` sends the service
+   * unless it is `all`, in which case it sends the tag. A request naming both
+   * had its tag dropped on the way out while the row kept it, so the history
+   * and the chart both described `items @smoke` for a run of the whole `items`
+   * slice.
+   *
+   * 422 rather than a silent narrowing, for the same reason the suite and
+   * status filters above reject an unknown value: a filter that quietly does
+   * nothing cannot be told from one that worked.
+   */
+  it('refuses a service and a tag together, because the suite filters by one axis', async () => {
+    const response = await create('admin', { service: 'items', tags: 'smoke' })
+
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { error: string }).error).toContain('one axis')
+  })
+
+  it.each([
+    ['a tag across every service', { service: 'all', tags: 'smoke' }],
+    ['a whole service', { service: 'items', tags: 'all' }],
+    ['everything', { service: 'all', tags: 'all' }],
+  ])('still accepts %s', async (_label, body) => {
+    expect((await create('admin', body)).status).toBe(201)
+  })
+
+  /*
+   * The rule is the API's, not the form's — so it holds for any caller posting
+   * the old combination, whichever role they hold. Without that, the dashboard
+   * would stop recording a false description while a script carried on
+   * producing them.
+   */
+  it('refuses the combination whatever role asks for it', async () => {
+    const response = await create('qa', { service: 'items', tags: 'flow' })
+    expect(response.status).toBe(422)
+  })
+
   it('records the requesting role as who triggered it, and defaults to main', async () => {
     const service = uniqueService()
-    await create('qa', { service, tags: 'smoke' })
+    await create('qa', { service, tags: 'all' })
 
     expect(await runsForService(service)).toEqual([
       expect.objectContaining({ triggered_by: 'qa', ref: 'main' }),
@@ -183,8 +222,8 @@ describe('POST /runs — policy enforcement', () => {
   it('accepts two runs of the same service in the same minute', async () => {
     const service = uniqueService()
 
-    const first = await create('admin', { service, tags: 'smoke' })
-    const second = await create('admin', { service, tags: 'smoke' })
+    const first = await create('admin', { service, tags: 'all' })
+    const second = await create('admin', { service, tags: 'all' })
 
     expect([first.status, second.status]).toEqual([201, 201])
 

@@ -18,7 +18,7 @@ const createRun = (role: 'dev' | 'qa' | 'admin', service: string) =>
   as(role, '/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ service, tags: 'smoke' }),
+    body: JSON.stringify({ service, tags: 'all' }),
   })
 
 describe('POST /runs — the gate', () => {
@@ -79,7 +79,7 @@ describe('POST /runs — the gate', () => {
     const response = await as('dev', '/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service: uniqueService(), tags: 'smoke', ref: 'develop' }),
+      body: JSON.stringify({ service: uniqueService(), tags: 'all', ref: 'develop' }),
     })
 
     expect(response.status).toBe(403)

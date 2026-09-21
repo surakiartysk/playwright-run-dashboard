@@ -41,7 +41,7 @@ describe('POST /runs — a token without the flag still simulates', () => {
       new Request('http://api.test/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('qa') },
-        body: JSON.stringify({ service: uniqueService(), tags: 'smoke' }),
+        body: JSON.stringify({ service: uniqueService(), tags: 'all' }),
       }),
       { ...env, ...patch },
       ctx,
@@ -88,7 +88,7 @@ describe('POST /runs — a token without the flag still simulates', () => {
       new Request('http://api.test/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('qa') },
-        body: JSON.stringify({ service: uniqueService(), tags: 'smoke' }),
+        body: JSON.stringify({ service: uniqueService(), tags: 'all' }),
       }),
       {
         ...env,
