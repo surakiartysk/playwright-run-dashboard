@@ -279,7 +279,16 @@ describe('DELETE /runs/:id', () => {
     }
 
     expect(remaining).toBe(0)
-  })
+    // 1050 puts and 1050 deletes through R2, which takes 4.3–4.5s on an idle
+    // machine — 86% of the default five-second budget, and past it on a busy
+    // one. Reproduced by pinning all four cores and running this file: `Error:
+    // Test timed out in 5000ms` at 5448ms, with nothing asserted wrong.
+    //
+    // The count cannot come down: the bug this guards is a delete that stops
+    // at R2's 1000-key page, so the fixture has to exceed 1000. So the budget
+    // goes up instead. It is not asserting speed, and a test that fails for
+    // the machine it ran on teaches people to re-run rather than to read.
+  }, 20_000)
 
   it('does not touch another run’s report', async () => {
     const doomed = await seedRun()
