@@ -8,6 +8,7 @@ import {
   PLOT_HEIGHT,
 } from '../src/components/RunTrend'
 import type { Run, RunStatus } from '../src/api'
+import { resultShares } from '../src/components/RunHistory'
 import { point, run as fixture } from './fixtures'
 
 /**
@@ -18,8 +19,9 @@ import { point, run as fixture } from './fixtures'
  * broken — it is *inverted*, which reads as a suite recovering when it is
  * degrading. Nothing about the rendering would look wrong.
  *
- * **Division.** Spacing n points across a width divides by `n - 1`, which is
- * zero when a single run qualifies.
+ * **Division.** Laying bars out divides the width by the number of runs, and
+ * the range by its own height — both of which a real list can make zero: one
+ * run, or a dozen runs all at the same rate.
  */
 
 const run = (
@@ -70,9 +72,10 @@ describe('trendPoints', () => {
     expect(trendPoints([run('passed', { total: 0, passed: 0 })])).toEqual([])
   })
 
-  // Not only the colour: a failed point is drawn larger and ringed, because
-  // green and red are the pair colour-vision deficiency flattens.
-  it('marks each point with whether that run passed, for how the dot is drawn', () => {
+  // Not only the colour: a failed run's bar is drawn at full opacity behind a
+  // full-height wash, because green and red are the pair colour-vision
+  // deficiency flattens.
+  it('marks each point with whether that run passed, for how the bar is drawn', () => {
     const points = trendPoints([run('failed', { passed: 9 }), run('passed')])
     expect(points.map((p) => p.passed)).toEqual([true, false])
   })
@@ -243,6 +246,7 @@ describe('describe — what one bar says', () => {
     ref: 'main',
     triggeredBy: 'qa',
     passedCount: 9,
+    failed: 1,
     total: 10,
     startedAt: new Date().toISOString(),
   }
@@ -285,8 +289,62 @@ describe('describe — what one bar says', () => {
   })
 
   it('does not claim failures on a passing run', () => {
-    const green = { ...point, passed: true, passedCount: 10, total: 10 }
+    const green = { ...point, passed: true, passedCount: 10, total: 10, failed: 0 }
     expect(describeBar(green)).toContain('10/10 passed')
     expect(describeBar(green)).not.toContain('failed')
+  })
+
+  /*
+   * The count this once got wrong, and the reason the field exists.
+   *
+   * A failure count derived as `total - passed` counts every skipped test as a
+   * failure. The table row does not — `resultShares` gives them a bucket of
+   * their own — so one run rendered `1 failed` in the table and `3 failed` in
+   * the tooltip of its own bar, which is exactly what the comment above
+   * `describe` says can never happen.
+   *
+   * Verified able to fail: restoring `point.total - point.passedCount` in
+   * `describe` leaves this red — `expected '… 3 failed …' to contain '1
+   * failed'` — and every other test in this file green.
+   */
+  it('counts the failures the run reported, not the tests that did not pass', () => {
+    // Ten tests: seven passed, one failed, two skipped.
+    const skipped = { ...point, passed: false, passedCount: 7, failed: 1, total: 10 }
+
+    expect(describeBar(skipped)).toContain('7/10 — 1 failed')
+    expect(describeBar(skipped)).not.toContain('3 failed')
+  })
+
+  /*
+   * The same invariant stated against the table itself rather than a number
+   * typed twice: whatever the row calls a failure, the bar must call one too.
+   *
+   * `resultShares` is the arithmetic behind the row's bar, so a change to
+   * either side that makes them disagree fails here. Verified able to fail:
+   * with the derived count restored, this reads `expected 3 to be 1`.
+   */
+  it('agrees with the table row about how many tests failed', () => {
+    const r = fixture({ status: 'failed', total: 10, passed: 7, failed: 1 })
+    const share = resultShares(r)
+
+    // The row's own bar: 70% green, 10% red, 20% neither.
+    expect(share).toEqual({ passed: 70, failed: 10, other: 20 })
+
+    const bar = describeBar(trendPoints([r])[0]!)
+    const claimed = Number(/(\d+) failed/.exec(bar)![1])
+    expect(claimed).toBe((share.failed / 100) * (r.total ?? 0))
+  })
+
+  /*
+   * A run can end badly with nothing failing — a timeout, or a callback that
+   * sent totals but no failure count. The row prints `7 / 10` and stops; so
+   * does this. Verified able to fail: making the empty branch read
+   * `${ratio} — ${point.failed} failed` leaves this red on `not.toContain`.
+   */
+  it('says nothing about failures when the run reported none', () => {
+    const timedOut = { ...point, passed: false, passedCount: 7, failed: 0, total: 10 }
+
+    expect(describeBar(timedOut)).toContain('7/10')
+    expect(describeBar(timedOut)).not.toContain('failed')
   })
 })

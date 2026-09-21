@@ -42,11 +42,24 @@ import { relative } from './RunHistory'
  *
  * Deliberately the same facts the table row shows, in the same order, so the
  * two never tell different stories about the same run.
+ *
+ * Which is a claim, not a property — and it was false. The failure count was
+ * derived here as `total - passed`, while the row prints the count the suite
+ * actually reported. Those differ by every test that neither passed nor
+ * failed: a run of ten with seven passing, one failing and two skipped drew a
+ * row reading `1 failed` beside a bar whose tooltip read `3 failed`. The row
+ * already knew better — `resultShares` gives skipped tests a bucket of their
+ * own precisely because they are not failures. So the count is carried now
+ * rather than inferred, and the wording follows the row: no failures reported,
+ * nothing claimed about them.
  */
 export function describe(point: TrendPoint): string {
+  const ratio = `${point.passedCount}/${point.total}`
   const result = point.passed
-    ? `${point.passedCount}/${point.total} passed`
-    : `${point.passedCount}/${point.total} — ${point.total - point.passedCount} failed`
+    ? `${ratio} passed`
+    : point.failed > 0
+      ? `${ratio} — ${point.failed} failed`
+      : ratio
 
   return [
     `${SUITE_LABELS[point.suite]} · ${point.service} @${point.tags} · ${point.ref}`,
@@ -87,6 +100,13 @@ export interface TrendPoint {
   triggeredBy: string
   startedBy: string | null
   passedCount: number
+  /*
+   * The failures the suite reported, not the tests that did not pass.
+   *
+   * Carried rather than derived because `total - passedCount` counts skipped
+   * tests as failures, and the table row does not — see `describe`.
+   */
+  failed: number
   total: number
   startedAt: string
 }
@@ -112,6 +132,7 @@ export function trendPoints(runs: Run[]): TrendPoint[] {
       triggeredBy: run.triggeredBy,
       startedBy: run.startedBy,
       passedCount: run.passed ?? 0,
+      failed: run.failed ?? 0,
       total: run.total ?? 0,
       startedAt: run.startedAt,
     }))
