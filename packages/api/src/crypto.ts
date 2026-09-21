@@ -101,7 +101,34 @@ export async function reportTokenExpiry(secret: string, token: string): Promise<
 }
 
 async function verifiedPayload(secret: string, token: string): Promise<TokenPayload | null> {
-  const [body, signature] = token.split('.')
+  /*
+   * Exactly two parts, and the count is the check.
+   *
+   * Destructuring the first two out of `split('.')` reads as equivalent and is
+   * not: it discards whatever follows the signature, so `body.sig.anything`
+   * verified and was treated as a valid token. The signature covers `body`
+   * alone, so those trailing bytes were never signed — and `routes/reports.ts`
+   * writes the *whole* token it was given into a `Set-Cookie` header, which
+   * put unsigned, caller-supplied bytes into a response header.
+   *
+   * Measured before the fix: `?token=<valid>.;%20Domain=example.com` returned
+   * 200 with `Set-Cookie: report_x=<valid>.; Domain=example.com; HttpOnly;
+   * Path=/reports/x/; …`, and a CRLF in the same position returned 500 because
+   * the runtime refused the header value. Neither is known to be exploitable —
+   * a duplicate cookie attribute is resolved by the browser in the right
+   * direction and the CRLF never reached the wire — but both outcomes depend
+   * on a parser this repository does not own, and the input reached them
+   * through a function whose whole job is to say whether the token is
+   * authentic.
+   *
+   * Every other token parser here already counts its parts: `verifySession`
+   * (three or four), `verifyPreviewCookie` (three), `parseKey` (three). This
+   * was the one that did not.
+   */
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+
+  const [body, signature] = parts as [string, string]
   if (!body || !signature) return null
 
   if (!(await verifyHmac(secret, body, signature))) return null

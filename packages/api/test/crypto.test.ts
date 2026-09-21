@@ -91,4 +91,29 @@ describe('report tokens', () => {
     const signature = await hmacHex(SECRET, body)
     expect(await verifyReportToken(SECRET, `${body}.${signature}`)).toBeNull()
   })
+
+  /*
+   * The case the list above looks like it covers and did not.
+   *
+   * A token is `payload.signature`, and the signature covers the payload —
+   * so anything after it is unsigned by construction. Reading the first two
+   * parts out of `split('.')` accepted it anyway, and `routes/reports.ts`
+   * carries the whole token it was handed into a `Set-Cookie` header.
+   *
+   * Asserted on every shape that reaches that header differently: a plain
+   * suffix, one opening a cookie attribute, and one carrying a CRLF.
+   */
+  it.each([
+    ['a plain suffix', '.INJECTED'],
+    ['a cookie attribute', '.; Domain=example.test'],
+    ['a header break', '.\r\nSet-Cookie: evil=1'],
+    ['an empty extra part', '.'],
+  ])(
+    'refuses a valid token with %s appended, because that part is not signed',
+    async (_label, suffix) => {
+      const token = await signReportToken(SECRET, 'run-1')
+      expect(await verifyReportToken(SECRET, token)).toBe('run-1')
+      expect(await verifyReportToken(SECRET, `${token}${suffix}`)).toBeNull()
+    },
+  )
 })

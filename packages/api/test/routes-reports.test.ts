@@ -196,6 +196,35 @@ describe('GET /reports/:runId/*', () => {
       expect(response.status).toBe(403)
     })
 
+    /*
+     * The cookie's value is a token this handler was handed, so whatever ends
+     * up in it has to be something the signature actually covers.
+     *
+     * It was not. `verifiedPayload` read the first two parts of the token and
+     * dropped the rest, so `<valid token>.<anything>` verified — and the
+     * handler wrote the whole string, trailing bytes and all, into
+     * `Set-Cookie`. Measured before the fix: a suffix of `.; Domain=example.com`
+     * came back `200` with that attribute sitting in the header ahead of the
+     * handler's own, and a CRLF in the same position returned `500` because
+     * the runtime refused the header value.
+     *
+     * Asserted at the header rather than on the token alone, because the
+     * header is where it mattered: the unit test next door proves the parser
+     * refuses it, and this proves nothing downstream can be handed it.
+     */
+    it('never carries bytes the signature did not cover', async () => {
+      const id = await seedRunWithReport()
+      await env.REPORTS.put(`runs/${id}/index.html`, 'ok')
+      const token = await tokenFor(id)
+
+      for (const suffix of ['.INJECTED', '.; Domain=example.test']) {
+        const response = await request(`/reports/${id}/?token=${token}${suffix}`)
+
+        expect(response.status).toBe(401)
+        expect(response.headers.get('Set-Cookie')).toBeNull()
+      }
+    })
+
     it('is not re-set on every asset, only on the entry point', async () => {
       const id = await seedRunWithReport()
       await env.REPORTS.put(`runs/${id}/index.html`, 'ok')
