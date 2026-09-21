@@ -240,6 +240,81 @@ function contractCopy() {
   }
 }
 
+// ── 4. The decisions document's own contents ───────────────────────────────
+//
+// `docs/decisions.md` is the deliverable this repository is read for, and its
+// Contents list is hand-maintained. It went stale the ordinary way: eight
+// decisions were appended over several weeks and none was added to the list,
+// so the file advertised seventeen while holding twenty-five — including the
+// two CLAUDE.md sends a reader to by number.
+//
+// Nothing could notice. The headings are there, the anchors work, and a
+// contents list has no way to know a section was added below it. So the list
+// is compared against the headings it claims to index: same numbers, same
+// titles, and an anchor GitHub will actually resolve.
+
+{
+  const text = readFileSync(join(ROOT, 'docs/decisions.md'), 'utf8')
+
+  // GitHub's heading slug: lowercased, everything but letters, digits, spaces
+  // and hyphens dropped, then spaces to hyphens. Applied to the whole heading
+  // including its number, which is why the anchors start with a digit.
+  const slug = (heading) =>
+    heading
+      .toLowerCase()
+      .replace(/[^a-z0-9 -]/g, '')
+      .replace(/ /g, '-')
+
+  const headings = [...text.matchAll(/^## (\d+)\. (.+)$/gm)].map((m) => ({
+    number: Number(m[1]),
+    title: m[2].trim(),
+  }))
+  const listed = [...text.matchAll(/^(\d+)\. \[(.+)\]\(#([^)]+)\)$/gm)].map((m) => ({
+    number: Number(m[1]),
+    title: m[2].trim(),
+    anchor: m[3],
+  }))
+
+  // A check that cannot find what it reads must say so rather than pass.
+  if (headings.length === 0 || listed.length === 0) {
+    problems.push(
+      'docs/decisions.md: could not read the headings or the Contents list — this check cannot compare them',
+    )
+  } else {
+    const byNumber = new Map(listed.map((entry) => [entry.number, entry]))
+
+    for (const heading of headings) {
+      const entry = byNumber.get(heading.number)
+      if (!entry) {
+        problems.push(
+          `docs/decisions.md: decision ${heading.number} ("${heading.title}") is not in the Contents`,
+        )
+        continue
+      }
+      if (entry.title !== heading.title) {
+        problems.push(
+          `docs/decisions.md: Contents calls decision ${heading.number} "${entry.title}", the heading says "${heading.title}"`,
+        )
+      }
+      const expected = slug(`${heading.number}. ${heading.title}`)
+      if (entry.anchor !== expected) {
+        problems.push(
+          `docs/decisions.md: the link to decision ${heading.number} points at #${entry.anchor}, which resolves to nothing — it should be #${expected}`,
+        )
+      }
+    }
+
+    const numbered = new Set(headings.map((heading) => heading.number))
+    for (const entry of listed) {
+      if (!numbered.has(entry.number)) {
+        problems.push(
+          `docs/decisions.md: the Contents lists decision ${entry.number} ("${entry.title}"), which has no heading`,
+        )
+      }
+    }
+  }
+}
+
 if (problems.length > 0) {
   console.error('\n✖ check:claims — the docs advertise something that is not true.\n')
   for (const problem of problems) console.error(`  ${problem}`)

@@ -26,6 +26,14 @@ interviewer should press on hardest.
 15. [Machine keys the dashboard issues, not GitHub tokens it hands out](#15-machine-keys-the-dashboard-issues-not-github-tokens-it-hands-out)
 16. [What can be switched off, and what the two repos agree on](#16-what-can-be-switched-off-and-what-the-two-repos-agree-on)
 17. [Green and red never carry a result on their own](#17-green-and-red-never-carry-a-result-on-their-own)
+18. [The run list is a table, and it can be paged](#18-the-run-list-is-a-table-and-it-can-be-paged)
+19. [Admin controls belong in one place, and the ones with no UI were the point](#19-admin-controls-belong-in-one-place-and-the-ones-with-no-ui-were-the-point)
+20. [Bars, not a line — runs are discrete events](#20-bars-not-a-line--runs-are-discrete-events)
+21. [The diagrams scroll on a phone rather than shrink](#21-the-diagrams-scroll-on-a-phone-rather-than-shrink)
+22. [A limit on demo runs, and why it is not a security control](#22-a-limit-on-demo-runs-and-why-it-is-not-a-security-control)
+23. [A name on a run, and why it is a claim rather than an identity](#23-a-name-on-a-run-and-why-it-is-a-claim-rather-than-an-identity)
+24. [A second suite, and why it is a column rather than a naming convention](#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)
+25. [A key may not issue a key](#25-a-key-may-not-issue-a-key)
 
 ---
 
