@@ -9,8 +9,25 @@ import type { Bindings, Role, Suite } from './types'
  *
  * Simulation is opt-out (`SIMULATE_DISPATCH=false`) rather than opt-in, so the
  * safe behaviour is the default and a real deployment states its intent
- * explicitly. A deployment that sets a token but forgets the flag gets a loud
- * error rather than a dashboard that silently dispatches nothing.
+ * explicitly.
+ *
+ * The loud error runs in one direction only, and it is worth being exact about
+ * which. A deployment that says `SIMULATE_DISPATCH=false` without a token gets
+ * one, below. A deployment that sets a token and *forgets* the flag does not —
+ * it simulates, silently, because an unset flag is not `'false'`.
+ *
+ * That asymmetry is deliberate rather than an oversight, and it is the first
+ * of the two things CLAUDE.md records as having actually broken a deployment:
+ * `wrangler deploy` without `--var` reverts to simulating, and the dashboard
+ * keeps working while dispatching nothing. Promoting it to a startup problem
+ * would be worse than the hazard: `assertDeployable` refuses to serve at all,
+ * so anyone keeping a GITHUB_TOKEN in a local `.env` while simulating — the
+ * ordinary way to develop the real path — would be locked out of their own
+ * dashboard.
+ *
+ * So the signal is the run itself. A simulated run says `simulated: true` in
+ * the response and reaches no repository, which is visible the first time
+ * anyone presses Run.
  *
  * `demo` is the one exception to that flag, not a second flag. A deployment
  * that is real for `dev`/`qa`/`admin` still simulates for `demo` — the point
