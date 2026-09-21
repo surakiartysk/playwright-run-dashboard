@@ -295,6 +295,71 @@ describe('listing and revoking', () => {
     expect(await response.text()).not.toContain(secretPart)
   })
 
+  /*
+   * The digest, which the test above does not cover.
+   *
+   * `toView` says "`hash` never leaves the database", and the test above reads
+   * like it guards that. It does not: it searches the response for the key's
+   * *secret half*, and the hash is an HMAC of that secret — it contains no
+   * substring of it, so a response carrying every key's digest passes.
+   *
+   * Measured: replacing the allowlist with `{ ...row, … }` — the tidier-looking
+   * refactor someone would actually write — leaked `hash` to every admin
+   * browser and all thirty tests in this file still passed.
+   *
+   * Read against the row the database actually holds rather than against a
+   * value recomputed here, so the assertion cannot agree with the code by
+   * construction.
+   */
+  it('never returns the stored digest', async () => {
+    const { id } = await issue({})
+
+    const stored = await env.DB.prepare('SELECT hash FROM api_keys WHERE id = ?1')
+      .bind(id)
+      .first<{ hash: string }>()
+
+    expect(stored?.hash, 'the fixture must actually have stored a digest').toBeTruthy()
+
+    const response = await request('/keys', { headers: await auth('admin') })
+
+    expect(await response.text()).not.toContain(stored!.hash)
+  })
+
+  /*
+   * ...and the shape itself, so a column added later is a decision.
+   *
+   * The test above names one field. This one pins the whole projection: any
+   * column that appears in the view from now on — `hash` or a future one
+   * nobody has thought of — has to be added here on purpose rather than
+   * arriving because the row was spread.
+   */
+  it('returns exactly the fields the view promises, and no others', async () => {
+    const { id } = await issue({})
+
+    const response = await request('/keys', { headers: await auth('admin') })
+    const { keys } = (await response.json()) as { keys: Record<string, unknown>[] }
+
+    // Found by id rather than taken as the only row: this file's other tests
+    // leave keys behind, and asserting on a count would make this test depend
+    // on which of them ran first.
+    const mine = keys.find((key) => key.id === id)
+    expect(mine, 'the key this test issued must be in the list').toBeDefined()
+
+    expect(Object.keys(mine!).sort()).toEqual(
+      [
+        'allowedRefs',
+        'createdAt',
+        'createdBy',
+        'id',
+        'label',
+        'lastUsedAt',
+        'maxWorkers',
+        'revokedAt',
+        'role',
+      ].sort(),
+    )
+  })
+
   it('treats revoking twice as done rather than an error', async () => {
     const { id } = await issue({})
     const headers = await auth('admin')
