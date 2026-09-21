@@ -210,6 +210,40 @@ describe('DELETE /runs/:id', () => {
   })
 
   /*
+   * Deleting a simulated run must not take the shared report with it.
+   *
+   * Every simulated run points `report_path` at one real Allure report under
+   * `demo-report/`, because writing a copy per run would store megabytes of
+   * duplicate. So the row of a simulated run names a prefix that dozens of
+   * other rows also name.
+   *
+   * The delete is keyed on `runs/{id}/` — the run's own prefix — not on the
+   * directory of `report_path`. That is what makes this safe, and it is the
+   * less obvious of the two: deleting "the report this row points at" reads
+   * like the more correct thing, and would wipe the shared report for every
+   * other simulated run the first time an admin tidied one away. The failure
+   * would surface later, somewhere else, as a demo report that 404s.
+   *
+   * Nothing tested it. The two tests either side of this one both seed a
+   * report under the run's own prefix, so they pass under either rule.
+   */
+  it('leaves the shared demo report alone when a simulated run is deleted', async () => {
+    const shared = 'demo-report/index.html'
+    await env.REPORTS.put(shared, '<html>sample</html>')
+
+    const id = await seedRun({ triggeredBy: 'demo', reportPath: shared })
+
+    const response = await as('admin', `/runs/${id}`, { method: 'DELETE' })
+
+    expect(response.status).toBe(200)
+    // Nothing lives under this run's own prefix, so nothing should be removed.
+    expect(await response.json()).toMatchObject({ deletedObjects: 0 })
+
+    expect(await env.DB.prepare('SELECT id FROM runs WHERE id = ?1').bind(id).first()).toBeNull()
+    expect(await env.REPORTS.get(shared)).not.toBeNull()
+  })
+
+  /*
    * Deliberately a size no report in this system currently reaches.
    *
    * Both suites build Allure with `--single-file` and upload exactly one

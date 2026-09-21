@@ -64,7 +64,55 @@ function outcome(suite: Suite, service: string): SimulatedOutcome {
   return { status: 'failed', total, passed: total - failed, failed }
 }
 
+/**
+ * Records a simulation that died, so the row does not sit in `running` forever.
+ *
+ * `POST /runs` hands this to `waitUntil` and returns, and a rejected
+ * `waitUntil` promise is logged and forgotten — nothing else in this Worker
+ * would ever touch the row again. There is no sweeper, no cron trigger and no
+ * timeout: `running` is where it would stay. CLAUDE.md names that symptom as
+ * what the worst deployment failure here looked like from outside, and the
+ * real dispatch path already records its own failures as `error`, so this is
+ * the simulator catching up with the rule rather than a new one.
+ *
+ * Guarded on `status IN ('queued', 'running')` for the same reason the
+ * finishing write is: a webhook that landed while the simulator was failing
+ * holds the real answer, and the simulator's own failure must not overwrite it.
+ *
+ * A failure to record the failure is swallowed. The store is what is failing;
+ * throwing here would replace a recorded error with an unrecorded one.
+ */
+async function markErrored(env: Bindings, runId: string, cause: unknown): Promise<void> {
+  console.error(`[simulate] ${runId} failed:`, cause)
+
+  try {
+    await env.DB.prepare(
+      `UPDATE runs
+          SET status = 'error', finished_at = ?2
+        WHERE id = ?1
+          AND status IN ('queued', 'running')`,
+    )
+      .bind(runId, new Date().toISOString())
+      .run()
+  } catch (secondary) {
+    console.error(`[simulate] ${runId} could not be marked errored:`, secondary)
+  }
+}
+
 export async function simulateRun(
+  env: Bindings,
+  runId: string,
+  suite: Suite,
+  service: string,
+): Promise<void> {
+  try {
+    await walkStates(env, runId, suite, service)
+  } catch (error) {
+    await markErrored(env, runId, error)
+  }
+}
+
+async function walkStates(
   env: Bindings,
   runId: string,
   suite: Suite,

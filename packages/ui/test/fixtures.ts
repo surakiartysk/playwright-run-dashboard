@@ -68,6 +68,10 @@ export function point(overrides: Partial<TrendPoint> = {}): TrendPoint {
     triggeredBy: 'demo',
     startedBy: null,
     passedCount: overrides.passedCount ?? (passed ? total : total - 1),
+    // The ordinary run has nothing skipped, so every test that did not pass
+    // failed. A test about skipped tests sets this itself — deriving it is the
+    // assumption that hid a real disagreement between the chart and the table.
+    failed: overrides.failed ?? (passed ? 0 : 1),
     total,
     startedAt: '2026-01-01T12:00:00Z',
     ...overrides,
