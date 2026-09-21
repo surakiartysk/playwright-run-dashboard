@@ -6,14 +6,18 @@ import { c, status as sc } from '../theme'
  * Narrowing the run list, client-side.
  *
  * Filtered here rather than by re-fetching with `?status=`, which the API also
- * supports. The list is already capped at 25 rows, so there is nothing a round
- * trip would find that is not on screen — and filtering locally keeps the
- * summary above and the list below reading the same rows, rather than
- * summarising a set the filter has already changed underneath.
+ * supports. Filtering locally keeps the summary above and the list below
+ * reading the same rows: a server-side filter would change the set that was
+ * fetched, and the summary — which is derived from exactly those rows — would
+ * start describing something other than what the reader is looking at.
  *
- * The cost is stated plainly: this narrows what was fetched, not what exists.
- * If the cap ever rises to where "the last 25" stops meaning "recent", this
- * should move to the server.
+ * The cost, which grew: this narrows what was loaded, not what exists. That
+ * was nearly free when the list stopped at 25 rows and the two were the same
+ * thing. They are not any more — "Load more" arrived the week after this, and
+ * a reader on page one filtering to Failed is shown the failures among the
+ * loaded runs, not among all of them. The footer states the gap in the same
+ * breath ("Showing 25 of 91"), which is the only reason this is still the
+ * right trade: the reader can see there is more, and load it.
  */
 
 export type StatusFilter = 'all' | 'passed' | 'failed' | 'running'
