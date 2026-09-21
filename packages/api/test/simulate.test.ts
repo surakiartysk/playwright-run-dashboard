@@ -25,6 +25,86 @@ beforeAll(migrate)
  * would remove the ordering these tests are about.
  */
 describe('simulateRun', { timeout: 20_000 }, () => {
+  /*
+   * A simulation that dies mid-flight must not leave the row in `running`.
+   *
+   * `POST /runs` hands the simulator to `waitUntil` and returns. A real
+   * dispatch that fails is recorded — twenty lines above, the handler writes
+   * `status = 'error'` — but a simulation that throws was recorded nowhere, so
+   * the row kept whatever state it had reached and nothing would ever change
+   * it again. There is no sweeper, no cron trigger and no timeout anywhere in
+   * this Worker: `running` is where it stays, permanently.
+   *
+   * CLAUDE.md names that exact symptom — "runs that never leave `running`" —
+   * as what the worst deployment failure here looked like from outside, which
+   * is why a second way of producing it is worth closing rather than leaving
+   * to the simulator being reliable.
+   *
+   * The DB is replaced with one that fails the finishing write specifically,
+   * matched on `duration_ms` — a column only that write sets.
+   *
+   * Matching on `finished_at` instead looks equivalent and is not: the write
+   * that *records* the failure sets it too, so the fake broke both and the
+   * test failed while the code under it was already correct. A fake that is
+   * too broad tests the fake.
+   */
+  it('marks the run as errored when the finishing write fails', async () => {
+    const id = await seedRun({ status: 'queued' })
+
+    let seen = 0
+    const failing = {
+      prepare(query: string) {
+        const statement = env.DB.prepare(query)
+        // Only the finishing write sets a duration.
+        if (query.includes('duration_ms')) {
+          seen += 1
+          return {
+            bind: () => ({
+              run: () => Promise.reject(new Error('D1 is unavailable')),
+            }),
+          }
+        }
+        return statement
+      },
+    }
+
+    await simulateRun({ ...env, DB: failing } as unknown as typeof env, id, 'api', 'items')
+
+    expect(seen, 'the failing write must actually have been attempted').toBe(1)
+    expect(await statusOf(id)).toBe('error')
+  })
+
+  /*
+   * ...and must not overwrite a result that arrived while it was failing.
+   *
+   * The pair to the test above, and the one that earns the in-flight guard on
+   * the error write. Without it that test still passes: a run that reaches
+   * `error` from `running` looks identical whether or not the guard is there.
+   *
+   * Removing `AND status IN ('queued', 'running')` from the error write passed
+   * every other test in this file, which is how untested insurance stops
+   * working without anyone noticing. Here the webhook has already landed, so
+   * the simulator failing afterwards must find the row finished and leave it —
+   * the webhook holds the real answer and the simulator's own failure is the
+   * less interesting fact.
+   */
+  it('leaves a result the webhook already wrote when it fails afterwards', async () => {
+    const id = await seedRun({ status: 'passed' })
+
+    const failing = {
+      prepare(query: string) {
+        if (query.includes('duration_ms')) {
+          return { bind: () => ({ run: () => Promise.reject(new Error('D1 is unavailable')) }) }
+        }
+        return env.DB.prepare(query)
+      },
+    }
+
+    await simulateRun({ ...env, DB: failing } as unknown as typeof env, id, 'api', 'items')
+
+    expect(await statusOf(id)).toBe('passed')
+  })
+
   it('advances a queued run to a finished state', async () => {
     const id = await seedRun({ status: 'queued' })
 
