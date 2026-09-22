@@ -54,7 +54,7 @@ describe('dispatchWorkflow — demo always simulates', () => {
         } as Bindings,
         'run-1',
         role,
-        { suite: 'api', service: 'items', tags: 'smoke' },
+        { suite: 'api', service: 'items', tags: 'all' },
       )
     } finally {
       globalThis.fetch = previous
@@ -85,7 +85,7 @@ describe('dispatchWorkflow — demo always simulates', () => {
       } as Bindings,
       'run-1',
       'demo',
-      { suite: 'api', service: 'items', tags: 'smoke' },
+      { suite: 'api', service: 'items', tags: 'all' },
     )
 
     expect(result).toEqual({ ok: true, simulated: true })
@@ -114,7 +114,7 @@ describe('POST /runs — demo cannot escape simulation through the endpoint', ()
       new Request('http://api.test/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('demo') },
-        body: JSON.stringify({ service: uniqueService(), tags: 'smoke' }),
+        body: JSON.stringify({ service: uniqueService(), tags: 'all' }),
       }),
       patched,
       ctx,

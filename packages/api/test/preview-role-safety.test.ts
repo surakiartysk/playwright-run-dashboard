@@ -85,7 +85,7 @@ describe('a demo session previewing admin still cannot write as admin', () => {
     const response = await callAsDemoPreviewingAdmin(
       'POST',
       '/runs',
-      { service: uniqueService(), tags: 'smoke', ref: 'develop' },
+      { service: uniqueService(), tags: 'all', ref: 'develop' },
       false,
     )
 
@@ -105,7 +105,7 @@ describe('a demo session previewing admin still cannot write as admin', () => {
     const response = await callAsDemoPreviewingAdmin(
       'POST',
       '/runs',
-      { service: uniqueService(), tags: 'smoke' },
+      { service: uniqueService(), tags: 'all' },
       true,
     )
 

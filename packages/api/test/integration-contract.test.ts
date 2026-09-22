@@ -300,11 +300,11 @@ describe('the dispatch the dashboard sends', () => {
   const DASHBOARD_OFFERS: Record<Suite, { services: string[]; tags: string[] }> = {
     api: {
       services: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
-      tags: ['smoke', 'isolated', 'flow', 'cross-service'],
+      tags: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
     },
     ui: {
       services: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
-      tags: ['smoke'],
+      tags: ['all', 'smoke'],
     },
   }
 
@@ -323,6 +323,41 @@ describe('the dispatch the dashboard sends', () => {
       expect(WORKFLOW_ACCEPTS[suite].scope).toContain(body.scope)
     }
   })
+
+  /*
+   * The dispatch must carry the axis the caller named — nothing quietly
+   * dropped.
+   *
+   * `scope` is one input, so a request naming a service *and* a tag had the
+   * tag discarded here while the run row kept it: the history said
+   * `items @smoke` for a run of the whole `items` slice. Sixteen of the twenty
+   * combinations the dashboard offered were that, and nothing between the
+   * dropdowns and the workflow could see it — this test is where the two views
+   * meet.
+   *
+   * `POST /runs` now refuses the combination (see routes-runs.test.ts); this
+   * asserts the other half, that for every shape it *does* accept, the value
+   * the caller named is the value the workflow receives.
+   */
+  it.each(['api', 'ui'] as const)(
+    'sends %s the exact axis the caller named, never the other one',
+    async (suite) => {
+      const offered = DASHBOARD_OFFERS[suite]
+
+      for (const tag of offered.tags.filter((t) => t !== 'all')) {
+        const body = await dispatchBody({ suite, service: 'all', tags: tag })
+        expect(body.scope).toBe(tag)
+      }
+
+      for (const service of offered.services.filter((svc) => svc !== 'all')) {
+        const body = await dispatchBody({ suite, service, tags: 'all' })
+        expect(body.scope).toBe(service)
+      }
+
+      // Neither axis named: the workflow's own "everything" value, not a blank.
+      expect((await dispatchBody({ suite, service: 'all', tags: 'all' })).scope).toBe('all')
+    },
+  )
 
   it.each(['api', 'ui'] as const)('sends a package selector %s accepts', async (suite) => {
     const body = await dispatchBody({ suite, service: 'all', tags: 'smoke' })

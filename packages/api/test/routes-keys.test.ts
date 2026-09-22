@@ -94,7 +94,7 @@ describe('authenticating with a key', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
 
     expect(response.status).toBe(201)
@@ -113,7 +113,7 @@ describe('authenticating with a key', () => {
     await settle('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
 
     const row = await env.DB.prepare('SELECT last_used_at FROM api_keys WHERE id = ?1')
@@ -158,7 +158,7 @@ describe('authenticating with a key', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
 
     expect(response.status).toBe(401)
@@ -186,7 +186,7 @@ describe('what a key may do', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke', ref: 'develop' }),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'develop' }),
     })
 
     expect(response.status).toBe(403)
@@ -199,14 +199,14 @@ describe('what a key may do', () => {
     const refused = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke', ref: 'main' }),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
     })
     expect(refused.status).toBe(403)
 
     const allowed = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke', ref: 'develop' }),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'develop' }),
     })
     expect(allowed.status).toBe(201)
   })
@@ -217,7 +217,7 @@ describe('what a key may do', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke', workers: 64 }),
+      body: JSON.stringify({ service: 'items', tags: 'all', workers: 64 }),
     })
 
     expect(response.status).toBe(403)
@@ -229,7 +229,7 @@ describe('what a key may do', () => {
     const created = await request('/runs', {
       method: 'POST',
       headers: await auth('admin'),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
     const { runId } = (await created.json()) as { runId: string }
 
@@ -254,7 +254,7 @@ describe('what a key may do', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
 
     expect(response.status).toBe(503)
@@ -268,7 +268,7 @@ describe('what a key may do', () => {
     const response = await request('/runs', {
       method: 'POST',
       headers: withKey(plaintext),
-      body: JSON.stringify({ service: 'items', tags: 'smoke' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
 
     expect(response.status).toBe(201)

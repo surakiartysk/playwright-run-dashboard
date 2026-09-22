@@ -16,7 +16,7 @@ const startRun = (role: 'demo' | 'qa') =>
   as(role, '/runs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ service: 'items', tags: 'smoke', ref: 'main' }),
+    body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
   })
 
 /** Fills the window with rows attributed to demo, without going through the API. */

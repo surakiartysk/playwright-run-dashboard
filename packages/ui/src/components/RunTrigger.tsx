@@ -31,9 +31,18 @@ const SUITE_SERVICES: Record<Suite, string[]> = {
   ui: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
 }
 
+/**
+ * `all` first, and it is not padding.
+ *
+ * The suites filter on one axis: the workflow's `scope` input takes a tag name
+ * or a service name, never both. Picking a service therefore means no tag
+ * filter, and `all` is how that is said — the API refuses a request naming
+ * both, because the dispatch used to drop the tag and the run went on
+ * displaying it.
+ */
 const SUITE_TAGS: Record<Suite, string[]> = {
-  api: ['smoke', 'isolated', 'flow', 'cross-service'],
-  ui: ['smoke'],
+  api: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
+  ui: ['all', 'smoke'],
 }
 
 export function RunTrigger({
@@ -143,7 +152,18 @@ export function RunTrigger({
         </Field>
 
         <Field label="Service">
-          <select style={s.control} value={service} onChange={(e) => setService(e.target.value)}>
+          <select
+            style={s.control}
+            value={service}
+            onChange={(e) => {
+              const next = e.target.value
+              setService(next)
+              // One axis, so choosing a service clears the tag rather than
+              // leaving a selection the API will refuse and the suite would
+              // never have applied.
+              if (next !== 'all') setTags('all')
+            }}
+          >
             {SUITE_SERVICES[suite].map((v) => (
               <option key={v}>{v}</option>
             ))}
@@ -151,11 +171,25 @@ export function RunTrigger({
         </Field>
 
         <Field label="Scope">
-          <select style={s.control} value={tags} onChange={(e) => setTags(e.target.value)}>
+          <select
+            style={s.control}
+            value={tags}
+            disabled={service !== 'all'}
+            onChange={(e) => setTags(e.target.value)}
+          >
             {SUITE_TAGS[suite].map((v) => (
               <option key={v}>{v}</option>
             ))}
           </select>
+          {/*
+            Said here rather than left to a 422. The control going grey with no
+            reason reads as a bug; naming the constraint is what stops someone
+            picking a service, seeing their tag vanish, and assuming the form
+            lost it.
+          */}
+          {service !== 'all' && (
+            <p style={s.fieldNote}>Running all of `{service}` — the suite filters by one axis.</p>
+          )}
         </Field>
 
         <Field label="Suite branch">
@@ -221,6 +255,7 @@ const s: Record<string, CSSProperties> = {
   },
   title: { fontSize: 15, fontWeight: 650, margin: 0 },
   hint: { fontSize: 12, color: c.t5 },
+  fieldNote: { margin: '6px 0 0', fontSize: 11.5, color: c.t5, lineHeight: 1.4 },
 
   grid: {
     display: 'grid',
