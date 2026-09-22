@@ -111,8 +111,10 @@ cp /tmp/policy.bak src/policy.ts   # always restore
 pnpm exec vitest run               # confirm green again
 ```
 
-Ninety-nine mutations have been run against this repo. The ones worth
-repeating after any change to authorisation or signing:
+Ninety-nine mutations have been run against this repo, forty-five of them
+recorded one by one in [`docs/mutations.md`](docs/mutations.md). Any new one
+belongs in that table with the message it produced. The ones worth repeating
+after any change to authorisation or signing:
 
 | Mutation                                                     | Must fail                     |
 | ------------------------------------------------------------ | ----------------------------- |

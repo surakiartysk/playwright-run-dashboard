@@ -35,6 +35,7 @@ interviewer should press on hardest.
 24. [A second suite, and why it is a column rather than a naming convention](#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)
 25. [A key may not issue a key](#25-a-key-may-not-issue-a-key)
 26. [The run form has one axis, because the suites do](#26-the-run-form-has-one-axis-because-the-suites-do)
+27. [The mutation count states its gap rather than closing it](#27-the-mutation-count-states-its-gap-rather-than-closing-it)
 
 ---
 
@@ -282,6 +283,12 @@ one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
+
+Forty-five of those are recorded individually in
+[`mutations.md`](mutations.md). The rest were run without being written down,
+and that file says so rather than reconstructing them — a claim about work done
+is worth exactly what can be checked, and the checkable part is now separated
+from the part that has to be taken on trust.
 
 ---
 
@@ -1344,6 +1351,50 @@ same false rows.
 - **`tags='all'` reads oddly in the history.** A run of a whole service records
   a tag that means "no tag", and `items @all` is a slightly awkward sentence.
   It is a true one, which the previous sentence was not.
+
+---
+
+## 27. The mutation count states its gap rather than closing it
+
+**Context.** Four documents here claim ninety-nine deliberate mutations, and
+`check:claims` guarded that figure by comparing the four copies to each other.
+Its own comment admitted what that is worth: the number "cannot be derived — it
+records work done at a keyboard". Four copies of an unverifiable figure agreeing
+with one another is not evidence; it is consistency.
+
+This is the loudest claim the repository makes. An interviewer who asks to see
+the ninety-nine was, until now, handed a sentence.
+
+**Decision.** Recover what the commit history actually holds, write it down, and
+state the shortfall in the same breath. `docs/mutations.md` lists forty-five
+mutations one per row — the commit that ran each, what was changed, and the
+message it produced. Two further commits counted four more without describing
+them, which is noted rather than guessed at. The remaining fifty were run during
+development and never written down.
+
+`check:claims` now counts the rows against the figure that file states, and
+checks the numbering is contiguous so a hand-maintained list cannot silently
+gain or lose an entry. It deliberately does **not** compare the row count to
+ninety-nine: they are different numbers on purpose, and a check demanding they
+match would force the gap closed by invention.
+
+**Trade-off.**
+
+- **It publishes a shortfall that nobody would have noticed.** Fifty-four of the
+  ninety-nine have no public evidence, and this file is what says so. A reader
+  skimming for reasons to doubt now has one handed to them, in writing.
+- **The alternative was worse, and is the reason this exists.** Re-deriving the
+  missing mutations from today's code would have produced a table that reads as
+  provenance while being a reconstruction. A fabricated record is not a weaker
+  version of a real one; it is a different thing wearing its clothes, and this
+  repository has spent its whole life removing claims that nothing stands
+  behind.
+- **The number in the prose is still taken on trust.** Nothing here makes
+  ninety-nine checkable. What changed is that the checkable part is now
+  separated from the part that is not, and labelled.
+- **It is a permanent tax on every future mutation.** One more table row per
+  change, and a failing build when it is forgotten. That is the mechanism
+  working, and it is still friction.
 
 ---
 

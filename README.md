@@ -83,7 +83,10 @@ simulator's overwrite guard) is invisible to a fake `prepare()`. See
 Every test was proven able to fail. Ninety-nine deliberate mutations — deleting the
 privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. Two real bugs came out of writing them:
+behaviour. Forty-five of them are written down one by one in
+[`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
+message it produced; that file also says plainly which of the ninety-nine are
+_not_ recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 
 ## Security posture
