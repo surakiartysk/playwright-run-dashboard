@@ -415,8 +415,16 @@ SQL fragment, and `GET /runs/:id` re-checked a single fetched row by comparing
 it against `params[0]` under that assumption. `demo` is scoped by
 `triggered_by`, not `ref`, so the function's return shape grew `column` and
 `value` fields naming what it actually checked, and the single-row re-check
-became generic. Anyone else visiting the deployment as `demo` sees a
-plausible, populated history without seeing what other visitors ran.
+became generic.
+
+What that scope is, precisely: runs whose `triggered_by` is `demo`, and
+`triggered_by` holds the role. So every `demo` visitor shares one history —
+each sees what earlier visitors ran, and any name they typed at sign-in, but
+never a run any other role started. This used to say visitors did not see
+each other's runs; the SQL never did that. A per-visitor history would need
+each sign-in to carry an identity of its own. The session token holds a role,
+an expiry and at most a name the visitor chose, which two visitors can share —
+nothing that reliably tells them apart.
 
 **Trade-off.** A second axis of trust now exists alongside `SIMULATE_DISPATCH`
 — "is this deployment simulating" and "is this role trusted" are no longer the

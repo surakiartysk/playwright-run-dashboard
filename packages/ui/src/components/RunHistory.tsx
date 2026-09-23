@@ -63,7 +63,9 @@ export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 10
  * "every branch": it is every branch, but only the runs it started itself.
  */
 const SCOPE_LABEL: Record<Role, string> = {
-  demo: 'runs you started — main branch only',
+  // Shared by every demo visitor: `triggered_by` holds the role, not the
+  // person, so "you" would promise a separation the query does not make.
+  demo: 'runs started as demo — main branch only',
   dev: 'main branch only — your role’s scope',
   qa: 'every branch',
   admin: 'every branch',
