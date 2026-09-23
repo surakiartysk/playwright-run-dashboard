@@ -311,15 +311,35 @@ export function RunHistory({
                       </td>
 
                       <td style={{ ...s.td, ...s.tdRight }}>
-                        <span
-                          aria-hidden
-                          style={{
-                            ...s.caret,
-                            transform: expanded ? 'rotate(90deg)' : 'none',
+                        {/*
+                          A button, because the row is not one. The row takes
+                          a click, but a <tr> cannot take focus, so with only
+                          the row to open it the detail — and the report link
+                          and Delete inside it — could not be reached from a
+                          keyboard at all. The caret was already the thing
+                          that looked like a control; now it is one.
+                        */}
+                        <button
+                          type="button"
+                          aria-expanded={expanded}
+                          aria-label={`${expanded ? 'Hide' : 'Show'} details for run ${run.id}`}
+                          onClick={(e) => {
+                            // The row would toggle it straight back.
+                            e.stopPropagation()
+                            setOpen(expanded ? null : run.id)
                           }}
+                          style={s.caretButton}
                         >
-                          ›
-                        </span>
+                          <span
+                            aria-hidden
+                            style={{
+                              ...s.caret,
+                              transform: expanded ? 'rotate(90deg)' : 'none',
+                            }}
+                          >
+                            ›
+                          </span>
+                        </button>
                       </td>
                     </tr>
 
@@ -532,6 +552,15 @@ const s: Record<string, CSSProperties> = {
   runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
   runTags: { ...mono, fontSize: 11.5, color: c.t4 },
   runRef: { ...mono, fontSize: 11.5, color: c.t5 },
+  caretButton: {
+    background: 'none',
+    border: 'none',
+    padding: '2px 6px',
+    margin: '-2px -6px',
+    cursor: 'pointer',
+    borderRadius: 4,
+    lineHeight: 1,
+  },
   caret: {
     display: 'inline-block',
     color: c.t5,
