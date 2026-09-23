@@ -20,6 +20,18 @@ export const SUITE_LABELS: Record<Suite, string> = {
   ui: 'UI',
 }
 
+/**
+ * Where each suite's code lives — what a run's `suiteSha` is a commit of.
+ *
+ * Keyed by suite because the sha is. The run list used to link every sha to
+ * the API suite's repository, which was right until a second suite existed and
+ * then sent every UI run's "exact tree" link to a 404.
+ */
+export const SUITE_REPOS: Record<Suite, string> = {
+  api: 'https://github.com/surakiartysk/playwright-api-automation-patterns',
+  ui: 'https://github.com/surakiartysk/playwright-ui-automation-patterns',
+}
+
 export interface Run {
   id: string
   suite: Suite

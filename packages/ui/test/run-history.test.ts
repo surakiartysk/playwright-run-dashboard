@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { relative, duration, resultShares } from '../src/components/RunHistory'
+import { relative, duration, resultShares, suiteCommitUrl } from '../src/components/RunHistory'
 import type { Run } from '../src/api'
 
 /**
@@ -45,6 +45,19 @@ describe('relative', () => {
     at('2026-01-01T12:00:00Z')
     // A run started a moment "in the future" by clock skew reads as 0s, not -1s.
     expect(relative('2026-01-01T12:00:00.400Z')).toBe('0s ago')
+  })
+
+  /**
+   * The case above passed by rounding, not by design: 0.4s rounds to zero.
+   * Two seconds of skew rendered "-2s ago", and five minutes "-300s ago",
+   * because a negative number is always under sixty.
+   */
+  it.each([
+    ['two seconds', '2026-01-01T12:00:02Z'],
+    ['five minutes', '2026-01-01T12:05:00Z'],
+  ])('reads a start %s in the browser’s future as 0s ago', (_label, started) => {
+    at('2026-01-01T12:00:00Z')
+    expect(relative(started)).toBe('0s ago')
   })
 })
 
@@ -111,5 +124,19 @@ describe('resultShares', () => {
     const shares = resultShares(run({ total: 10, passed: 12, failed: 0 }))
 
     expect(shares.other).toBe(0)
+  })
+})
+
+describe('suiteCommitUrl', () => {
+  /**
+   * Each suite's sha is a commit in that suite's own repository. Every sha
+   * used to be linked into the API suite's repository, so a UI run's link
+   * rendered normally and went to a 404.
+   */
+  it.each([
+    ['api', 'https://github.com/surakiartysk/playwright-api-automation-patterns/commit/abc1234'],
+    ['ui', 'https://github.com/surakiartysk/playwright-ui-automation-patterns/commit/abc1234'],
+  ] as const)('links a %s run to its own repository', (suite, expected) => {
+    expect(suiteCommitUrl(suite, 'abc1234')).toBe(expected)
   })
 })
