@@ -2,11 +2,13 @@ import { Fragment, useState, type CSSProperties } from 'react'
 import {
   RUNS_PER_PAGE,
   SUITE_LABELS,
+  SUITE_REPOS,
   api,
   isPending,
   type Role,
   type Run,
   type RunStatus,
+  type Suite,
 } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { c, mono, status as sc } from '../theme'
@@ -40,7 +42,12 @@ import { c, mono, status as sc } from '../theme'
  * card to read one string out of it.
  */
 export const relative = (iso: string) => {
-  const seconds = Math.round((Date.now() - Date.parse(iso)) / 1000)
+  // Clamped at zero. `startedAt` is the Worker's clock and `Date.now()` the
+  // browser's; a browser a few seconds behind used to render "-2s ago", and
+  // one five minutes behind "-300s ago" — every negative value lands in the
+  // seconds branch. A run cannot have started in the future, so it started
+  // "0s ago".
+  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
   if (seconds < 60) return `${seconds}s ago`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h ago`
@@ -56,7 +63,9 @@ export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 10
  * "every branch": it is every branch, but only the runs it started itself.
  */
 const SCOPE_LABEL: Record<Role, string> = {
-  demo: 'runs you started — main branch only',
+  // Shared by every demo visitor: `triggered_by` holds the role, not the
+  // person, so "you" would promise a separation the query does not make.
+  demo: 'runs started as demo — main branch only',
   dev: 'main branch only — your role’s scope',
   qa: 'every branch',
   admin: 'every branch',
@@ -106,8 +115,13 @@ export function resultShares(run: Run): { passed: number; failed: number; other:
   }
 }
 
-/** The repository the suite version links back to. */
-const SUITE_REPO = 'https://github.com/surakiartysk/playwright-api-automation-patterns'
+/**
+ * The commit a run's suite sha names, in the repository of the suite that ran.
+ *
+ * Exported for its own test: a wrong repository here is a link that renders
+ * perfectly and goes to a 404, which nothing on the page would show.
+ */
+export const suiteCommitUrl = (suite: Suite, sha: string) => `${SUITE_REPOS[suite]}/commit/${sha}`
 
 /**
  * Which suite produced a result, and a way back to the exact tree.
@@ -122,13 +136,13 @@ const SUITE_REPO = 'https://github.com/surakiartysk/playwright-api-automation-pa
  * workflow older than that field sends one and not the other, and a chip that
  * vanished for those runs would hide the version it does have.
  */
-function SuiteChip({ version, sha }: { version: string; sha: string | null }) {
+function SuiteChip({ suite, version, sha }: { suite: Suite; version: string; sha: string | null }) {
   const label = `suite ${version}`
   if (!sha) return <span style={s.chip}>{label}</span>
 
   return (
     <a
-      href={`${SUITE_REPO}/commit/${sha}`}
+      href={suiteCommitUrl(suite, sha)}
       target="_blank"
       rel="noreferrer"
       style={s.suiteChip}
@@ -299,15 +313,35 @@ export function RunHistory({
                       </td>
 
                       <td style={{ ...s.td, ...s.tdRight }}>
-                        <span
-                          aria-hidden
-                          style={{
-                            ...s.caret,
-                            transform: expanded ? 'rotate(90deg)' : 'none',
+                        {/*
+                          A button, because the row is not one. The row takes
+                          a click, but a <tr> cannot take focus, so with only
+                          the row to open it the detail — and the report link
+                          and Delete inside it — could not be reached from a
+                          keyboard at all. The caret was already the thing
+                          that looked like a control; now it is one.
+                        */}
+                        <button
+                          type="button"
+                          aria-expanded={expanded}
+                          aria-label={`${expanded ? 'Hide' : 'Show'} details for run ${run.id}`}
+                          onClick={(e) => {
+                            // The row would toggle it straight back.
+                            e.stopPropagation()
+                            setOpen(expanded ? null : run.id)
                           }}
+                          style={s.caretButton}
                         >
-                          ›
-                        </span>
+                          <span
+                            aria-hidden
+                            style={{
+                              ...s.caret,
+                              transform: expanded ? 'rotate(90deg)' : 'none',
+                            }}
+                          >
+                            ›
+                          </span>
+                        </button>
                       </td>
                     </tr>
 
@@ -344,7 +378,11 @@ export function RunHistory({
                             */}
                             {run.suiteVersion && (
                               <Detail label="Suite">
-                                <SuiteChip version={run.suiteVersion} sha={run.suiteSha} />
+                                <SuiteChip
+                                  suite={run.suite}
+                                  version={run.suiteVersion}
+                                  sha={run.suiteSha}
+                                />
                               </Detail>
                             )}
                           </div>
@@ -516,6 +554,15 @@ const s: Record<string, CSSProperties> = {
   runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
   runTags: { ...mono, fontSize: 11.5, color: c.t4 },
   runRef: { ...mono, fontSize: 11.5, color: c.t5 },
+  caretButton: {
+    background: 'none',
+    border: 'none',
+    padding: '2px 6px',
+    margin: '-2px -6px',
+    cursor: 'pointer',
+    borderRadius: 4,
+    lineHeight: 1,
+  },
   caret: {
     display: 'inline-block',
     color: c.t5,

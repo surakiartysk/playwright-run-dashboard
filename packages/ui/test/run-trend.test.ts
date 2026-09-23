@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   trendPoints,
+  MAX_TREND_POINTS,
   bars,
   describe as describeBar,
   domain,
@@ -42,6 +43,23 @@ describe('trendPoints', () => {
     ])
 
     expect(points.map((p) => p.id)).toEqual(['oldest', 'middle', 'newest'])
+  })
+
+  /**
+   * The chart used to take every loaded run, and "Load more" has no end: at a
+   * hundred and more the minimum bar width stops fitting and bars overlap.
+   * The newest are kept, because they are what "the trend" is about.
+   */
+  it('keeps only the newest MAX_TREND_POINTS runs', () => {
+    const newestFirst = Array.from({ length: MAX_TREND_POINTS + 20 }, (_, i) =>
+      run('passed', { id: `run-${i}` }),
+    )
+
+    const points = trendPoints(newestFirst)
+
+    expect(points).toHaveLength(MAX_TREND_POINTS)
+    expect(points.at(-1)!.id).toBe('run-0')
+    expect(points[0]!.id).toBe(`run-${MAX_TREND_POINTS - 1}`)
   })
 
   it('computes the rate from a run own totals', () => {

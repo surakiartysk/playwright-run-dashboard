@@ -112,31 +112,48 @@ export interface TrendPoint {
 }
 
 /**
- * One point per finished run that reported totals, oldest first.
+ * The most runs the chart draws.
+ *
+ * The case for bars at the top of this file rests on the count staying small,
+ * and nothing kept it small: the chart was fed every run the list had loaded,
+ * and "Load more" grows that by a page at a time. Past about a hundred the
+ * three-unit minimum width no longer fits in each slot, and bars overlap. So
+ * the chart takes the newest thirty — and "Last N finished runs" above it says
+ * how many that is.
+ */
+export const MAX_TREND_POINTS = 30
+
+/**
+ * One point per finished run that reported totals, oldest first — at most
+ * MAX_TREND_POINTS, and always the newest ones.
  *
  * Runs still in flight are excluded rather than plotted at zero: a queued run
  * is not a run that failed, and drawing it as one puts a cliff in the chart
  * that vanishes a few seconds later.
  */
 export function trendPoints(runs: Run[]): TrendPoint[] {
-  return runs
-    .filter((run) => !isPending(run.status) && run.total !== null && run.total > 0)
-    .map((run) => ({
-      rate: ((run.passed ?? 0) / (run.total ?? 1)) * 100,
-      passed: run.status === 'passed',
-      id: run.id,
-      suite: run.suite,
-      service: run.service,
-      tags: run.tags,
-      ref: run.ref,
-      triggeredBy: run.triggeredBy,
-      startedBy: run.startedBy,
-      passedCount: run.passed ?? 0,
-      failed: run.failed ?? 0,
-      total: run.total ?? 0,
-      startedAt: run.startedAt,
-    }))
-    .reverse() // The API returns newest first; a trend reads left to right.
+  return (
+    runs
+      .filter((run) => !isPending(run.status) && run.total !== null && run.total > 0)
+      // Before the reverse: the API is newest first, so these are the newest.
+      .slice(0, MAX_TREND_POINTS)
+      .map((run) => ({
+        rate: ((run.passed ?? 0) / (run.total ?? 1)) * 100,
+        passed: run.status === 'passed',
+        id: run.id,
+        suite: run.suite,
+        service: run.service,
+        tags: run.tags,
+        ref: run.ref,
+        triggeredBy: run.triggeredBy,
+        startedBy: run.startedBy,
+        passedCount: run.passed ?? 0,
+        failed: run.failed ?? 0,
+        total: run.total ?? 0,
+        startedAt: run.startedAt,
+      }))
+      .reverse()
+  ) // The API returns newest first; a trend reads left to right.
 }
 
 /**
@@ -334,11 +351,13 @@ export function RunTrend({ runs }: { runs: Run[] }) {
                 at ΔE 7.4 for deuteranopia against this palette, inside the band
                 where colour may only carry meaning alongside something else.
 
-                Here that something is height and a label: a failed run is
-                shorter by definition, and its bar carries the rate in a title.
-                A failing run is also the full height of the plot in a faint
-                wash behind it, so it is findable in a row of bars at a glance,
-                in greyscale, and under forced colours.
+                Here that something is a wash and a label. A failing run is
+                the full height of the plot in a faint wash behind its bar, so
+                it is findable in a row of bars at a glance, in greyscale, and
+                under forced colours; and its bar carries the result in a title.
+                It is usually shorter as well, but not by definition: a run that
+                passed with skipped tests can sit below one that failed a single
+                test, so height is not a signal to rely on.
               */
               fill={point.passed ? sc.pass : sc.fail}
               opacity={point.passed ? 0.85 : 1}
