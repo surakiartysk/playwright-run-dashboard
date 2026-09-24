@@ -44,8 +44,8 @@ is a password hunt is a demo nobody sees.
 
 The other three roles sign in with their own name as the password: `dev`,
 `qa`, `admin`. Worth doing at least once as `admin`, which is the only way to
-reach the run gate and the API keys — a `demo` session can preview what admin
-_sees_, but never what it may _do_.
+change the run gate or issue an API key — a `demo` session previewing admin
+_sees_ both, read-only, but never what admin may _do_.
 
 Press Run. The dashboard simulates a dispatch, walks the run through
 queued → running → result, and the report link opens a real Allure report.
@@ -71,7 +71,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 479 tests — 379 in the Worker, 100 in the UI
+pnpm test          # 483 tests — 379 in the Worker, 104 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -80,12 +80,12 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 107 deliberate mutations — deleting the
+Every test was proven able to fail. In all, 110 deliberate mutations — deleting the
 privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. Fifty-three of them are written down one by one in
+behaviour. Fifty-six of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 107 are
+message it produced; that file also says plainly which of the 110 are
 _not_ recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 

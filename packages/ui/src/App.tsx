@@ -4,6 +4,7 @@ import { Login } from './components/Login'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { RunTrigger } from './components/RunTrigger'
 import { AdminPanel } from './components/AdminPanel'
+import { adminPanelMode } from './admin-panel'
 import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
@@ -134,6 +135,7 @@ export function App() {
   const viewingRole = viewAs ?? role
   const policy = policies.find((p) => p.role === role)
   const viewPolicy = policies.find((p) => p.role === viewingRole)
+  const panelMode = adminPanelMode(role, viewingRole)
   const pending = runs.filter((run) => isPending(run.status)).length
 
   return (
@@ -215,15 +217,21 @@ export function App() {
       <RunTrend runs={runs} />
 
       {/*
-        Gated on the REAL role, never `viewingRole`. A demo session previewing
-        admin sees admin's read view; it must not be offered write controls the
-        server would refuse — the same real-role rule RunTrigger follows.
+        Decided on the REAL role, never `viewingRole` alone. A demo session
+        previewing admin gets the read-only panel — the live gate and what keys
+        are — and never the writable one the server would refuse; the same
+        real-role rule RunTrigger follows. See admin-panel.ts.
 
         `gateTick` remounts RunTrigger after the gate changes, so its "runs are
         paused" notice reflects the new state without a reload. RunTrigger reads
         the gate on mount, so a key change is the honest way to make it re-read.
       */}
-      {role === 'admin' && <AdminPanel onGateChanged={() => setGateTick((n) => n + 1)} />}
+      {panelMode && (
+        <AdminPanel
+          readOnly={panelMode === 'readOnly'}
+          onGateChanged={() => setGateTick((n) => n + 1)}
+        />
+      )}
 
       {policy && (
         <RunTrigger

@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                    |
 | ------------------- | ------------------------------------------------------- |
-| `pnpm test`         | Both packages — 379 Worker tests, then 100 UI tests     |
+| `pnpm test`         | Both packages — 379 Worker tests, then 104 UI tests     |
 | `pnpm verify`       | Everything CI runs: format, lint, types, tests, claims  |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale |
 
@@ -111,7 +111,7 @@ cp /tmp/policy.bak src/policy.ts   # always restore
 pnpm exec vitest run               # confirm green again
 ```
 
-So far 107 mutations have been run against this repo, fifty-three of them
+So far 110 mutations have been run against this repo, fifty-six of them
 recorded one by one in [`docs/mutations.md`](docs/mutations.md). Any new one
 belongs in that table with the message it produced. The ones worth repeating
 after any change to authorisation or signing:

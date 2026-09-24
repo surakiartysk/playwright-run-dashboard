@@ -12,10 +12,11 @@ import { c, status } from '../theme'
  * wider version of what QA can do; this is the only thing that is theirs alone,
  * and it was the piece that was missing.
  *
- * Rendered only for a real admin session. That is presentation, not
- * enforcement: `requireRole('admin')` on the route is the control, and this
- * component would be refused by the server if it were somehow shown to anyone
- * else. Hiding it is about not offering a button that cannot work.
+ * Writable only for a real admin session. That is presentation, not
+ * enforcement: `requireRole('admin')` on the route is the control, and a write
+ * from anyone else is refused by the server. A demo session previewing admin
+ * gets `readOnly` — the live gate, with nothing it can press — so the feature
+ * is visible without offering a button that cannot work (admin-panel.ts).
  *
  * The gate deliberately affects `dev` only — QA and admin run during a freeze,
  * because a freeze is when release verification happens. The copy says so
@@ -29,7 +30,13 @@ const MODES: { value: GateMode; label: string; hint: string }[] = [
   { value: 'window', label: 'Scheduled', hint: 'Developers may run only inside the window.' },
 ]
 
-export function GateControl({ onChanged }: { onChanged: () => void }) {
+export function GateControl({
+  onChanged,
+  readOnly = false,
+}: {
+  onChanged: () => void
+  readOnly?: boolean
+}) {
   const [gate, setGate] = useState<GateStatus | null>(null)
   const [mode, setMode] = useState<GateMode>('open')
   const [opensAt, setOpensAt] = useState(() => toLocalInput(null))
@@ -89,18 +96,26 @@ export function GateControl({ onChanged }: { onChanged: () => void }) {
             {live ? 'Paused' : 'Open'}
           </span>
         </div>
-        <span style={s.hint}>Admin only · affects developers</span>
+        <span style={s.hint}>
+          {readOnly ? 'Admin only · read-only preview' : 'Admin only · affects developers'}
+        </span>
       </header>
 
       <div style={s.modes}>
         {MODES.map((m) => (
           <button
             key={m.value}
+            disabled={readOnly}
+            aria-pressed={mode === m.value}
             onClick={() => {
               setMode(m.value)
               setSaved(false)
             }}
-            style={{ ...s.mode, ...(mode === m.value ? s.modeOn : null) }}
+            style={{
+              ...s.mode,
+              ...(mode === m.value ? s.modeOn : null),
+              ...(readOnly ? s.locked : null),
+            }}
           >
             {m.label}
           </button>
@@ -117,6 +132,7 @@ export function GateControl({ onChanged }: { onChanged: () => void }) {
               type="datetime-local"
               value={opensAt}
               onChange={(e) => setOpensAt(e.target.value)}
+              disabled={readOnly}
               style={s.control}
             />
           </div>
@@ -126,18 +142,31 @@ export function GateControl({ onChanged }: { onChanged: () => void }) {
               type="datetime-local"
               value={closesAt}
               onChange={(e) => setClosesAt(e.target.value)}
+              disabled={readOnly}
               style={s.control}
             />
           </div>
         </div>
       )}
 
-      <div style={s.actions}>
-        <button onClick={() => void apply()} disabled={busy} style={s.apply}>
-          {busy ? 'Saving…' : 'Apply'}
-        </button>
-        {saved && !error && <span style={s.saved}>Saved</span>}
-      </div>
+      {readOnly ? (
+        /*
+          No Apply at all, rather than one that is disabled: a disabled button
+          invites a second press and a wonder whether it is broken. This says
+          why instead.
+        */
+        <p style={s.readOnly}>
+          This is the live gate. Changing it takes a real admin sign-in: the demo password is
+          published, so a writable gate here would let anyone pause runs for everyone.
+        </p>
+      ) : (
+        <div style={s.actions}>
+          <button onClick={() => void apply()} disabled={busy} style={s.apply}>
+            {busy ? 'Saving…' : 'Apply'}
+          </button>
+          {saved && !error && <span style={s.saved}>Saved</span>}
+        </div>
+      )}
 
       {error && <p style={s.error}>{error}</p>}
 
@@ -195,7 +224,19 @@ const s: Record<string, CSSProperties> = {
     color: c.onPrimary,
     fontWeight: 600,
   },
+  // Selected-but-locked reads as a state, not a broken button.
+  locked: { cursor: 'default' },
   modeHint: { margin: '10px 0 0', fontSize: 13, color: c.t4 },
+  readOnly: {
+    margin: '16px 0 0',
+    padding: '10px 12px',
+    background: c.surface,
+    border: `1px solid ${c.border}`,
+    borderRadius: 8,
+    color: c.t3,
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
 
   window: {
     display: 'grid',
