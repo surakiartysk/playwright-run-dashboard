@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api, SUITES, SUITE_LABELS, type Role, type RolePolicy, type Suite } from '../api'
-import { c, status } from '../theme'
+import { c, mono, status } from '../theme'
 import { pausedReason } from '../gate-form'
+import { effectiveTags, runRequest } from '../run-form'
 
 /**
  * The form that starts a run.
@@ -120,7 +121,7 @@ export function RunTrigger({
     setBusy(true)
     setError(null)
     try {
-      await api.createRun({ suite, service, tags, ref, workers })
+      await api.createRun(runRequest({ suite, service, tags, ref, workers }))
       onStarted()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the run')
@@ -152,18 +153,7 @@ export function RunTrigger({
         </Field>
 
         <Field label="Service">
-          <select
-            style={s.control}
-            value={service}
-            onChange={(e) => {
-              const next = e.target.value
-              setService(next)
-              // One axis, so choosing a service clears the tag rather than
-              // leaving a selection the API will refuse and the suite would
-              // never have applied.
-              if (next !== 'all') setTags('all')
-            }}
-          >
+          <select style={s.control} value={service} onChange={(e) => setService(e.target.value)}>
             {SUITE_SERVICES[suite].map((v) => (
               <option key={v}>{v}</option>
             ))}
@@ -173,7 +163,10 @@ export function RunTrigger({
         <Field label="Scope">
           <select
             style={s.control}
-            value={tags}
+            // Shows the tag that will be sent, not the one last picked: a
+            // disabled control reading `smoke` above a note saying "all" is
+            // the form contradicting itself.
+            value={effectiveTags(service, tags)}
             disabled={service !== 'all'}
             onChange={(e) => setTags(e.target.value)}
           >
@@ -181,15 +174,6 @@ export function RunTrigger({
               <option key={v}>{v}</option>
             ))}
           </select>
-          {/*
-            Said here rather than left to a 422. The control going grey with no
-            reason reads as a bug; naming the constraint is what stops someone
-            picking a service, seeing their tag vanish, and assuming the form
-            lost it.
-          */}
-          {service !== 'all' && (
-            <p style={s.fieldNote}>Running all of `{service}` — the suite filters by one axis.</p>
-          )}
         </Field>
 
         <Field label="Suite branch">
@@ -219,6 +203,21 @@ export function RunTrigger({
           {busy ? 'Starting…' : 'Run'}
         </button>
       </div>
+
+      {/*
+        Said here rather than left to a 422. The control going grey with no
+        reason reads as a bug; naming the constraint is what stops someone
+        picking a service, seeing their tag vanish, and assuming the form lost
+        it. Below the row rather than under Scope: inside the grid it made that
+        one column taller, and the bottom-aligned row lifted Scope above the
+        rest.
+      */}
+      {service !== 'all' && (
+        <p style={s.fieldNote}>
+          Scope is <span style={mono}>all</span> while one service is picked — the suite filters by
+          service or by tag, not both.
+        </p>
+      )}
 
       {/* Built by `pausedReason` rather than inline, so what it says is
           testable without rendering — see gate-form.ts. */}
@@ -255,7 +254,7 @@ const s: Record<string, CSSProperties> = {
   },
   title: { fontSize: 15, fontWeight: 650, margin: 0 },
   hint: { fontSize: 12, color: c.t5 },
-  fieldNote: { margin: '6px 0 0', fontSize: 11.5, color: c.t5, lineHeight: 1.4 },
+  fieldNote: { margin: '10px 0 0', fontSize: 12, color: c.t4, lineHeight: 1.45 },
 
   grid: {
     display: 'grid',
@@ -286,13 +285,13 @@ const s: Record<string, CSSProperties> = {
     background: c.primary,
     border: 'none',
     borderRadius: 9,
-    color: '#fff',
+    color: c.onPrimary,
     font: 'inherit',
     fontWeight: 600,
     cursor: 'pointer',
     height: 38,
   },
-  error: { color: '#dc2626', fontSize: 13, margin: '14px 0 0' },
+  error: { color: c.danger, fontSize: 13, margin: '14px 0 0' },
   runDisabled: { opacity: 0.45, cursor: 'not-allowed' },
   paused: {
     margin: '14px 0 0',

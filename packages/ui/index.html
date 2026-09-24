@@ -53,6 +53,15 @@
         --c-primary-dark: #2540ad;
         --c-primary-light: #e9edfb;
         --c-primary-border: #c2cef2;
+        /* Text on a --c-primary fill. Not white in dark: the dark primary is
+         * light enough that white on it measured 2.7:1. */
+        --c-on-primary: #ffffff;
+        /* Error text and fields. #dc2626 measured 4.45:1 here and 3.9:1 on
+         * the dark background, both short of AA for 13px text. */
+        --c-danger: #b91c1c;
+        --c-danger-bg: #fff5f5;
+        --c-danger-border: #fca5a5;
+        --c-warn: #b45309;
         --c-brand-1: #131a3d;
         --c-brand-2: #222f6b;
         --c-brand-3: #33429a;
@@ -84,6 +93,11 @@
           --c-primary-dark: #93a8ff;
           --c-primary-light: rgba(128, 152, 247, 0.14);
           --c-primary-border: rgba(128, 152, 247, 0.34);
+          --c-on-primary: #0e1116;
+          --c-danger: #f87171;
+          --c-danger-bg: rgba(239, 68, 68, 0.1);
+          --c-danger-border: rgba(248, 113, 113, 0.55);
+          --c-warn: #f59e0b;
           --c-brand-1: #0a0d15;
           --c-brand-2: #141b36;
           --c-brand-3: #1f2a5c;
@@ -110,6 +124,11 @@
         --c-primary-dark: #93a8ff;
         --c-primary-light: rgba(128, 152, 247, 0.14);
         --c-primary-border: rgba(128, 152, 247, 0.34);
+        --c-on-primary: #0e1116;
+        --c-danger: #f87171;
+        --c-danger-bg: rgba(239, 68, 68, 0.1);
+        --c-danger-border: rgba(248, 113, 113, 0.55);
+        --c-warn: #f59e0b;
         --c-brand-1: #0a0d15;
         --c-brand-2: #141b36;
         --c-brand-3: #1f2a5c;

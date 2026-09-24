@@ -114,7 +114,7 @@ const s: Record<string, CSSProperties> = {
     fontWeight: 500,
     cursor: 'pointer',
   },
-  tabActive: { background: c.primary, color: '#fff', fontWeight: 600 },
+  tabActive: { background: c.primary, color: c.onPrimary, fontWeight: 600 },
 
   facts: {
     display: 'grid',

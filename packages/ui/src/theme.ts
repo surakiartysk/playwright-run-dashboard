@@ -34,6 +34,20 @@ export const c = {
   primaryDark: 'var(--c-primary-dark)',
   primaryLight: 'var(--c-primary-light)',
   primaryBorder: 'var(--c-primary-border)',
+
+  /** Text and icons sitting on a `primary` fill. */
+  onPrimary: 'var(--c-on-primary)',
+
+  /**
+   * Error messages and a field in error. Themed, unlike `status` below: that
+   * red marks a run and is read before the text, while this one *is* text and
+   * has to be legible on both backgrounds.
+   */
+  danger: 'var(--c-danger)',
+  dangerBg: 'var(--c-danger-bg)',
+  dangerBorder: 'var(--c-danger-border)',
+  /** Amber as text, which the `pending` status colour is too light to be on white. */
+  warn: 'var(--c-warn)',
 } as const
 
 /**

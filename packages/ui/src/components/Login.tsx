@@ -191,8 +191,8 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
                 onChange={(e) => setPassword(e.target.value)}
                 style={{
                   ...s.input,
-                  borderColor: error ? '#fca5a5' : c.border,
-                  background: error ? '#fff5f5' : c.input,
+                  borderColor: error ? c.dangerBorder : c.border,
+                  background: error ? c.dangerBg : c.input,
                 }}
               />
               <button
@@ -483,7 +483,7 @@ const s: Record<string, CSSProperties> = {
     background: c.primary,
     border: 'none',
     borderRadius: 10,
-    color: '#fff',
+    color: c.onPrimary,
     font: 'inherit',
     fontSize: 14.5,
     fontWeight: 600,
@@ -519,6 +519,10 @@ const s: Record<string, CSSProperties> = {
     padding: '13px 42px 13px 38px',
     border: `1.5px solid ${c.border}`,
     borderRadius: 10,
+    // Set here, not only on the password field: the name field had no
+    // background of its own and stayed browser-white in the dark theme, where
+    // the text colour is near-white too.
+    background: c.input,
     color: c.t1,
     font: 'inherit',
     fontSize: 14.5,
@@ -537,7 +541,7 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     padding: 4,
   },
-  error: { color: '#dc2626', fontSize: 13, marginTop: 10 },
+  error: { color: c.danger, fontSize: 13, marginTop: 10 },
 
   submit: {
     width: '100%',
@@ -546,7 +550,7 @@ const s: Record<string, CSSProperties> = {
     background: c.primary,
     border: 'none',
     borderRadius: 10,
-    color: '#fff',
+    color: c.onPrimary,
     font: 'inherit',
     fontSize: 15,
     fontWeight: 600,
@@ -560,8 +564,9 @@ const s: Record<string, CSSProperties> = {
   spinner: {
     width: 15,
     height: 15,
-    border: '2px solid rgba(255,255,255,0.35)',
-    borderTopColor: '#fff',
+    // currentColor, so it reads on the solid button and on the quiet one.
+    border: '2px solid color-mix(in srgb, currentColor 35%, transparent)',
+    borderTopColor: 'currentColor',
     borderRadius: '50%',
     animation: 'spin 0.7s linear infinite',
     display: 'inline-block',
