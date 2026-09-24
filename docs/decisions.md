@@ -302,6 +302,11 @@ focus rings — is on screen far more often than a failure is.
 red as "3 failed" would cost the red its meaning; a neutral accent leaves red
 meaning exactly one thing.
 
+The typeface follows the same thinking. Archivo is paired with JetBrains Mono
+under one rule: anything the machine produced is set in mono, anything a person
+wrote is not, so a reader separates generated data from prose before reading
+either.
+
 Two layout choices follow from what a run is:
 
 - Runs are **cards, not table rows**. A run carries an id, what it covered, a

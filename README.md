@@ -241,6 +241,7 @@ could see on its own.
 
 - [`decisions.md`](docs/decisions.md) — why it is shaped this way, with costs
 - [`architecture.md`](docs/architecture.md) — the request paths end to end
+- [`how-it-was-built.md`](docs/how-it-was-built.md) — how AI was used, and the companion repositories
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — what runs when, how to mutation-test, how to add an endpoint
 - [`CLAUDE.md`](CLAUDE.md) — the rules you break first, and why they exist
 

@@ -134,6 +134,7 @@ const toNumber = (word) => (/^\d+$/.test(word) ? Number(word) : WORDS[word])
 const mutationClaims = [
   ['README.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) deliberate mutations/],
   ['docs/decisions.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) mutations were introduced/],
+  ['docs/how-it-was-built.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) deliberate mutations/],
   ['CONTRIBUTING.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) mutations have been run/],
 ]
 

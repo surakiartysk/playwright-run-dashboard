@@ -8,8 +8,8 @@ import type { CSSProperties } from 'react'
  * `c.card` is correct in both without knowing which is active. The theme
  * toggle changes one attribute on `<html>` and the whole page follows.
  *
- * The accent is indigo for one reason: on a dashboard whose whole
- * job is showing pass and fail, a red accent competes with the failure state.
+ * The accent is indigo for one reason: on a dashboard whose whole job is
+ * showing pass and fail, a red accent would compete with the failure state.
  * A neutral accent leaves red meaning exactly one thing.
  */
 
