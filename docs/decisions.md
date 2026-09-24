@@ -419,12 +419,17 @@ became generic.
 
 What that scope is, precisely: runs whose `triggered_by` is `demo`, and
 `triggered_by` holds the role. So every `demo` visitor shares one history —
-each sees what earlier visitors ran, and any name they typed at sign-in, but
-never a run any other role started. This used to say visitors did not see
-each other's runs; the SQL never did that. A per-visitor history would need
-each sign-in to carry an identity of its own. The session token holds a role,
-an expiry and at most a name the visitor chose, which two visitors can share —
-nothing that reliably tells them apart.
+each sees what earlier visitors ran, but never a run any other role started,
+and never a name: a demo sign-in drops the one it is given, so no visitor's
+free text reaches another (`routes-auth.test.ts` pins it). This used to say
+visitors did not see each other's runs; the SQL never did that.
+
+A per-visitor history was considered and not built. It would need each
+sign-in to carry an identity, and a demo token holds a role and an expiry,
+nothing else — so it would mean a migration, a new token shape and a change
+to `visibilityClause`, the one place this repository asks for most care. And
+it would make the demo worse: a new visitor would open an empty list, where
+the shared history shows them a populated one.
 
 **Trade-off.** A second axis of trust now exists alongside `SIMULATE_DISPATCH`
 — "is this deployment simulating" and "is this role trusted" are no longer the

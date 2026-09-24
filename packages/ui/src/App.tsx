@@ -176,10 +176,22 @@ export function App() {
           role={viewingRole}
           policies={policies}
           onSwitched={async (next) => {
-            if (next === role) {
-              await api.stopPreview()
-            } else {
-              await api.previewRole(next)
+            // Handled like every other request here. It used to be the one
+            // that was not: a refused preview rejected into nothing, and the
+            // buttons simply did not respond.
+            try {
+              if (next === role) {
+                await api.stopPreview()
+              } else {
+                await api.previewRole(next)
+              }
+            } catch (e) {
+              if (e instanceof ApiError && e.status === 401) {
+                setRole(null)
+                return
+              }
+              setError(e instanceof Error ? e.message : 'Could not switch the preview')
+              return
             }
             await refresh()
           }}
