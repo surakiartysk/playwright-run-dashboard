@@ -17,6 +17,12 @@ import { c } from '../theme'
  * different kind of surface: an outlined region rather than another card in the
  * flow, so nobody mistakes a control that changes things for everyone for one
  * that changes their own view.
+ *
+ * `readOnly` is the same panel for a demo session previewing admin — see
+ * admin-panel.ts for who gets which. The gate shows its live state with
+ * nothing to press; the keys tab explains keys instead of listing them,
+ * because `GET /keys` is admin only and should stay that way: labels and
+ * scopes are a map of every pipeline's credentials.
  */
 
 type Tab = 'gate' | 'keys'
@@ -26,7 +32,13 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'keys', label: 'API keys', hint: 'Credentials for pipelines' },
 ]
 
-export function AdminPanel({ onGateChanged }: { onGateChanged: () => void }) {
+export function AdminPanel({
+  onGateChanged,
+  readOnly = false,
+}: {
+  onGateChanged: () => void
+  readOnly?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('gate')
 
@@ -36,7 +48,9 @@ export function AdminPanel({ onGateChanged }: { onGateChanged: () => void }) {
         <span style={s.headerLeft}>
           <span style={s.badge}>admin</span>
           <span style={s.headerTitle}>Controls</span>
-          <span style={s.headerHint}>Run gate and API keys</span>
+          <span style={s.headerHint}>
+            {readOnly ? 'Run gate and API keys · read-only preview' : 'Run gate and API keys'}
+          </span>
         </span>
         <span aria-hidden style={{ ...s.caret, transform: open ? 'rotate(90deg)' : 'none' }}>
           ›
@@ -61,10 +75,37 @@ export function AdminPanel({ onGateChanged }: { onGateChanged: () => void }) {
           </div>
 
           <div style={s.tabBody}>
-            {tab === 'gate' ? <GateControl onChanged={onGateChanged} /> : <ApiKeys />}
+            {tab === 'gate' ? (
+              <GateControl onChanged={onGateChanged} readOnly={readOnly} />
+            ) : readOnly ? (
+              <KeysPreview />
+            ) : (
+              <ApiKeys />
+            )}
           </div>
         </div>
       )}
+    </section>
+  )
+}
+
+/** What the keys tab holds, for a session that may not see the keys themselves. */
+function KeysPreview() {
+  return (
+    <section style={s.preview}>
+      <h2 style={s.previewTitle}>API keys</h2>
+      <p style={s.previewText}>
+        Pipelines start runs with a key instead of a password. An admin issues each one and decides
+        what it may do: a role, the branches it may run, and a worker cap. The key is shown once,
+        only a digest is stored, and it can be revoked at any time.
+      </p>
+      <p style={s.previewText}>
+        A key may not issue a key, even an admin-level one, so a leaked pipeline credential cannot
+        mint its own replacement.
+      </p>
+      <p style={s.previewNote}>
+        The list itself is not shown in a preview: it names every pipeline&rsquo;s credentials.
+      </p>
     </section>
   )
 }
@@ -141,4 +182,26 @@ const s: Record<string, CSSProperties> = {
     fontWeight: 600,
   },
   tabBody: { minWidth: 0 },
+
+  preview: {
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderRadius: 12,
+    padding: 20,
+  },
+  previewTitle: { fontSize: 15, fontWeight: 650, margin: '0 0 10px' },
+  previewText: {
+    margin: '0 0 10px',
+    fontSize: 13.5,
+    color: c.t2,
+    lineHeight: 1.55,
+    maxWidth: '68ch',
+  },
+  previewNote: {
+    margin: '14px 0 0',
+    paddingTop: 12,
+    borderTop: `1px solid ${c.divider}`,
+    fontSize: 12.5,
+    color: c.t4,
+  },
 }

@@ -44,8 +44,8 @@ is a password hunt is a demo nobody sees.
 
 The other three roles sign in with their own name as the password: `dev`,
 `qa`, `admin`. Worth doing at least once as `admin`, which is the only way to
-reach the run gate and the API keys — a `demo` session can preview what admin
-_sees_, but never what it may _do_.
+change the run gate or issue an API key — a `demo` session previewing admin
+_sees_ both, read-only, but never what admin may _do_.
 
 Press Run. The dashboard simulates a dispatch, walks the run through
 queued → running → result, and the report link opens a real Allure report.
@@ -71,7 +71,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 479 tests — 379 in the Worker, 100 in the UI
+pnpm test          # 483 tests — 379 in the Worker, 104 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
