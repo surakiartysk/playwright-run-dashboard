@@ -2,14 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** — which was the one figure here with nothing downstream of it.
+**ninety-nine** when this file was written, 107 now — which was the one figure
+here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **Forty-five mutations are
+This file is what that number can actually show. **Fifty-three mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between forty-five and ninety-nine is
+changed and what went red. The gap between fifty-three and 107 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -70,6 +71,14 @@ figure the prose states, so the two cannot drift apart.
 | 43  | `6bbb5a8` · 21 Sep | Require exactly three parts, so no real token passes               | 4 the other way: `expected null to be 'run-a'`                                   |
 | 44  | `3135ddd` · 21 Sep | Drop the one-axis rule on `POST /runs`                             | 2 tests: `expected 201 to be 422`                                                |
 | 45  | `3135ddd` · 21 Sep | Make the dispatch always send the tag, never the service           | 3 tests: `expected 'all' to be 'items'`                                          |
+| 46  | `88600f7` · 23 Sep | Drop the `Math.max` that floors clock skew at zero                 | `expected "0s ago", received "-2s ago"`                                          |
+| 47  | `88600f7` · 23 Sep | Point `SUITE_REPOS.ui` at the API repository                       | the `ui` case of `suiteCommitUrl`                                                |
+| 48  | `d5a487a` · 23 Sep | Drop the slice in `trendPoints`                                    | `length 50, expected 30`                                                         |
+| 49  | `d5a487a` · 23 Sep | Slice after the reverse in `trendPoints`                           | kept `run-20`..`run-49`, the oldest thirty                                       |
+| 50  | `11e0649` · 24 Sep | `const name = body.name`, dropping the demo check                  | `startedBy "Mallory", expected null`                                             |
+| 51  | `d90d6f5` · 24 Sep | `effectiveTags` returns the picked tag, the old behaviour          | 2 tests: the service-named request, and the scope shown                          |
+| 52  | `d90d6f5` · 24 Sep | `effectiveTags` always returns `'all'`                             | 2 tests: the picked tag kept across every service                                |
+| 53  | `d90d6f5` · 24 Sep | `runRequest` returns the form unchanged                            | 1 test: "sends tags=all when a single service is named"                          |
 
 ---
 
@@ -82,12 +91,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **forty-nine**: forty-five described, four
+So the commit history accounts for **fifty-seven**: fifty-three described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-Ninety-nine mutations were run. Forty-nine are in the history. The other fifty
+107 mutations have been run. Fifty-seven are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -98,10 +107,19 @@ gap: it would read as evidence while being a guess.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 45 are all from that period, and every future one belongs
+produced — rows 23 to 53 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
-Both are now guarded. `check:claims` compares the four documents' figure for
-agreement as before, and separately counts the rows here against the figure this
-file states — so the record cannot quietly fall behind the claim.
+## What the check guards, and what it does not
+
+`check:claims` compares the documents' figure for agreement, and counts the rows
+here against the figure this file states. This file used to end by saying that
+meant the record "cannot quietly fall behind the claim". It did.
+
+Rows 46 to 53 were run on 23 and 24 September, each written into its commit
+message, and none reached this table until they were added together afterwards.
+Nothing failed in between, because nothing could: a mutation left out of the
+table _and_ out of the figure leaves the two agreeing. The check catches a table
+and a figure that disagree. It cannot catch work that neither mentions, and the
+only thing that puts a new mutation here is whoever ran it remembering to.

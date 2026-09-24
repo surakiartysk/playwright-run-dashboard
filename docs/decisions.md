@@ -278,13 +278,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** Ninety-nine mutations were introduced
+**Every test here was proven able to fail.** In all, 107 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-Forty-five of those are recorded individually in
+Fifty-three of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -1379,11 +1379,11 @@ This is the loudest claim the repository makes. An interviewer who asks to see
 the ninety-nine was, until now, handed a sentence.
 
 **Decision.** Recover what the commit history actually holds, write it down, and
-state the shortfall in the same breath. `docs/mutations.md` lists forty-five
-mutations one per row — the commit that ran each, what was changed, and the
-message it produced. Two further commits counted four more without describing
-them, which is noted rather than guessed at. The remaining fifty were run during
-development and never written down.
+state the shortfall in the same breath. `docs/mutations.md` lists them one per
+row — forty-five when it was written, fifty-three now — with the commit that
+ran each, what was changed, and the message it produced. Two further commits
+counted four more without describing them, which is noted rather than guessed
+at. The remaining fifty were run during development and never written down.
 
 `check:claims` now counts the rows against the figure that file states, and
 checks the numbering is contiguous so a hand-maintained list cannot silently
@@ -1406,8 +1406,11 @@ match would force the gap closed by invention.
   ninety-nine checkable. What changed is that the checkable part is now
   separated from the part that is not, and labelled.
 - **It is a permanent tax on every future mutation.** One more table row per
-  change, and a failing build when it is forgotten. That is the mechanism
-  working, and it is still friction.
+  change. This said "and a failing build when it is forgotten", and that was
+  wrong: the check compares the table to the figure beside it, so a mutation
+  left out of both passes. Eight were, on 23 and 24 September, until they were
+  added by hand — [mutations.md](mutations.md#what-the-check-guards-and-what-it-does-not)
+  says what the check can and cannot see.
 
 ---
 
