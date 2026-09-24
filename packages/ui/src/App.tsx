@@ -147,7 +147,7 @@ export function App() {
               <span style={{ color: c.t4 }}> · previewing {viewingRole}</span>
             )}
             {pending > 0 && (
-              <span style={{ color: '#d97706' }}>
+              <span style={{ color: c.warn }}>
                 {' '}
                 · {pending} run{pending > 1 ? 's' : ''} in flight
               </span>
@@ -273,11 +273,11 @@ const s: Record<string, CSSProperties> = {
   error: {
     background: c.card,
     border: `1px solid ${c.border}`,
-    borderLeft: `3px solid ${'#dc2626'}`,
+    borderLeft: `3px solid ${c.danger}`,
     borderRadius: 12,
     padding: '12px 16px',
     marginBottom: 18,
-    color: '#dc2626',
+    color: c.danger,
     fontSize: 13.5,
   },
 }

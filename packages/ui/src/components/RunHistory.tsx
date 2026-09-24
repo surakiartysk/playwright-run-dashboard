@@ -490,11 +490,11 @@ const s: Record<string, CSSProperties> = {
   deleteError: {
     background: c.card,
     border: `1px solid ${c.border}`,
-    borderLeft: '3px solid #dc2626',
+    borderLeft: `3px solid ${c.danger}`,
     borderRadius: 10,
     padding: '10px 14px',
     marginBottom: 10,
-    color: '#dc2626',
+    color: c.danger,
     fontSize: 13,
   },
 
