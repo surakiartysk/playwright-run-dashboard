@@ -477,7 +477,9 @@ const s: Record<string, CSSProperties> = {
     alignItems: 'center',
     marginTop: 6,
     fontSize: 11,
-    color: c.t6,
+    // t5, not t6: the range label here ("85–100%") is information, and t6
+    // measured 1.6:1 — decoration contrast on text someone needs to read.
+    color: c.t5,
   },
   range: {
     ...mono,

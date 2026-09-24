@@ -34,6 +34,14 @@
        * Text tones are numbered t1..t6 (darkest to lightest) rather than named
        * primary/secondary/muted — names run out at three, numbers do not, and a
        * reader can tell at a glance which of two labels is meant to recede.
+       *
+       * t1–t5 are text and each clears WCAG AA, 4.5:1, on every background
+       * here in both themes — test/palette.test.ts reads this block and checks.
+       * t4 and t5 used to fail it: t5 measured 2.7:1 on the light surface,
+       * and it carries 34 hints and sub-labels. Meeting it pulled t3–t5
+       * closer together, so the steps between them are small; size and
+       * weight carry more of the hierarchy than they did. t6 is for rules and
+       * disabled controls only, which the ratio exempts.
        */
       :root {
         --c-bg: #f3f6f9;
@@ -46,8 +54,8 @@
         --c-t1: #10151c;
         --c-t2: #2a323d;
         --c-t3: #4c5765;
-        --c-t4: #6a7583;
-        --c-t5: #8a939f;
+        --c-t4: #576270;
+        --c-t5: #626c7a;
         --c-t6: #c2cad3;
         --c-primary: #2f4ecc;
         --c-primary-dark: #2540ad;
@@ -86,8 +94,8 @@
           --c-t1: #e9edf2;
           --c-t2: #c7cfda;
           --c-t3: #97a1ad;
-          --c-t4: #7b8693;
-          --c-t5: #67717d;
+          --c-t4: #8d97a3;
+          --c-t5: #838d99;
           --c-t6: #3a424d;
           --c-primary: #8098f7;
           --c-primary-dark: #93a8ff;
@@ -117,8 +125,8 @@
         --c-t1: #e9edf2;
         --c-t2: #c7cfda;
         --c-t3: #97a1ad;
-        --c-t4: #7b8693;
-        --c-t5: #67717d;
+        --c-t4: #8d97a3;
+        --c-t5: #838d99;
         --c-t6: #3a424d;
         --c-primary: #8098f7;
         --c-primary-dark: #93a8ff;
