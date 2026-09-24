@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 110 now — which was the one figure
+**ninety-nine** when this file was written, 113 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **Fifty-six mutations are
+This file is what that number can actually show. **Fifty-nine mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between fifty-six and 110 is
+changed and what went red. The gap between fifty-nine and 113 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -82,6 +82,9 @@ figure the prose states, so the two cannot drift apart.
 | 54  | `d457dc6` · 24 Sep | `adminPanelMode` lets the preview decide: demo previewing admin gets `'full'` | 1 test: "gives a demo session previewing admin the read-only panel, never the full one" |
 | 55  | `d457dc6` · 24 Sep | No read-only panel at all, the old behaviour                                  | the same test                                                                           |
 | 56  | `d457dc6` · 24 Sep | Demo gets the panel whatever role it previews                                 | 1 test: "shows demo nothing while it previews any other role"                           |
+| 57  | `35d5cc2` · 24 Sep | The old t4/t5 values, restored in `index.html`                                | 6 tests: t4 and t5 in all three palette blocks                                          |
+| 58  | `35d5cc2` · 24 Sep | One dark block's t5 drifts from the other                                     | 1 test: "declares the dark theme identically in both of its blocks"                     |
+| 59  | `35d5cc2` · 24 Sep | t4 and t5 swapped in the light theme                                          | 1 test: "keeps the tones in order"                                                      |
 
 ---
 
@@ -94,12 +97,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **sixty**: fifty-six described, four
+So the commit history accounts for **sixty-three**: fifty-nine described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-110 mutations have been run. Sixty are in the history. The other fifty
+113 mutations have been run. Sixty-three are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -110,7 +113,7 @@ gap: it would read as evidence while being a guess.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 56 are all from that period, and every future one belongs
+produced — rows 23 to 59 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
