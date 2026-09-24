@@ -84,6 +84,7 @@ const WORDS = {
   'Forty-five': 45,
   'Forty-eight': 48,
   'Fifty-three': 53,
+  'Fifty-six': 56,
   Fifty: 50,
   'Fifty-four': 54,
   'Fifty-nine': 59,
