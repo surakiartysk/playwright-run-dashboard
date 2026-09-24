@@ -83,6 +83,7 @@ const WORDS = {
   'Forty-one': 41,
   'Forty-five': 45,
   'Forty-eight': 48,
+  'Fifty-three': 53,
   Fifty: 50,
   'Fifty-four': 54,
   'Fifty-nine': 59,
@@ -126,12 +127,13 @@ const WORDS = {
   'Ninety-nine': 99,
   'One hundred': 100,
 }
-const toNumber = (word) => WORDS[word]
+// Digits past a hundred, where the prose stops spelling numbers out.
+const toNumber = (word) => (/^\d+$/.test(word) ? Number(word) : WORDS[word])
 
 const mutationClaims = [
-  ['README.md', /([A-Z][a-z]+(?:-\w+)?) deliberate mutations/],
-  ['docs/decisions.md', /([A-Z][a-z]+(?:-\w+)?) mutations were introduced/],
-  ['CONTRIBUTING.md', /([A-Z][a-z]+(?:-\w+)?) mutations have been run/],
+  ['README.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) deliberate mutations/],
+  ['docs/decisions.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) mutations were introduced/],
+  ['CONTRIBUTING.md', /(\d+|[A-Z][a-z]+(?:-\w+)?) mutations have been run/],
 ]
 
 const stated = new Map()
