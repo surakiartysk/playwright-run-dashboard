@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { migrate, request, as, seedRun } from './helpers'
+import { migrate, request, as, seedRun, uniqueService } from './helpers'
+import type { RunView } from '../src/types'
 import { DEV_PASSWORDS } from '../src/config'
 
 beforeEach(migrate)
@@ -152,5 +153,54 @@ describe('GET /auth/me', () => {
     })
 
     expect(response.status).toBe(401)
+  })
+})
+
+/**
+ * A name typed at sign-in, and where it ends up.
+ *
+ * `demo`'s password is published, and every demo visitor shares one run
+ * history (decision 12). A name accepted at a demo sign-in would therefore be
+ * a stranger's free text shown to every later stranger, on each run they
+ * started. The route drops it; these pin that it stays dropped all the way to
+ * the run, beside the role that keeps it.
+ */
+describe('a name given at sign-in', () => {
+  const signInAndStart = async (password: string, name: string) => {
+    const signedIn = await request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password, name }),
+    })
+    const cookie = (signedIn.headers.get('Set-Cookie') ?? '').split(';')[0]!
+    const service = uniqueService()
+
+    const started = await request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ service, tags: 'all', ref: 'main' }),
+    })
+    expect(started.status).toBe(201)
+
+    const listed = await request('/runs?limit=100', { headers: { Cookie: cookie } })
+    const { runs } = (await listed.json()) as { runs: RunView[] }
+    return {
+      signedIn: (await signedIn.json()) as { name?: string },
+      run: runs.find((run) => run.service === service),
+    }
+  }
+
+  // The pair: without it, a route that dropped every name would pass below.
+  it('is carried onto the runs a dev starts', async () => {
+    const { signedIn, run } = await signInAndStart(DEV_PASSWORDS.dev, 'Ada')
+    expect(signedIn.name).toBe('Ada')
+    expect(run?.startedBy).toBe('Ada')
+  })
+
+  it("is dropped for demo, so no visitor's text reaches another", async () => {
+    const { signedIn, run } = await signInAndStart(DEV_PASSWORDS.demo, 'Mallory')
+    expect(signedIn.name).toBeUndefined()
+    expect(run).toBeDefined()
+    expect(run?.startedBy).toBeNull()
   })
 })
