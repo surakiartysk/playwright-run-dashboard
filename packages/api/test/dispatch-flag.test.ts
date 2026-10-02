@@ -14,7 +14,7 @@ beforeAll(migrate)
  * silently**. It does not fail, and `assertDeployable` says nothing — it
  * returns early the moment simulation is on.
  *
- * That is the first of the two things CLAUDE.md records as having actually
+ * That is one of the two things CLAUDE.md records as having actually
  * broken a deployment: `wrangler deploy` without `--var` reverts to
  * simulating, and the dashboard keeps working while dispatching nothing.
  *

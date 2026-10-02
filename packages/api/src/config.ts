@@ -13,8 +13,8 @@ export const DEV_TOKEN_SECRET = 'dev-token-secret-not-for-deployment'
 /**
  * One password per role, so the role model is exercisable locally.
  *
- * Printed by the login screen in simulation mode — hiding credentials that are
- * public in the source helps nobody and just makes the demo harder to try.
+ * Listed in the README for local use — hiding credentials that are public in
+ * the source helps nobody and just makes the demo harder to try.
  *
  * `demo` is not "another one of these" — see the note on `DEMO_PASSWORD`
  * below and decision 12.
@@ -54,9 +54,9 @@ export const DEMO_REPORT_PREFIX = 'demo-report'
 /**
  * Fails fast when a deployment is running for real on development secrets.
  *
- * Called once at startup rather than per request: this is a configuration
- * error, and a configuration error should stop the thing starting rather than
- * produce an intermittently insecure service.
+ * Evaluated on every request (and logged once, in index.ts) rather than cached:
+ * this is a configuration error, and it should stop the service answering at
+ * all rather than produce an intermittently insecure one.
  */
 export function assertDeployable(env: Bindings): string[] {
   // Simulation implies local, where the defaults are the point.

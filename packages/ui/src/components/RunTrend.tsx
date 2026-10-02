@@ -217,9 +217,9 @@ export interface Bar {
  * A real coordinate space rather than the old 0–100 box stretched to fit with
  * `preserveAspectRatio="none"`. That stretch was why the chart looked cheap: it
  * scaled x and y by different factors, so a circle rendered as an ellipse and
- * every stroke needed `vectorEffect` to stay even. Bars have to keep their
- * corners square, so the viewBox now has the same proportions as the box it is
- * drawn in.
+ * every stroke needed `vectorEffect` to stay even. The chart is still stretched
+ * to fit its panel — see the note on `preserveAspectRatio` below — which bars
+ * survive where dots did not: a stretched rectangle only changes width.
  */
 export const PLOT_WIDTH = 320
 export const PLOT_HEIGHT = 72
@@ -464,8 +464,8 @@ const s: Record<string, CSSProperties> = {
   },
 
   /*
-   * Fixed height, and the viewBox now matches its proportions rather than being
-   * stretched to fit. Nothing is drawn outside the box any more — bars sit on
+   * Fixed height, equal to PLOT_HEIGHT, so the stretch is horizontal only.
+   * Nothing is drawn outside the box any more — bars sit on
    * the floor instead of dots straddling the edges — so the old
    * `overflow: visible` and its padding are gone with the hack they served.
    */

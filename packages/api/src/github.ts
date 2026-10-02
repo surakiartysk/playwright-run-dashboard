@@ -16,8 +16,8 @@ import type { Bindings, Role, Suite } from './types'
  * one, below. A deployment that sets a token and *forgets* the flag does not —
  * it simulates, silently, because an unset flag is not `'false'`.
  *
- * That asymmetry is deliberate rather than an oversight, and it is the first
- * of the two things CLAUDE.md records as having actually broken a deployment:
+ * That asymmetry is deliberate rather than an oversight, and it is one of
+ * the two things CLAUDE.md records as having actually broken a deployment:
  * `wrangler deploy` without `--var` reverts to simulating, and the dashboard
  * keeps working while dispatching nothing. Promoting it to a startup problem
  * would be worse than the hazard: `assertDeployable` refuses to serve at all,

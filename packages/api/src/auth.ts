@@ -8,8 +8,9 @@ import { effectivePolicy, looksLikeKey, parseKey, verifyKey, type ApiKeyRow } fr
 /**
  * Session tokens and the role they carry.
  *
- * Format: `<exp>.<role>.<hmac(exp.role)>`. Deliberately not a JWT — there is
- * one issuer and one consumer, the payload is two fields, and a library would
+ * Format: `<exp>.<role>.<hmac(exp.role)>`, or with a name between role and
+ * signature when the person gave one (see below). Deliberately not a JWT —
+ * there is one issuer and one consumer, the payload is a few fields, and a library would
  * be more surface than the twenty lines it replaces. Signed, not encrypted:
  * the role is not a secret, and tampering is what needs preventing.
  *

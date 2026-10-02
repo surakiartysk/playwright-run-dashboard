@@ -28,7 +28,7 @@ const VERSION = pkg.version
 /**
  * The dashboard API.
  *
- * Four surfaces, each with a different caller:
+ * The main surfaces, each with a different caller:
  *
  *   POST /auth      signing in — a password maps to a role
  *   POST /runs      a developer asking for a run     (session + policy)
@@ -87,8 +87,9 @@ app.use('*', async (c, next) => {
   return undefined
 })
 
-// credentials:true so the session cookie survives the cross-origin dev setup
-// (Vite on 5173, Worker on 8787). In production both are same-origin.
+// credentials:true for a UI served from Vite's port talking to the Worker on
+// 8787 directly. `pnpm dev` proxies through Vite and is same-origin, as
+// production is; this keeps a direct call from the dev UI working too.
 const devOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173']
 app.use('/auth/*', cors({ origin: devOrigins, credentials: true }))
 app.use('/demo/*', cors({ origin: devOrigins, credentials: true }))

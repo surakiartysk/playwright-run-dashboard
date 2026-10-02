@@ -21,9 +21,9 @@ fake development default. `pnpm install` also installs the git hooks via
 pnpm dev
 ```
 
-Starts the Worker on `:8787` and the UI on `:5173` together. Sign in as `demo`,
-`dev`, `qa`, or `admin` — each of those three uses its own name as the
-password; `demo` is a button on the login screen.
+Starts the Worker on `:8787` and the UI on `:5173` together. `dev`, `qa` and
+`admin` each sign in with their own name as the password; `demo` is a button on
+the login screen.
 
 If the local database ends up in a state you do not want, `pnpm db:reset`
 deletes `.wrangler/` and re-migrates. It is the only destructive command here,
@@ -216,10 +216,15 @@ dispatches have their own schedules.
 
 ### `check:claims`
 
-Two things, both of which have gone stale before:
+Four things, each of which has gone stale before:
 
 - **Test counts.** Fails when the docs advertise a count that no longer matches
-  reality, or when the documents stating the mutation count disagree.
+  reality, or when the four documents stating the mutation count disagree.
+- **The mutation record.** [`docs/mutations.md`](docs/mutations.md) must hold as
+  many rows as its own prose says, numbered without gaps.
+- **The decisions Contents.** Every entry must match a heading in
+  [`docs/decisions.md`](docs/decisions.md) — same number, same title, and an
+  anchor GitHub resolves.
 - **The dropdown against the contract test.** `SUITE_SERVICES` and `SUITE_TAGS`
   in [`RunTrigger.tsx`](packages/ui/src/components/RunTrigger.tsx) are what a
   user can actually pick; `DASHBOARD_OFFERS` in

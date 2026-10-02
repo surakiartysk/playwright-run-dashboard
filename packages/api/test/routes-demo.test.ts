@@ -173,8 +173,8 @@ describe('GET /demo/roles', () => {
 })
 
 /**
- * `GET /auth/dev-credentials` prints the development passwords on the login
- * screen so a reader can get in without going to the source.
+ * `GET /auth/dev-credentials` hands out the development passwords so a reader
+ * can get in without going to the source.
  *
  * That is right for a simulation and wrong for dev/qa/admin on a deployment,
  * and the guard saying so had no test at all — deleting it left all 200
@@ -182,7 +182,7 @@ describe('GET /demo/roles', () => {
  * to anyone who asked. Same class as the old role-switch escalation, which
  * was tested from the start; this one was not.
  *
- * `demo` is the deliberate exception — see decision 12. It is printed either
+ * `demo` is the deliberate exception — see decision 12. It is returned either
  * way, because hiding it protects nothing: dispatchWorkflow refuses that role
  * a real run regardless of what this endpoint says.
  */

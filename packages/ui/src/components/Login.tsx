@@ -9,15 +9,11 @@ import { brandPanelBackground, c } from '../theme'
  * a login screen that is only a centred box gives no sense of what you are
  * signing into.
  *
- * In simulation the development passwords are printed on the form. They are in
- * the source anyway, and a demo whose first screen is a password you have to go
- * hunting for is a demo nobody sees. There are four of them and choosing
- * between the roles is the point, so the list earns its space.
- *
- * On a real deployment there is only `demo`, and the button above already
- * signs in with it — so the list is not printed there. It would be the same
- * instruction twice, with the second one asking the reader to type by hand
- * what the first does in a click.
+ * `demo` is one click rather than a password to type: a demo whose first
+ * screen is a password you have to go hunting for is a demo nobody sees. The
+ * other roles' passwords are not printed here, in simulation or on a real
+ * deployment — the README lists the local ones, and a real deployment's are
+ * not the visitor's to know.
  */
 export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [password, setPassword] = useState('')
@@ -55,14 +51,12 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   }
 
   /*
-   * The demo password is published — in this repo's README, on the landing page,
-   * and in the panel below. Asking a visitor to read it and then type it back is
-   * a wall that stops nobody and costs everybody: whoever came to look at the
-   * work meets an empty form instead of the tool.
+   * The demo password is public. Asking a visitor to find it and then type it
+   * back is a wall that stops nobody and costs everybody: whoever came to look
+   * at the work meets an empty form instead of the tool.
    *
-   * So demo is a button. The password stays visible for anyone who wants to see
-   * that it is real rather than a bypass, and the field below is still the way
-   * in for a role that has one.
+   * So demo is a button, and the field below is still the way in for a role
+   * that has a password of its own.
    */
   const demoPassword = hints?.passwords.demo ?? null
 

@@ -40,8 +40,8 @@ GITHUB_WORKFLOW = "on-demand.yml"
 GITHUB_UI_REPO = "your-org/playwright-ui-automation-patterns"
 GITHUB_UI_WORKFLOW = "on-demand.yml"
 
-# With no GitHub token present the Worker simulates a dispatch instead of
-# making one, so the whole flow is exercisable offline. See src/github.ts.
+# Until SIMULATE_DISPATCH is "false" the Worker simulates a dispatch instead
+# of making one, so the whole flow is exercisable offline. See src/github.ts.
 #
 # Committed as "true" on purpose, even though a real deployment exists. Every
 # var above is overridden at deploy time with `wrangler deploy --var`, which

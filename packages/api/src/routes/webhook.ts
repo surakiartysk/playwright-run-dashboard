@@ -97,7 +97,7 @@ webhookRoutes.post('/', async (c) => {
     )
     .run()
 
-  // A signed callback for a run we have no record of means the two sides
+  // A signed callback for a run with no record here means the two sides
   // disagree about what exists — worth a 404 rather than a silent no-op.
   if (result.meta.changes === 0) {
     return c.json({ error: `No run with id ${payload.runId}` }, 404)

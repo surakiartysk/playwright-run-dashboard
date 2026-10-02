@@ -111,6 +111,11 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
+113 is also a floor rather than an exact count. The prose figure stood at
+ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
+mutations went into their commit messages, and the total was not moved with
+them — so the real number is higher by an amount the history cannot settle.
+
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
 produced — rows 23 to 59 are all from that period, and every future one belongs

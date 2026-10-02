@@ -3,10 +3,10 @@
  *
  * Every secret has a development default. That is a deliberate trade: a repo
  * that cannot start without a handful of secrets is a repo nobody starts. The
- * defaults are obviously fake, `assertDeployable` refuses to let them reach a
- * real deployment, and `POST /runs` refuses to dispatch for real while
- * `SIMULATE_DISPATCH` is on — so a misconfigured deployment fails loudly
- * rather than quietly using them.
+ * defaults are obviously fake, and `assertDeployable` refuses to serve a
+ * deployment that sets `SIMULATE_DISPATCH` to `false` while still on them. The
+ * gap is the deployment that forgets the flag: it simulates, and quietly keeps
+ * any default it was not given — the trap github.ts describes.
  */
 
 export type Role = 'demo' | 'dev' | 'qa' | 'admin'

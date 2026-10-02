@@ -13,7 +13,7 @@
  *
  * The mutation count is the one number here that cannot be derived — it records
  * work done at a keyboard, not a property of the tree. It is checked for
- * *consistency* across the three documents that state it, which catches the
+ * *consistency* across the four documents that state it, which catches the
  * realistic failure of updating one and forgetting the others.
  */
 
@@ -172,11 +172,11 @@ if (distinct.size > 1) {
 //
 // `docs/mutations.md` is the part that can be checked: one row per mutation
 // recovered from the commit that ran it. So the row count is compared against
-// the figure that file's own prose states. The ninety-nine stays a claim about
+// the figure that file's own prose states. The total stays a claim about
 // work done; this makes the recorded subset a claim about a file, and a file
 // can be counted.
 //
-// Deliberately NOT compared against ninety-nine. They are different numbers on
+// Deliberately NOT compared against the total. They are different numbers on
 // purpose — mutations.md exists to state the gap, and a check that demanded
 // they match would force the gap closed by invention, which is the failure this
 // whole script exists to prevent.

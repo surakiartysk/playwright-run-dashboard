@@ -10,7 +10,7 @@ beforeAll(migrate)
  * `demo-role-safety.test.ts` covers the dispatch half — that a demo run never
  * touches a real workflow whatever the deployment's flags say. This covers the
  * other half, which had no test: the blast radius of a role whose password is
- * printed in the README and on the landing page.
+ * public and one click away on the sign-in screen.
  *
  * The answer these pin down is that demo may write, but only ever to its own
  * corner: it starts simulated runs, sees nothing but the runs it started

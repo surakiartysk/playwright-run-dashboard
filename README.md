@@ -80,13 +80,13 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 113 deliberate mutations — deleting the
-privilege-escalation guard, signing the webhook body without its timestamp,
+Every test was proven able to fail. In all, 113 deliberate mutations — deleting
+the privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
 behaviour. Fifty-nine of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 113 are
-_not_ recorded, and why they cannot be. Two real bugs came out of writing them:
+message it produced; that file also says plainly which of the 113 are _not_
+recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 
 ## Security posture
@@ -100,7 +100,7 @@ This is a demo, and it says so in code rather than in a comment:
   regardless of what is being previewed. See
   [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
 - Every secret has an obviously fake development default so a clone runs as-is,
-  and `assertDeployable` logs loudly if one would reach a real deployment.
+  and `assertDeployable` refuses to serve if one would reach a real deployment.
 - The webhook signs `timestamp.body` and refuses anything older than five
   minutes, so a captured callback is not replayable forever.
 - Reports live in a private bucket behind signed, expiring, run-scoped links.
@@ -192,9 +192,10 @@ names the D1 database this deployment owns, `wrangler deploy` has no `--var`
 equivalent for a binding, and it is not a credential. Everything else in
 `[vars]` stays on the deploy line.
 
-`SIMULATE_DISPATCH:false` also stops the login screen offering dev/qa/admin at
-all, leaving the `demo` button — which is not a secret being kept, since demo
-cannot dispatch anything real and hiding it would protect nothing.
+`SIMULATE_DISPATCH:false` also stops `GET /auth/dev-credentials` returning
+dev/qa/admin's passwords, leaving only `demo`'s for the sign-in button — which
+is not a secret being kept, since demo cannot dispatch anything real and hiding
+it would protect nothing.
 
 The suite side needs `DASHBOARD_WEBHOOK_URL` as a repository variable and
 `DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching `WEBHOOK_SECRET`

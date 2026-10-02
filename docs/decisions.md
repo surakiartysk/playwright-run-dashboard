@@ -186,12 +186,14 @@ Cloudflare account and no GitHub token.
 Simulation is **opt-out rather than opt-in** so the safe behaviour is the
 default and a real deployment has to state its intent.
 
-The same flag also decides whether the login screen prints dev/qa/admin's
-passwords, so a real deployment cannot both dispatch real workflows and still
-advertise those credentials. `/demo/preview-role` — letting an authenticated
-`demo` session look at another role's read views — is no longer tied to this
-flag at all; see [decision 12](#12-a-fourth-role-that-can-never-dispatch-for-real)
-for why its safety comes from where it is checked, not from `SIMULATE_DISPATCH`.
+The same flag also decides which passwords `GET /auth/dev-credentials` returns —
+all four while simulating, only `demo`'s otherwise — so a real deployment cannot
+both dispatch real workflows and still hand out those credentials. The login
+screen uses only `demo`'s, for its one-click button. `/demo/preview-role` —
+letting an authenticated `demo` session look at another role's read views — is
+no longer tied to this flag at all; see
+[decision 12](#12-a-fourth-role-that-can-never-dispatch-for-real) for why its safety comes
+from where it is checked, not from `SIMULATE_DISPATCH`.
 
 **Trade-off.** A simulator is code that exists only for the demo, and it is code
 that can drift from what the real path does — it already had a bug where it
@@ -207,6 +209,8 @@ lookup.
 
 **Decision.** A session token is `` `<exp>.<role>.<hmac(exp.role)>` ``. Signed,
 not encrypted — the role is not a secret, tampering is what needs preventing.
+(Since [decision 23](#23-a-name-on-a-run-and-why-it-is-a-claim-rather-than-an-identity)
+a session may also carry a name, as a fourth part under the same signature.)
 
 There is one issuer and one consumer, the payload is two fields, and a JWT
 library would be more surface than the twenty lines it replaces. `alg: none` and
@@ -266,9 +270,9 @@ tests, not by reading code, and both are the kind that look fine in review.
 service in the same minute produce the same PRIMARY KEY, so the second insert
 throws and the caller gets a 500 for doing nothing wrong. Two people
 pressing Run on `items` within a minute of each other is ordinary, not an
-edge case. Found immediately by a test that created two runs in a row.
-Fixed with a six-character random suffix, and there is now a regression test named for
-the failure.
+edge case. Found immediately by a test that created two runs in a row. Fixed
+with a six-character random suffix, and there is now a regression test named
+for the failure.
 
 **The simulator overwrote real webhook results.** The simulator and the webhook
 both write the same row. Without a guard, whichever lands second wins — post a
@@ -309,7 +313,8 @@ either.
 
 Two layout choices follow from what a run is:
 
-- Runs are **cards, not table rows**. A run carries an id, what it covered, a
+- Runs are **cards, not table rows** ([decision 18](#18-the-run-list-is-a-table-and-it-can-be-paged)
+  later reversed this). A run carries an id, what it covered, a
   branch, a result split three ways, timing and two actions. In columns that is
   unreadable at the width most people have.
 - Pass/fail is a **proportional bar** beside the numbers. "112 / 118" needs
@@ -374,12 +379,12 @@ setting a single window is asking for one.
 ## 12. A fourth role that can never dispatch for real
 
 **Context.** This dashboard is a portfolio piece — the deployment at
-`runs.testbydesign.dev` is meant to be tried by a stranger, not just read about. The
-three existing roles do not fit that: `dev`/`qa`/`admin` either dispatch a real
-GitHub Actions run against a real repository, or the whole deployment sits in
-`SIMULATE_DISPATCH: true` and nobody sees a real run ever complete. Flipping
-that one flag back and forth per visitor is not a design, it is two
-deployments pretending to be one.
+`runs.testbydesign.dev` is meant to be tried by a stranger, not just read about.
+The three existing roles do not fit that: `dev`/`qa`/`admin` either dispatch a
+real GitHub Actions run against a real repository, or the whole deployment sits
+in `SIMULATE_DISPATCH: true` and nobody sees a real run ever complete. Flipping
+that one flag back and forth per visitor is not a design, it is two deployments
+pretending to be one.
 
 **Decision.** A fourth role, `demo`, whose real-vs-simulated behaviour is
 decided by the role itself rather than by `SIMULATE_DISPATCH`. Every other
@@ -409,9 +414,10 @@ real deployment starts, unlike the other three secrets. That is not an
 oversight: this role's safety was never password secrecy, it is the dispatch
 guard above. Requiring a strong `DEMO_PASSWORD` would imply the opposite and
 be a promise this role does not need to keep. `GET /auth/dev-credentials`
-reflects the same asymmetry — outside simulation it hides `dev`/`qa`/`admin`
-passwords but keeps printing `demo`'s, because hiding it would gate a link
-meant to be handed out and gain nothing.
+reflects the same asymmetry — outside simulation it withholds
+`dev`/`qa`/`admin` passwords but keeps returning `demo`'s, which the sign-in
+button uses, because hiding it would gate a link meant to be handed out and
+gain nothing.
 
 Scoping `demo` to only the runs it started itself needed
 [`visibilityClause`](#3-visibility-is-enforced-in-sql-never-in-the-handler) to
@@ -456,7 +462,8 @@ meant a stranger on `runs.testbydesign.dev` could never see what `qa` or `admin`
 view looks like, the whole point of trying the dashboard at all.
 
 Widening the gate to "any authenticated `demo` session may call this" would not
-have been safe: a session token's HMAC covers only `role` and `exp` (see
+have been safe: a session token's HMAC covers only `role`, `exp` and an
+optional name (see
 [decision 7](#7-no-jwt-no-session-store-no-auth-library)) — nothing marks a
 token "obtained via demo escalation" versus a real login. Once
 `createToken(secret, 'admin')` runs, the resulting cookie is indistinguishable
@@ -588,13 +595,14 @@ most in practice — a deploy pipeline that wants to verify an environment the
 moment it finishes deploying, at 03:00, with nobody watching.
 
 The obvious answer is to hand developers a GitHub personal access token so their
-pipeline can call `repository_dispatch` directly. That is worth examining, and
-then rejecting, because **GitHub's scopes cannot express the rule this dashboard
-already enforces**. A token that can dispatch a workflow needs `actions: write` on the
-repository, and that is the whole grant: it can start _any_ workflow, against
-_any_ ref, read Actions logs, and it keeps working until someone remembers it
-exists. There is no scope meaning "smoke, against `main`, four workers". This dashboard
-already has that rule, in `policy.ts`, and handing out a PAT routes around it.
+pipeline can dispatch the workflow directly. That is worth examining, and then
+rejecting, because **GitHub's scopes cannot express the rule this dashboard
+already enforces**. A token that can dispatch a workflow needs `actions: write`
+on the repository, and that is the whole grant: it can start _any_ workflow,
+against _any_ ref, read Actions logs, and it keeps working until someone
+remembers it exists. There is no scope meaning "smoke, against `main`, four
+workers". This dashboard already has that rule, in `policy.ts`, and handing out
+a PAT routes around it.
 
 **Decision.** The dashboard issues its own keys, and a key is a credential whose
 authority is defined here rather than at GitHub. One `GITHUB_TOKEN` stays
@@ -657,7 +665,7 @@ someone who did not build it. `wrangler secret` covers today's single token
 with none of that.
 
 It also moves this repository across a line. The dashboard currently holds one
-secret and authenticates humans against three passwords; after this it is
+secret and authenticates humans against four passwords; after this it is
 issuing credentials to other systems, which is a category of thing that attracts
 requirements — expiry, rotation reminders, an audit trail someone will
 eventually want exported. None of that is hard. All of it is more surface than
@@ -803,14 +811,14 @@ inferred.
 
 The availability table is a third place to look when something is unexpectedly
 unavailable, after the policy and the gate. Three tiers is more than a
-three-role dashboard strictly needs, and the honest defence is only that merging
+four-role dashboard strictly needs, and the honest defence is only that merging
 any two of them makes a coordination switch and an authorisation rule the same
 object — which is the failure this repo already argues against in decision 11.
 
 And the sequencing cost: the manifest is worth building the moment a service is
-added or renamed, and not before. Today the list has been stable since the repo
-was written, so this would be infrastructure protecting against a change nobody
-has made yet.
+added or renamed, and not before. Today the service list has changed once, when
+the second suite arrived, and the tag list twice, so this would be
+infrastructure protecting against a change that is rare.
 
 ---
 
@@ -839,7 +847,8 @@ and failed was hue — no label, no shape, no size. Against a chart whose whole
 job is showing which runs went red, that is the failure mode in its purest form.
 A failed point is now drawn larger and ringed in the surface colour, so it
 survives greyscale, printing and forced-colours mode, and carries a `<title>` so
-hovering names it.
+hovering names it. ([Decision 20](#20-bars-not-a-line--runs-are-discrete-events)
+later replaced the dots with bars, which keep the same distinction.)
 
 The result bar butted its segments together, so a sliver of failures met the
 pass fill at a boundary drawn in hue alone. A 2px gap makes the boundary
@@ -976,8 +985,8 @@ read `response.keys` off it, got `undefined`, and threw — taking the whole
 dashboard down, not just the panel. Two fixes: the proxy lists the route, and
 the component treats a response without a `keys` array as empty rather than
 destructuring blind. The same class of miss as the production Worker route that
-`/keys*` needed in decision 15 — a route that exists on the server and is
-unreachable from the client is invisible until something calls it.
+`/keys*` needed (see Routing in the README) — a route that exists on the server
+and is unreachable from the client is invisible until something calls it.
 
 ---
 
@@ -1017,9 +1026,11 @@ rounder on one axis than the other.
 - **Minimum bar height.** A run at the bottom of the drawn range maps to zero
   height, so the run that failed hardest — the one most worth seeing — is the
   one that disappears.
-- **Minimum bar width.** A page holds up to 100 runs and the reader can load
-  more; past about ninety the natural width drops under two units and the chart
-  becomes a grey smear.
+- **Minimum bar width.** With enough runs the natural width drops under two
+  units and the chart becomes a grey smear. The floor alone was not enough —
+  once a slot is narrower than the floor, bars overlap — so the chart now takes
+  only the newest thirty runs (`MAX_TREND_POINTS`), where a bar is about eight
+  units wide. The floor stays as a guard in case that cap is ever raised.
 
 Both were written with a test that passed whether or not the guard existed —
 `domain` pads the range, so a two-run spread never reaches the true floor, and
@@ -1043,11 +1054,11 @@ in a case that never exercises it.
 ## 21. The diagrams scroll on a phone rather than shrink
 
 `figure svg { max-width: 100% }` is the standard advice for a responsive SVG and
-it was quietly ruining the companion site's diagrams. An 800-unit diagram squeezed into a
-343px phone scales its 10px labels to **4.3px** — the figure stays on the page,
-costs a screen of height, and cannot be read. The page passed every check that
-looks for horizontal overflow, because there was none: the drawing had been
-shrunk into uselessness instead.
+it was quietly ruining the companion site's diagrams. An 800-unit diagram
+squeezed into a 343px phone scales its 10px labels to **4.3px** — the figure
+stays on the page, costs a screen of height, and cannot be read. The page passed
+every check that looks for horizontal overflow, because there was none: the
+drawing had been shrunk into uselessness instead.
 
 Below 760px each figure now scrolls sideways inside its own container, with the
 SVG held at a minimum width. Labels render at 7.8–10.8px, the reader pans, and
@@ -1069,13 +1080,12 @@ so, shown only where the scroll exists.
 
 ## 22. A limit on demo runs, and why it is not a security control
 
-`demo`'s password is published — in this README, on the landing page, and
-behind a one-click button on the sign-in screen. That is deliberate, and the
-containment around it is real: a demo run is always simulated and never reaches
-a real workflow (the `role === 'demo'` term sits first in `dispatchWorkflow`'s
-`simulate` expression, so no deployment flag can turn it off), it sees only the
-runs it started itself, and it cannot delete anything or reach the gate or the
-key routes.
+`demo`'s password is public, and a one-click button on the sign-in screen signs
+in with it. That is deliberate, and the containment around it is real: a demo
+run is always simulated and never reaches a real workflow (the `role === 'demo'`
+term sits first in `dispatchWorkflow`'s `simulate` expression, so no deployment
+flag can turn it off), it sees only the runs it started itself, and it cannot
+delete anything or reach the gate or the key routes.
 
 What a stranger _can_ do is start simulated runs in a loop. The only casualty
 is rows in D1, which is a housekeeping problem rather than a security one — and

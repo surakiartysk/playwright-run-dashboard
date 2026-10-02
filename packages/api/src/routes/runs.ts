@@ -83,8 +83,8 @@ export function randomSuffix(length = 6): string {
 /**
  * How many runs `demo` may start in a rolling hour, across everyone using it.
  *
- * `demo`'s password is published — in this repo's README, on the landing page,
- * and behind a one-click button on the sign-in screen. That is deliberate and
+ * `demo`'s password is public, and a one-click button on the sign-in screen
+ * signs in with it. That is deliberate and
  * safe in every way that matters: a demo run is always simulated, never
  * reaches a real workflow, sees only the runs it started, and cannot delete
  * anything. The one thing a stranger *can* do is start simulated runs in a

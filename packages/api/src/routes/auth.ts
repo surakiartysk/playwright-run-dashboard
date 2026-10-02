@@ -60,20 +60,23 @@ authRoutes.get('/me', requireSession, (c) =>
 )
 
 /**
- * The credentials the login screen may show.
+ * Which passwords this deployment hands out.
  *
  * `mode` is why this is not a single `passwords` object with sometimes-fewer
- * keys: the UI needs to say something different depending on which case it
- * is in, and guessing that from which keys happened to arrive is exactly the
- * kind of inference that breaks quietly when a role is renamed.
+ * keys: a caller that needs to know which case it is in should be told, not
+ * left to guess from which keys happened to arrive — exactly the kind of
+ * inference that breaks quietly when a role is renamed.
  *
- * `'full'` — simulating. Every password is safe to print; nothing here can
+ * The login screen uses only `demo`'s, for its one-click button; the others
+ * are listed in the README for local use.
+ *
+ * `'full'` — simulating. Every password is safe to return; nothing here can
  * reach a real system.
  *
  * `'demo-only'` — not simulating, so at least one of dev/qa/admin dispatches
  * for real. Those three stay hidden; a reader is told them out of band, the
  * way any real deployment's credentials are shared. `demo`'s password is
- * still printed — its safety was never secrecy, see decision 12, so hiding
+ * still returned — its safety was never secrecy, see decision 12, so hiding
  * it here would gate a link that is meant to be handed out and gain nothing:
  * the role it unlocks still cannot dispatch anything real.
  */

@@ -1,7 +1,7 @@
 # Architecture
 
-Four surfaces, each with a different caller, authenticated differently because
-they are trusted differently.
+The main surfaces each have a different caller, and are authenticated
+differently because they are trusted differently.
 
 ## The whole flow
 
@@ -47,11 +47,11 @@ than vanish.
 ## The contract with the suites
 
 Three repositories, no shared code, meeting at exactly three points. This
-dashboard dispatches either suite — API or UI — and each meets it the same
-way. Nothing but
-tests stops them drifting — and they had drifted: this dashboard sent a service
-name in a workflow input that only accepts package names, and the workflow had
-no callback step at all. Both repos' docs claimed the integration worked.
+dashboard dispatches either suite — API or UI — and each meets it the same way.
+Nothing but tests stops them drifting — and they had drifted: this dashboard
+sent a service name in a workflow input that only accepts package names, and the
+workflow had no callback step at all. Both repos' docs claimed the integration
+worked.
 
 **Dispatch — what this sends:**
 
@@ -185,8 +185,8 @@ Everything has a local implementation, so the repo runs with no account:
 | Secrets  | obviously fake defaults        | `wrangler secret put`      |
 
 `SIMULATE_DISPATCH` is the switch, and it defaults to **on** so the safe
-behaviour is the default. The same flag decides whether the login screen prints
-dev/qa/admin's passwords. See
+behaviour is the default. The same flag decides which passwords
+`GET /auth/dev-credentials` returns; the login screen uses only `demo`'s. See
 [decision 6](decisions.md#6-simulation-is-the-default-and-one-flag-governs-it).
 `/demo/preview-role` is not gated by this flag at all — see
 [decision 12](decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
