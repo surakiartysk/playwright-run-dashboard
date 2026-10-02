@@ -19,7 +19,7 @@ running?" is answerable without signing in.
 Start with [`docs/decisions.md`](docs/decisions.md) if you have five minutes and
 want the reasoning rather than the code.
 
-**Live at [testbydesign.dev](https://testbydesign.dev)** — one button, no
+**Live at [runs.testbydesign.dev](https://runs.testbydesign.dev)** — one button, no
 password to type. That deployment is real: real D1, real R2, a real GitHub
 token that can dispatch either companion suite below. `demo` cannot reach any of
 that — see
@@ -211,11 +211,11 @@ Without them the run still reports its numbers; it just has no report link.
 
 This dashboard triggers two suites, and both are published:
 
-**`playwright-api-automation-patterns`** —
+**[`playwright-api-automation-patterns`](https://github.com/surakiartysk/playwright-api-automation-patterns)** —
 the same API suite built twice, functional-style and class-first, against one
 OpenAPI contract.
 
-**`playwright-ui-automation-patterns`** —
+**[`playwright-ui-automation-patterns`](https://github.com/surakiartysk/playwright-ui-automation-patterns)** —
 the same twenty UI journeys built twice, locator-first and page-first, against
 a public demo storefront.
 

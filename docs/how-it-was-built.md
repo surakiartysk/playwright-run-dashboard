@@ -30,11 +30,11 @@ which are not, and why that gap is left open rather than filled in.
 
 This dashboard triggers two suites. Both are published and built the same way:
 
-**`playwright-api-automation-patterns`** —
+**[`playwright-api-automation-patterns`](https://github.com/surakiartysk/playwright-api-automation-patterns)** —
 the same API suite built twice, functional-style and class-first, against one
 OpenAPI contract, so the two approaches can be read side by side.
 
-**`playwright-ui-automation-patterns`** —
+**[`playwright-ui-automation-patterns`](https://github.com/surakiartysk/playwright-ui-automation-patterns)** —
 the same twenty UI journeys built twice, locator-first and page-first, against
 a public demo storefront.
 

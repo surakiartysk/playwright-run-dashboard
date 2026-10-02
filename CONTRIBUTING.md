@@ -216,10 +216,10 @@ dispatches have their own schedules.
 
 ### `check:claims`
 
-Three things, all of which have gone stale before:
+Two things, both of which have gone stale before:
 
 - **Test counts.** Fails when the docs advertise a count that no longer matches
-  reality, or when the three documents stating the mutation count disagree.
+  reality, or when the documents stating the mutation count disagree.
 - **The dropdown against the contract test.** `SUITE_SERVICES` and `SUITE_TAGS`
   in [`RunTrigger.tsx`](packages/ui/src/components/RunTrigger.tsx) are what a
   user can actually pick; `DASHBOARD_OFFERS` in

@@ -194,7 +194,7 @@ dev/qa/admin's passwords. See
 ## Data model
 
 One table. The id is human-readable on purpose —
-`20260826-1430-items-k3f9` sorts chronologically, says what it covered, and
+`20260826-1430-items-k3f9qw` sorts chronologically, says what it covered, and
 doubles as the R2 prefix for that run's report. A UUID would need a second
 column to answer "when was this and what did it cover?", which is the question
 anyone scanning the list is actually asking.

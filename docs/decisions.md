@@ -267,7 +267,7 @@ service in the same minute produce the same PRIMARY KEY, so the second insert
 throws and the caller gets a 500 for doing nothing wrong. Two people
 pressing Run on `items` within a minute of each other is ordinary, not an
 edge case. Found immediately by a test that created two runs in a row.
-Fixed with four random characters, and there is now a regression test named for
+Fixed with a six-character random suffix, and there is now a regression test named for
 the failure.
 
 **The simulator overwrote real webhook results.** The simulator and the webhook
@@ -374,7 +374,7 @@ setting a single window is asking for one.
 ## 12. A fourth role that can never dispatch for real
 
 **Context.** This dashboard is a portfolio piece — the deployment at
-`testbydesign.dev` is meant to be tried by a stranger, not just read about. The
+`runs.testbydesign.dev` is meant to be tried by a stranger, not just read about. The
 three existing roles do not fit that: `dev`/`qa`/`admin` either dispatch a real
 GitHub Actions run against a real repository, or the whole deployment sits in
 `SIMULATE_DISPATCH: true` and nobody sees a real run ever complete. Flipping
@@ -452,7 +452,7 @@ includes strangers who can only be given a password, never a role assignment.
 — but that endpoint minted a real session token (`createToken(secret, role)`)
 for whatever role was requested, gated only by `SIMULATE_DISPATCH`. On a real
 deployment that flag is off, so the endpoint refused everyone outright — which
-meant a stranger on `testbydesign.dev` could never see what `qa` or `admin`'s
+meant a stranger on `runs.testbydesign.dev` could never see what `qa` or `admin`'s
 view looks like, the whole point of trying the dashboard at all.
 
 Widening the gate to "any authenticated `demo` session may call this" would not
