@@ -25,6 +25,7 @@ export function App() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
   const [canPreview, setCanPreview] = useState(false)
+  const [simulates, setSimulates] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Bumped by the theme toggle so the header re-renders with the new icon.
   const [, setThemeTick] = useState(0)
@@ -48,6 +49,7 @@ export function App() {
     setNextCursor(null)
     setPolicies([])
     setCanPreview(false)
+    setSimulates(false)
     setError(null)
   }, [])
 
@@ -67,6 +69,7 @@ export function App() {
       .then((r) => {
         setPolicies(r.roles)
         setCanPreview(r.canPreview)
+        setSimulates(r.simulates)
       })
       .catch(() => setPolicies([]))
   }, [role])
@@ -267,6 +270,7 @@ export function App() {
           key={`${role}-${gateTick}`}
           policy={policy}
           role={role}
+          simulates={simulates}
           onStarted={() => void refresh()}
         />
       )}

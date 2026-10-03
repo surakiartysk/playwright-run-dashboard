@@ -49,10 +49,13 @@ const SUITE_TAGS: Record<Suite, string[]> = {
 export function RunTrigger({
   policy,
   role,
+  simulates,
   onStarted,
 }: {
   policy: RolePolicy
   role: Role
+  /** Whether a run started here is simulated — said before Run, not after. */
+  simulates: boolean
   onStarted: () => void
 }) {
   const [suite, setSuite] = useState<Suite>('api')
@@ -62,6 +65,7 @@ export function RunTrigger({
   const [workers, setWorkers] = useState(Math.min(4, policy.maxWorkers))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [started, setStarted] = useState<string | null>(null)
   const [gate, setGate] = useState<{ opensAt: string | null; updatedBy: string | null } | null>(
     null,
   )
@@ -120,8 +124,16 @@ export function RunTrigger({
   async function start() {
     setBusy(true)
     setError(null)
+    setStarted(null)
     try {
-      await api.createRun(runRequest({ suite, service, tags, ref, workers }))
+      const run = await api.createRun(runRequest({ suite, service, tags, ref, workers }))
+      // Said in words: before this, the only sign anything happened was a
+      // count in the list going up by one.
+      setStarted(
+        run.simulated
+          ? 'Started a simulated run — it is in Recent runs below.'
+          : 'Started — the run is in Recent runs below.',
+      )
       onStarted()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the run')
@@ -134,7 +146,11 @@ export function RunTrigger({
     <section style={s.card}>
       <header style={s.head}>
         <h2 style={s.title}>New run</h2>
-        <span style={s.hint}>Runs against the published suites</span>
+        <span style={s.hint}>
+          {simulates
+            ? 'Simulated here: no workflow runs, and Report opens a shared sample'
+            : 'Runs the published suites on GitHub Actions'}
+        </span>
       </header>
 
       <div style={s.grid}>
@@ -224,6 +240,7 @@ export function RunTrigger({
       {gate && <p style={s.paused}>{pausedReason(gate)}</p>}
 
       {error && <p style={s.error}>{error}</p>}
+      {started && <p style={s.started}>{started}</p>}
     </section>
   )
 }
@@ -292,6 +309,7 @@ const s: Record<string, CSSProperties> = {
     height: 38,
   },
   error: { color: c.danger, fontSize: 13, margin: '14px 0 0' },
+  started: { color: c.t3, fontSize: 13, margin: '14px 0 0' },
   runDisabled: { opacity: 0.45, cursor: 'not-allowed' },
   paused: {
     margin: '14px 0 0',

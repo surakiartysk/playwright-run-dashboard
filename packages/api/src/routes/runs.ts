@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
 import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
-import { dispatchWorkflow } from '../github'
+import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
@@ -259,8 +259,8 @@ runRoutes.post('/', async (c) => {
   // someone asked for, and it should be visible with its error rather than
   // vanishing.
   await c.env.DB.prepare(
-    `INSERT INTO runs (id, suite, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8, ?9, ?10)`,
+    `INSERT INTO runs (id, suite, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by, simulated)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8, ?9, ?10, ?11)`,
   )
     .bind(
       id,
@@ -279,6 +279,8 @@ runRoutes.post('/', async (c) => {
       // an id and a label already, and inventing a person for it would be a
       // worse answer than none.
       apiKey ? null : (c.get('sessionName') ?? null),
+      // Recorded from the same decision dispatchWorkflow is about to act on.
+      simulates(c.env, role) ? 1 : 0,
     )
     .run()
 

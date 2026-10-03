@@ -118,6 +118,8 @@ export interface RunRow {
   /** The suite that produced this result. Null until its callback arrives. */
   suite_version: string | null
   suite_sha: string | null
+  /** 1 when no workflow ran — see migration 0010. */
+  simulated: number
 }
 
 /** A run as the UI sees it — camelCase, with the report link resolved. */
@@ -147,6 +149,11 @@ export interface RunView {
   workflowUrl: string | null
   suiteVersion: string | null
   suiteSha: string | null
+  /**
+   * True when no workflow ran: the numbers came from the simulator, and the
+   * report link opens the shared sample report rather than this run's.
+   */
+  simulated: boolean
 }
 
 export interface CreateRunRequest {
@@ -198,4 +205,5 @@ export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   workflowUrl: row.workflow_url,
   suiteVersion: row.suite_version,
   suiteSha: row.suite_sha,
+  simulated: row.simulated === 1,
 })

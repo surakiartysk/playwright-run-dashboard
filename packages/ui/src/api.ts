@@ -54,6 +54,11 @@ export interface Run {
   /** The suite that produced this result — null until its callback arrives. */
   suiteVersion: string | null
   suiteSha: string | null
+  /**
+   * True when no workflow ran: the numbers came from the simulator, and the
+   * report link opens a shared sample rather than this run's report.
+   */
+  simulated: boolean
 }
 
 export interface RolePolicy {
@@ -123,7 +128,9 @@ export const api = {
       '/auth/dev-credentials',
     ),
 
-  roles: () => request<{ canPreview: boolean; roles: RolePolicy[] }>('/demo/roles'),
+  /** `simulates` is whether runs this session starts are simulated. */
+  roles: () =>
+    request<{ canPreview: boolean; simulates: boolean; roles: RolePolicy[] }>('/demo/roles'),
 
   /**
    * Previews another role's read view for an authenticated `demo` session.

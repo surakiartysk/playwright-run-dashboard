@@ -74,13 +74,24 @@ export function resolveTarget(env: Bindings, suite: Suite): Target | null {
     : null
 }
 
+/**
+ * Whether a run this role starts here is simulated.
+ *
+ * The one place the decision is made. `dispatchWorkflow` acts on it, the run's
+ * own row records it, and the run form reads it before anyone presses Run — so
+ * none of the three can disagree with the others. `role === 'demo'` stays the
+ * first term: no deployment flag can make a demo run real. See decision 12.
+ */
+export const simulates = (env: Bindings, role: Role): boolean =>
+  role === 'demo' || env.SIMULATE_DISPATCH !== 'false'
+
 export async function dispatchWorkflow(
   env: Bindings,
   runId: string,
   role: Role,
   inputs: { suite: Suite; service: string; tags: string; workers?: number; ref?: string },
 ): Promise<DispatchResult> {
-  const simulate = role === 'demo' || env.SIMULATE_DISPATCH !== 'false'
+  const simulate = simulates(env, role)
 
   if (simulate) {
     // The workflow would normally call back; locally nothing will, so the run

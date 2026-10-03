@@ -45,6 +45,7 @@ export function run(overrides: Partial<Run> = {}): Run {
     workflowUrl: null,
     suiteVersion: null,
     suiteSha: null,
+    simulated: false,
     ...overrides,
   }
 }

@@ -389,17 +389,19 @@ pretending to be one.
 
 **Decision.** A fourth role, `demo`, whose real-vs-simulated behaviour is
 decided by the role itself rather than by `SIMULATE_DISPATCH`. Every other
-role checks that flag once, in `dispatchWorkflow`, and does whatever it says.
-`demo` short-circuits it:
+role checks that flag once, in `simulates()` in `github.ts`, and does whatever
+it says. `demo` short-circuits it:
 
 ```ts
-const simulate = role === 'demo' || env.SIMULATE_DISPATCH !== 'false'
+export const simulates = (env: Bindings, role: Role): boolean =>
+  role === 'demo' || env.SIMULATE_DISPATCH !== 'false'
 ```
 
 So the deployment can run for real — `dev`, `qa`, and `admin` dispatching
 actual workflow runs — while `demo` still only ever simulates, regardless of
 the flag, the token present, or anything else about the environment. A visitor
-using the `demo` password gets a working dashboard with real-looking runs; a
+using the `demo` password gets a working dashboard with runs that behave like
+real ones — and say they are not, below; a
 stolen or guessed `demo` password cannot trigger CI on the underlying
 repository, because the code path that would do that is never reached for
 that role. [`demo-role-safety.test.ts`](../packages/api/test/demo-role-safety.test.ts)
@@ -442,6 +444,30 @@ nothing else — so it would mean a migration, a new token shape and a change
 to `visibilityClause`, the one place this repository asks for most care. And
 it would make the demo worse: a new visitor would open an empty list, where
 the shared history shows them a populated one.
+
+### A simulated run says so
+
+For a long time it did not. A simulated run showed "13 / 13", a duration and a
+report link exactly as a real one did, the form above it said "Runs against
+the published suites", and the report it linked was the shared sample from
+[decision 14](#14-one-real-allure-report-shared-by-every-simulated-run) rather
+than anything that run produced. The POST response carried `simulated: true`,
+and nothing kept it. The runs most visitors see are `demo`'s, which never run
+at all — so the page was most misleading exactly where it was most looked at.
+
+Now the row records it (migration 0010), from the same `simulates()` that
+`dispatchWorkflow` acts on, so the two cannot disagree. The list marks the run,
+its report link reads "Sample report", and the form says before Run is pressed
+whether this session's runs will be simulated — `GET /demo/roles` returns it
+for the real role, never a previewed one.
+
+The cost: a column whose old rows had to be guessed. The backfill marks
+everything `demo` started and everything pointing at the sample report, which
+covers every simulated run that finished; one simulated by the deployment flag
+that never finished stays marked real, because nothing else recorded how it was
+dispatched. And it is a migration, so it carries the deploy-order rule: a
+Worker deployed before 0010 answers every new run with a 500, because its
+insert names a column the database does not have yet.
 
 **Trade-off.** A second axis of trust now exists alongside `SIMULATE_DISPATCH`
 — "is this deployment simulating" and "is this role trusted" are no longer the
@@ -1084,7 +1110,7 @@ so, shown only where the scroll exists.
 `demo`'s password is public, and a one-click button on the sign-in screen signs
 in with it. That is deliberate, and the containment around it is real: a demo
 run is always simulated and never reaches a real workflow (the `role === 'demo'`
-term sits first in `dispatchWorkflow`'s `simulate` expression, so no deployment
+term sits first in `simulates()`, which `dispatchWorkflow` acts on, so no deployment
 flag can turn it off), it cannot delete anything or reach the gate or the key
 routes, and nothing it does changes what another role sees.
 

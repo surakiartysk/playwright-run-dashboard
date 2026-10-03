@@ -299,6 +299,14 @@ export function RunHistory({
                           <span style={s.runService}>{run.service}</span>
                           <span style={s.runTags}>@{run.tags}</span>
                           <span style={s.runRef}>{run.ref}</span>
+                          {run.simulated && (
+                            <span
+                              style={s.runSimulated}
+                              title="No workflow ran: these numbers come from the simulator, and Report opens a shared sample."
+                            >
+                              simulated
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -396,7 +404,7 @@ export function RunHistory({
                                 style={s.report}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                Report ↗
+                                {run.simulated ? 'Sample report ↗' : 'Report ↗'}
                               </a>
                             )}
                             {canDelete && (
@@ -554,6 +562,14 @@ const s: Record<string, CSSProperties> = {
   runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
   runTags: { ...mono, fontSize: 11.5, color: c.t4 },
   runRef: { ...mono, fontSize: 11.5, color: c.t5 },
+  // Dashed rather than filled: it qualifies the row, it is not a status.
+  runSimulated: {
+    fontSize: 11,
+    color: c.t4,
+    border: `1px dashed ${c.border}`,
+    borderRadius: 5,
+    padding: '0 5px',
+  },
   caretButton: {
     background: 'none',
     border: 'none',

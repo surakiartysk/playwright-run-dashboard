@@ -9,6 +9,7 @@ import {
 } from '../auth'
 import { DEV_TOKEN_SECRET } from '../config'
 import { POLICIES } from '../policy'
+import { simulates } from '../github'
 
 export const demoRoutes = new Hono<HonoEnv>()
 
@@ -87,6 +88,9 @@ demoRoutes.get('/roles', (c) =>
     // preview cookie can never reach a write or dispatch path regardless of
     // that flag's value.
     canPreview: c.get('role') === 'demo',
+    // Whether the runs *this* session starts are simulated — the real role's,
+    // never a previewed one's. Lets the run form say so before Run is pressed.
+    simulates: simulates(c.env, c.get('role')),
     roles: ROLES.map((role) => ({
       role,
       ...POLICIES[role],
