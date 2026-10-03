@@ -6,14 +6,15 @@ import { c, status as sc } from '../theme'
  * Narrowing the run list, client-side.
  *
  * Filtered here rather than by re-fetching with `?status=`, which the API also
- * supports. Filtering locally keeps the summary above and the list below
- * reading the same rows: a server-side filter would change the set that was
- * fetched, and the summary — which is derived from exactly those rows — would
- * start describing something other than what the reader is looking at.
+ * supports. Filtering locally leaves the fetched set alone, so the summary
+ * above keeps describing all the loaded runs while the list narrows to a view
+ * of them: a server-side filter would change the set that was fetched, and the
+ * summary — derived from exactly those rows — would quietly start describing
+ * only the failures, or only the passes.
  *
  * The cost, which grew: this narrows what was loaded, not what exists. That
  * was nearly free when the list stopped at 25 rows and the two were the same
- * thing. They are not any more — "Load more" arrived the week after this, and
+ * thing. They are not any more — "Load more" arrived later, and
  * a reader on page one filtering to Failed is shown the failures among the
  * loaded runs, not among all of them. The footer states the gap in the same
  * breath ("Showing 25 of 91"), which is the only reason this is still the

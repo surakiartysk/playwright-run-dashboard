@@ -9,10 +9,10 @@ import { c, mono, status as sc } from '../theme'
  * "is the suite healthy" has to do the arithmetic themselves. These four
  * numbers are that arithmetic.
  *
- * Derived from the runs already on screen rather than fetched separately, so
- * the figures cannot disagree with the rows beneath them — a summary that
- * says 80% while the visible list shows two of three failing is worse than no
- * summary. It also means the scoping comes free: a `dev` sees stats for the
+ * Derived from the loaded runs rather than fetched separately, so the figures
+ * describe the same rows the list draws from — a summary that says 80% while
+ * the unfiltered list shows two of three failing is worse than no summary. A
+ * status filter narrows the list, not these. It also means the scoping comes free: a `dev` sees stats for the
  * runs a `dev` may see, because those are the only rows there are.
  */
 export interface RunSummary {

@@ -8,7 +8,7 @@ import { c } from '../theme'
  *
  * These controls used to be scattered: the gate sat loose between the trend and
  * the run form, mixed in with what every role sees, and key management existed
- * only as two API routes with no UI at all. Two problems in one — an admin
+ * only as three API routes with no UI at all. Two problems in one — an admin
  * could not tell which controls were theirs, and half of them were unreachable.
  *
  * Collapsed by default. An admin opens this dashboard for the same reason
