@@ -31,6 +31,26 @@ export function App() {
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
 
+  /**
+   * Ends the session on this page, and forgets everything it loaded.
+   *
+   * Setting `role` alone left the previous session's runs in state, and the
+   * next sign-in rendered them until its own `GET /runs` answered — so a `dev`
+   * signing in after an `admin` on the same tab was shown runs from branches
+   * the server would never send a `dev`. Visibility is enforced in the query;
+   * a client holding on to another session's rows walks around it.
+   */
+  const endSession = useCallback(() => {
+    setRole(null)
+    setViewAs(null)
+    setRuns([])
+    setTotal(0)
+    setNextCursor(null)
+    setPolicies([])
+    setCanPreview(false)
+    setError(null)
+  }, [])
+
   // Restores an existing session on load, so a refresh is not a sign-out.
   useEffect(() => {
     api
@@ -75,12 +95,12 @@ export function App() {
       // An expired session should return to the sign-in screen rather than
       // leaving a dashboard that quietly fails every request.
       if (e instanceof ApiError && e.status === 401) {
-        setRole(null)
+        endSession()
         return
       }
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
-  }, [role])
+  }, [role, endSession])
 
   /** Appends the next page. The cursor makes this safe against new runs
    *  arriving at the top: it names a row, not an offset. */
@@ -100,14 +120,14 @@ export function App() {
       setError(null)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
-        setRole(null)
+        endSession()
         return
       }
       setError(e instanceof Error ? e.message : 'Could not load more runs')
     } finally {
       setLoadingMore(false)
     }
-  }, [nextCursor, loadingMore])
+  }, [nextCursor, loadingMore, endSession])
 
   useEffect(() => {
     void refresh()
@@ -167,7 +187,16 @@ export function App() {
           >
             {currentTheme() === 'dark' ? '☀' : '☾'}
           </button>
-          <button onClick={() => void api.logout().then(() => setRole(null))} style={s.signOut}>
+          <button
+            onClick={() =>
+              void api
+                .logout()
+                .then(endSession, (e: unknown) =>
+                  setError(e instanceof Error ? e.message : 'Could not sign out'),
+                )
+            }
+            style={s.signOut}
+          >
             Sign out
           </button>
         </div>
@@ -189,7 +218,7 @@ export function App() {
               }
             } catch (e) {
               if (e instanceof ApiError && e.status === 401) {
-                setRole(null)
+                endSession()
                 return
               }
               setError(e instanceof Error ? e.message : 'Could not switch the preview')
@@ -212,7 +241,7 @@ export function App() {
         the history a reader digs into once the headline has told them whether
         they need to.
       */}
-      <RunStats runs={runs} />
+      <RunStats runs={runs} total={total} />
 
       <RunTrend runs={runs} />
 

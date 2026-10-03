@@ -16,6 +16,9 @@ import { c, mono, status as sc } from '../theme'
  * runs a `dev` may see, because those are the only rows there are.
  */
 export interface RunSummary {
+  /** Every run the caller may see — what "Runs" means to a reader. */
+  available: number
+  /** The runs loaded, which every other figure here is computed from. */
   total: number
   finished: number
   inFlight: number
@@ -35,12 +38,13 @@ export interface RunSummary {
  * runs came back green" is the question the list already answers, so the
  * summary answers the same one.
  */
-export function summarise(runs: Run[]): RunSummary {
+export function summarise(runs: Run[], available: number = runs.length): RunSummary {
   const finished = runs.filter((run) => !isPending(run.status))
   const passed = finished.filter((run) => run.status === 'passed').length
   const durations = finished.map((run) => run.durationMs).filter((ms): ms is number => ms !== null)
 
   return {
+    available: Math.max(available, runs.length),
     total: runs.length,
     finished: finished.length,
     inFlight: runs.length - finished.length,
@@ -50,18 +54,33 @@ export function summarise(runs: Run[]): RunSummary {
   }
 }
 
-export function RunStats({ runs }: { runs: Run[] }) {
+/**
+ * `total` is every run the caller may see. "Runs" shows it, because the list
+ * beneath says "Showing 25 of 140" and a tile reading 25 above it contradicts
+ * that; the other figures are computed from the loaded runs, and the note says
+ * so whenever that is fewer.
+ */
+export function RunStats({ runs, total: available }: { runs: Run[]; total: number }) {
   // Nothing to summarise, and an empty bar of zeroes reads as a broken widget.
   if (runs.length === 0) return null
 
-  const { total, finished, inFlight, failing, rate, median } = summarise(runs)
+  const {
+    available: all,
+    total,
+    finished,
+    inFlight,
+    failing,
+    rate,
+    median,
+  } = summarise(runs, available)
+  const partial = all > total ? `figures cover the newest ${total}` : null
 
   return (
     <div style={s.wrap}>
       <Stat
         label="Runs"
-        value={String(total)}
-        note={inFlight > 0 ? `${inFlight} in flight` : null}
+        value={String(all)}
+        note={inFlight > 0 ? `${inFlight} in flight` : partial}
       />
       <Stat
         label="Pass rate"

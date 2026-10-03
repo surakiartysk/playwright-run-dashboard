@@ -21,6 +21,7 @@ const run = (status: RunStatus, durationMs: number | null = 1000): Run =>
 describe('summarise', () => {
   it('returns nulls rather than NaN for an empty list', () => {
     expect(summarise([])).toEqual({
+      available: 0,
       total: 0,
       finished: 0,
       inFlight: 0,
@@ -102,6 +103,27 @@ describe('summarise', () => {
     it('ignores runs that recorded no duration', () => {
       const summary = summarise([run('passed', null), run('passed', 4000)])
       expect(summary.median).toBe(4000)
+    })
+  })
+
+  /**
+   * "Runs" is read as how many runs there are, and the list beneath already
+   * says "Showing 25 of 140". Counting only the loaded page put a 25 above
+   * that sentence.
+   */
+  describe('available', () => {
+    it('is every run the caller may see, not the number loaded', () => {
+      const summary = summarise([run('passed'), run('failed')], 140)
+      expect(summary.available).toBe(140)
+      expect(summary.total).toBe(2)
+    })
+
+    it('defaults to the loaded runs when nothing more is known', () => {
+      expect(summarise([run('passed'), run('failed')]).available).toBe(2)
+    })
+
+    it('is never fewer than the runs on screen', () => {
+      expect(summarise([run('passed'), run('failed'), run('passed')], 1).available).toBe(3)
     })
   })
 })
