@@ -24,7 +24,16 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
-/** Total tests reported by a package's vitest run. */
+/**
+ * Total tests reported by a package's vitest run, and how many of them did not
+ * run.
+ *
+ * `numTotalTests` counts a skipped or todo test like any other, so with one
+ * `it.skip` this check went on reporting "509 tests … as documented" — and a
+ * skip is not a failure, so `pnpm test` stayed green as well. The total stays
+ * the figure the docs are checked against; anything that did not run is
+ * refused below rather than quietly counted.
+ */
 function countTests(pkg) {
   const raw = execFileSync('pnpm', ['exec', 'vitest', 'run', '--reporter=json'], {
     cwd: join(ROOT, 'packages', pkg),
@@ -36,17 +45,31 @@ function countTests(pkg) {
   // the pool booting workerd.
   const start = raw.indexOf('{"numTotalTestSuites"')
   const report = JSON.parse(start === -1 ? raw : raw.slice(start))
-  return report.numTotalTests
+  return { total: report.numTotalTests, notRun: report.numPendingTests + report.numTodoTests }
 }
 
-const api = countTests('api')
-const ui = countTests('ui')
+const apiRun = countTests('api')
+const uiRun = countTests('ui')
+const api = apiRun.total
+const ui = uiRun.total
 const total = api + ui
 
 console.log(`api: ${api} tests`)
 console.log(`ui:  ${ui} tests`)
 
 const problems = []
+
+for (const [pkg, run] of [
+  ['api', apiRun],
+  ['ui', uiRun],
+]) {
+  if (run.notRun > 0) {
+    problems.push(
+      `packages/${pkg}: ${run.notRun} test(s) skipped or todo — a test that does not run ` +
+        'is not one of the tests the docs count',
+    )
+  }
+}
 
 const claim = (file, pattern, label, expected) => {
   const text = readFileSync(join(ROOT, file), 'utf8')

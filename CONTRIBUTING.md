@@ -219,7 +219,9 @@ dispatches have their own schedules.
 Four things, each of which has gone stale before:
 
 - **Test counts.** Fails when the docs advertise a count that no longer matches
-  reality, or when the four documents stating the mutation count disagree.
+  reality, or when the four documents stating the mutation count disagree — and
+  when any test is skipped or todo, because vitest counts those in its total and
+  a skip does not fail `pnpm test`, so the count went on matching.
 - **The mutation record.** [`docs/mutations.md`](docs/mutations.md) must hold as
   many rows as its own prose says, numbered without gaps.
 - **The decisions Contents.** Every entry must match a heading in
