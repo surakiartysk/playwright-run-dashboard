@@ -86,9 +86,10 @@ export function randomSuffix(length = 6): string {
  * `demo`'s password is public, and a one-click button on the sign-in screen
  * signs in with it. That is deliberate and
  * safe in every way that matters: a demo run is always simulated, never
- * reaches a real workflow, sees only the runs it started, and cannot delete
- * anything. The one thing a stranger *can* do is start simulated runs in a
- * loop, and the only casualty is rows in D1.
+ * reaches a real workflow, and cannot delete anything. (It can read more than
+ * its own runs — previewing another role shows that role's runs — but reading
+ * changes nothing; see decision 22.) The one thing a stranger *can* do is
+ * start simulated runs in a loop, and the only casualty is rows in D1.
  *
  * So this is a housekeeping limit, not a security control — the security is
  * that demo cannot reach anything real in the first place. It is deliberately

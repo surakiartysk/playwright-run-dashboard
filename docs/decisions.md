@@ -1084,12 +1084,20 @@ so, shown only where the scroll exists.
 in with it. That is deliberate, and the containment around it is real: a demo
 run is always simulated and never reaches a real workflow (the `role === 'demo'`
 term sits first in `dispatchWorkflow`'s `simulate` expression, so no deployment
-flag can turn it off), it sees only the runs it started itself, and it cannot
-delete anything or reach the gate or the key routes.
+flag can turn it off), it cannot delete anything or reach the gate or the key
+routes, and nothing it does changes what another role sees.
+
+What it can _read_ is wider than its own runs, and on purpose: previewing
+another role ([decision 13](#13-a-second-narrower-cookie-for-looking-at-another-roles-view))
+shows that role's runs and opens their reports. On this deployment those are
+runs of the two published suites against their own targets, so there is
+nothing in them a stranger should not see; on a deployment whose reports did
+carry something private, the preview would need to withhold report links for
+runs `demo` did not start.
 
 What a stranger _can_ do is start simulated runs in a loop. The only casualty
 is rows in D1, which is a housekeeping problem rather than a security one — and
-it is the one thing the published password actually exposes.
+it is the one thing the published password lets a stranger change.
 
 So `POST /runs` refuses a demo run once thirty have started in the last hour,
 with a 429. Deliberately generous: the number exists to stop a script, not to

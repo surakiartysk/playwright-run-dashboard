@@ -6,10 +6,11 @@ machine holding an API key can start one without opening the page at all.
 
 Four roles see four different dashboards. A `dev` is pinned to `main` and sees
 only main-branch runs; `qa` gets the release branches; `admin` gets everything
-and may delete; `demo` sees only the runs it started itself and can never
-trigger a real one, which is what makes its password safe to publish rather
-than hand out privately. The interesting part is not the Run button — it is
-_who may run what, and who may then see the result_.
+and may delete; `demo` sees the runs it started itself, may preview — read-only
+— what the other roles see, and can never trigger a real run, which is what
+makes its password safe to publish rather than hand out privately. The
+interesting part is not the Run button — it is _who may run what, and who may
+then see the result_.
 
 **Version 1.0.0** — complete against its own scope: four roles, the run gate,
 signed callbacks and scoped report links, all deployed.
