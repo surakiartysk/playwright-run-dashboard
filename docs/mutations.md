@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 121 now — which was the one figure
+**ninety-nine** when this file was written, 126 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **Sixty-seven mutations are
+This file is what that number can actually show. **Seventy-two mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between sixty-seven and 121 is
+changed and what went red. The gap between seventy-two and 126 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -93,6 +93,11 @@ figure the prose states, so the two cannot drift apart.
 | 65  | `9ad75ba` · 3 Oct  | A right password resets the count to zero                                     | 1 test: "does not let demo's published password wipe the count…"                        |
 | 66  | `9ad75ba` · 3 Oct  | Check the count, then record the failure                                      | 1 test: "holds against guesses sent all at once": 30, not 10                            |
 | 67  | `9ad75ba` · 3 Oct  | The window never restarts                                                     | 1 test: "starts an address over once its window has passed"                             |
+| 68  | `f85bdfb` · 4 Oct  | The run's row always recorded as real                                         | 2 tests: the demo run and the flag-simulated run read back real                         |
+| 69  | `f85bdfb` · 4 Oct  | The run's row always recorded as simulated                                    | 1 test: "marks a real dispatch as not simulated"                                        |
+| 70  | `f85bdfb` · 4 Oct  | The view ignores the stored column                                            | 2 tests: both simulated cases read back real                                            |
+| 71  | `f85bdfb` · 4 Oct  | /demo/roles tells only demo it simulates                                      | 1 test: "says a real role dispatches for real only where…"                              |
+| 72  | `f85bdfb` · 4 Oct  | `role === 'demo'` dropped from `simulates()`                                  | 2 tests: the demo row, and the form's answer for demo                                   |
 
 ---
 
@@ -105,12 +110,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **seventy-one**: sixty-seven described, four
+So the commit history accounts for **seventy-six**: seventy-two described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-121 mutations have been run. Seventy-one are in the history. The other fifty
+126 mutations have been run. Seventy-six are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -119,14 +124,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-121 is also a floor rather than an exact count. The prose figure stood at
+126 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 67 are all from that period, and every future one belongs
+produced — rows 23 to 72 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
