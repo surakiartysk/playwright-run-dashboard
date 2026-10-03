@@ -16,6 +16,7 @@ sequenceDiagram
 
     D->>UI: sign in
     UI->>W: POST /auth/login
+    W->>DB: charge one attempt to this address
     W-->>UI: Set-Cookie: session (signed, 8h)
 
     D->>UI: pick suite + service + scope + branch, press Run
@@ -131,15 +132,15 @@ to reach a bucket the job can already write to. See
 
 ## Why each surface authenticates differently
 
-| Surface            | Caller                 | Authentication                | Why                                                             |
-| ------------------ | ---------------------- | ----------------------------- | --------------------------------------------------------------- |
-| `POST /auth/login` | a person               | password → role               | The only place a secret is exchanged                            |
-| `POST /runs`       | the dashboard          | session cookie + policy       | Needs to know _who_, to decide what they may run                |
-| `GET /runs`        | the dashboard, polling | session cookie, scoped in SQL | Needs to know who, to decide what they may see                  |
-| `POST /webhook`    | the workflow           | HMAC over `timestamp.body`    | The only endpoint that can change a result                      |
-| `GET /reports/*`   | a browser tab          | signed run-scoped token       | Asset requests cannot carry a header                            |
-| `GET /gate`        | the dashboard          | session cookie                | Readable by the role it restricts, so a refusal explains itself |
-| `PUT /gate`        | an admin               | session cookie + role         | Pauses developer runs without editing anyone's role             |
+| Surface            | Caller                 | Authentication                       | Why                                                                     |
+| ------------------ | ---------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `POST /auth/login` | a person               | password → role, limited per address | The only place a secret is exchanged, so the only one worth guessing at |
+| `POST /runs`       | the dashboard          | session cookie + policy              | Needs to know _who_, to decide what they may run                        |
+| `GET /runs`        | the dashboard, polling | session cookie, scoped in SQL        | Needs to know who, to decide what they may see                          |
+| `POST /webhook`    | the workflow           | HMAC over `timestamp.body`           | The only endpoint that can change a result                              |
+| `GET /reports/*`   | a browser tab          | signed run-scoped token              | Asset requests cannot carry a header                                    |
+| `GET /gate`        | the dashboard          | session cookie                       | Readable by the role it restricts, so a refusal explains itself         |
+| `PUT /gate`        | an admin               | session cookie + role                | Pauses developer runs without editing anyone's role                     |
 
 The webhook is the one worth attacking: it writes the numbers the dashboard
 displays. Anyone who learned a run id and could post unsigned would be able to

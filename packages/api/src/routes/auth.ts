@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
 import { clearCookie, createToken, requireSession, roleForPassword, sessionCookie } from '../auth'
 import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from '../config'
+import { LOGIN_WINDOW_MINUTES, chargeAttempt, clientAddress, refundAttempt } from '../loginLimit'
 
 export const authRoutes = new Hono<HonoEnv>()
 
@@ -31,11 +32,23 @@ authRoutes.post('/login', async (c) => {
   } | null
   if (!body?.password) return c.json({ error: 'Password is required' }, 422)
 
+  // Before the password is looked at, so an address over its limit learns
+  // nothing — not even that it finally guessed right. See decision 28.
+  const client = clientAddress(c.req.raw)
+  if (!(await chargeAttempt(c.env.DB, client))) {
+    return c.json(
+      { error: `Too many wrong passwords. Try again within ${LOGIN_WINDOW_MINUTES} minutes.` },
+      429,
+    )
+  }
+
   const role = await roleForPassword(c.env, body.password)
 
   // No distinction between "wrong password" and "no such role" — there is
   // nothing to enumerate.
   if (!role) return c.json({ error: 'Wrong password' }, 401)
+
+  await refundAttempt(c.env.DB, client)
 
   // Optional on purpose: a blank name is a valid sign-in, and refusing one
   // would turn a label into a gate. `demo` never gets one — it is a published

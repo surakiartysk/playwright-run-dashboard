@@ -72,7 +72,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 503 tests — 379 in the Worker, 124 in the UI
+pnpm test          # 509 tests — 385 in the Worker, 124 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -135,6 +135,11 @@ reads it. Its absence surfaces as a failed dispatch naming it, on the first
 real run. It needs `actions: write` on **both** suite repositories — a token
 scoped to one of them dispatches that suite and fails on the other, with
 GitHub's 404 rather than anything this dashboard can explain.
+
+Make the three passwords long and random. Sign-in refuses an address after ten
+wrong ones in fifteen minutes
+([decision 28](docs/decisions.md#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)),
+which makes a short password slow to find rather than safe to use.
 
 `DEMO_PASSWORD` is deliberately absent. `demo` is expected to keep a guessable
 password, because what makes it safe is that it can never dispatch for real —

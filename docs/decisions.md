@@ -36,6 +36,7 @@ interviewer should press on hardest.
 25. [A key may not issue a key](#25-a-key-may-not-issue-a-key)
 26. [The run form has one axis, because the suites do](#26-the-run-form-has-one-axis-because-the-suites-do)
 27. [The mutation count states its gap rather than closing it](#27-the-mutation-count-states-its-gap-rather-than-closing-it)
+28. [Sign-in counts wrong passwords, and counts them before checking](#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)
 
 ---
 
@@ -1434,6 +1435,96 @@ match would force the gap closed by invention.
   left out of both passes. Eight were, on 23 and 24 September, until they were
   added by hand — [mutations.md](mutations.md#what-the-check-guards-and-what-it-does-not)
   says what the check can and cannot see.
+
+---
+
+## 28. Sign-in counts wrong passwords, and counts them before checking
+
+**Context.** `POST /auth/login` answered every password it was sent, as fast as
+the Worker could compare them. Three of the four passwords guard something real
+— `dev` and `qa` dispatch real workflows, `admin` deletes runs and issues keys —
+and nothing in front of them told a guesser to slow down. The payment sandbox
+in the same portfolio had a sign-in limit; this repo, whose whole subject is
+who may do what, did not.
+
+**Decision.** Ten wrong passwords per address in a fifteen-minute window. The
+eleventh attempt gets a 429 _whatever the password_, the right one included: a
+limit that still answered 200 to a correct guess would tell the guesser which
+guess had worked, and the remaining attempts would only have been a delay.
+
+The count lives in D1 (migration 0009), one row per address.
+
+### Per address, and why decision 22 said the opposite
+
+Decision 22 refused to key the demo limit on IP: spoofable, and shared by
+everyone behind one NAT. Neither reason transfers whole.
+
+The address here is `CF-Connecting-IP`, which Cloudflare sets and overwrites,
+so a caller cannot choose it. The NAT cost is real and is listed below. What
+decides it is the alternative: there are no accounts, so the only other key is
+the role, and a bucket per role would let anyone lock every admin out by typing
+ten wrong passwords — a limit that hands a stranger a denial of service is
+worse than no limit. The demo limit could share one bucket because what it
+locked was a demo; this one would lock the people who run the thing.
+
+### Charged before the password is checked
+
+The obvious order is check the count, compare the password, record a failure.
+It does not hold. Every request reads the count before any of the failures it
+is about to cause have been written, so guesses sent in parallel all read the
+same low number and all get checked. That is measured, not supposed: with that
+order, in the test pool, thirty concurrent wrong passwords from one address
+were all checked against a limit of ten.
+
+So `chargeAttempt` increments and reads back in one statement, before the
+password is looked at, and each request sees its own place in the queue. A
+correct password is refunded afterwards, so signing in often costs nothing.
+
+### Refunded by one, never reset
+
+The usual courtesy is to clear the counter on a successful sign-in. Here that
+would undo the whole limit: `demo`'s password is on the sign-in screen, so
+anyone could wipe their count between guesses by signing in as `demo`. A
+success gives back exactly the attempt it was charged and no more.
+
+### Why D1 and not Cloudflare's rate limiter
+
+Workers has a rate-limiting binding that needs no table. Cloudflare describes
+it as permissive and eventually consistent, counted separately in each
+location — so a guesser whose requests land in several places gets several
+limits, and a local simulation of it shows what the simulation does, not what
+the network does. The test for parallel guesses above is the one that matters,
+and it needs a counter whose behaviour it can see. D1 is where the demo limit
+already counts, and an exact count is something a test can pin.
+
+Keys are not counted. A key's secret is about 130 bits; a limit on guessing it
+would protect nothing a guesser could reach.
+
+### Trade-offs
+
+- **Sign-in now depends on D1.** It used to touch nothing but the environment
+  and the crypto API. A D1 outage now takes sign-in down with it, and a Worker
+  deployed before migration 0009 answers every sign-in with a 500 — the
+  deploy-order failure from CLAUDE.md, now on the login screen. That is left
+  loud on purpose: like policy and unlike the gate (decision 11), this fails
+  closed, because a limit that quietly switches off when its table is missing
+  is a protection nobody notices is gone.
+- **One address can be many people.** An office or a mobile carrier behind one
+  NAT shares a bucket, so ten wrong passwords from anyone on it — a colleague's
+  typos, or a guesser on the same network — lock everyone there out for up to
+  fifteen minutes. Right passwords are refunded, so ordinary use never fills
+  it; mistakes do.
+- **It slows a guesser; it does not stop many.** Forty guesses an hour per
+  address is useless against a long password and still a search against a
+  short one, and an attacker with a thousand addresses gets a thousand times
+  the rate. `assertDeployable` checks that the passwords are set, not that they
+  are long. The limit is a speed bump in front of the password, not a
+  substitute for one.
+- **Every sign-in now costs two writes.** One to charge, one to refund. Nothing
+  on this deployment notices, but it is the price of the ordering above.
+- **Nothing sweeps the table.** One row per address that ever got a password
+  wrong, kept until someone deletes them. Housekeeping, as with demo runs in
+  decision 22, and the same unsolved kind.
 
 ---
 
