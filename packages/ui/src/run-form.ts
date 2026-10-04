@@ -1,18 +1,13 @@
 import type { Suite } from './api'
 
 /**
- * The request the New run form sends, built outside the component so the one
- * rule it has to keep is testable without rendering.
+ * What the New run form holds: which suite, the slice of it, and how to run it.
  *
- * The suites filter on one axis — a service or a tag, never both — and the API
- * refuses a request naming both. The form used to keep that rule by clearing
- * the tag whenever the service *changed*. Its initial state never changed: it
- * opened on `items` with `smoke` selected, so pressing Run on an untouched form
- * was refused with a 422. That is the first thing a demo visitor does.
- *
- * Deriving the tag here rather than trusting the state means no sequence of
- * selections — the initial one, a suite switch that moves the service, or one
- * not written yet — can send both.
+ * `service` and `tags` are two independent choices that combine — the tests of
+ * that service carrying that tag. `all` in either means "no narrowing on this
+ * side". That is a real request now: the suites' workflows take a second input
+ * for the tag (decision 30). It used to be impossible, because the suites
+ * filtered on one axis and the form had to hide the other.
  */
 export interface RunForm {
   suite: Suite
@@ -20,22 +15,6 @@ export interface RunForm {
   tags: string
   ref: string
   workers: number
-}
-
-/**
- * The tag filter that actually applies: the selected one when running across
- * every service, `all` when a single service is named.
- *
- * @param service - The selected service, or `all`
- * @param tags - The selected tag, which only counts when service is `all`
- */
-export function effectiveTags(service: string, tags: string): string {
-  return service === 'all' ? tags : 'all'
-}
-
-/** The body for `POST /runs`. */
-export function runRequest(form: RunForm): RunForm {
-  return { ...form, tags: effectiveTags(form.service, form.tags) }
 }
 
 /*
@@ -58,11 +37,10 @@ export const SUITE_SERVICES: Record<Suite, string[]> = {
 /**
  * `all` first, and it is not padding.
  *
- * The suites filter on one axis: the workflow's `scope` input takes a tag name
- * or a service name, never both. Picking a service therefore means no tag
- * filter, and `all` is how that is said — the API refuses a request naming
- * both, because the dispatch used to drop the tag and the run went on
- * displaying it.
+ * `all` is how "no narrowing on this side" is said, and a form that opens on it
+ * runs the whole of whatever the other choice names. The workflows' `scope`
+ * input takes a tag or a service; their optional `tag` input narrows it by one
+ * of these (decision 30).
  */
 export const SUITE_TAGS: Record<Suite, string[]> = {
   api: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
@@ -90,14 +68,6 @@ export function afterSuiteChange(
     tags: tags.includes(current.tags) ? current.tags : (tags[0] ?? 'all'),
   }
 }
-
-/**
- * Scope is only a choice when running across every service: with one named the
- * suite filters by that service and `effectiveTags` is `all` whatever was
- * picked. The control stays on screen, locked, so the form says why instead of
- * losing a field.
- */
-export const scopeLocked = (service: string): boolean => service !== 'all'
 
 /** One branch on offer is not a choice. `demo` and `dev` may only use `main`. */
 export const refLocked = (refs: readonly string[]): boolean => refs.length <= 1
@@ -134,7 +104,7 @@ export function initialForm(maxWorkers: number, over: Partial<RunForm> = {}): Ru
   return {
     suite: 'api',
     service: 'items',
-    tags: 'smoke',
+    tags: 'all',
     ref: 'main',
     ...over,
     workers: clampWorkers(over.workers ?? defaultWorkers(maxWorkers), maxWorkers),
@@ -150,17 +120,38 @@ export function withSuite(form: RunForm, next: Suite): RunForm {
  * Send the form and say what happened, with `post` injected so what goes over
  * the wire is testable without a network.
  *
- * What is sent is `runRequest(form)`, never the form as selected: the form
- * opens on `items` with `smoke` still selected, and only the request builder
- * knows that a named service means no tag. Posting the state directly is the
- * mistake that answered every press of Run on an untouched form with a 422.
+ * What is posted is a copy of the selection, field for field: the API takes the
+ * service and the tag as two things and so does the form. A copy, not the state
+ * object itself, so what was sent cannot change under a later keystroke.
  */
 export async function submitRun(
   form: RunForm,
   post: (body: RunForm) => Promise<{ simulated: boolean }>,
 ): Promise<string> {
-  const run = await post(runRequest(form))
+  const run = await post({ ...form })
   return startedMessage(run.simulated)
+}
+
+/**
+ * What pressing Run will run, in a sentence.
+ *
+ * Two dropdowns that combine are easy to misread — "items" and "@smoke" could
+ * be a union or an intersection — so the form says which. It also says the one
+ * thing it cannot know: whether any test carries both. The tags live in the
+ * suites' specs and the dashboard cannot see them, so a pair nothing matches
+ * is a run the suite fails with "No tests found", and the sentence is where
+ * that is said before the button is pressed rather than after.
+ */
+export function describeSelection(form: Pick<RunForm, 'suite' | 'service' | 'tags'>): string {
+  const everyService = form.service === 'all'
+  const everyTag = form.tags === 'all'
+  const what = serviceLabel(form.suite, form.service)
+  const tag = scopeLabel(form.tags)
+
+  if (everyService && everyTag) return 'Runs every test in the suite.'
+  if (everyTag) return `Runs the ${what} tests.`
+  if (everyService) return `Runs every test tagged ${tag}.`
+  return `Runs the ${what} tests that are also tagged ${tag}. If none carry both, the run fails with “No tests found”.`
 }
 
 /**
@@ -200,3 +191,13 @@ export const serviceChoices = (suite: Suite): Choice[] =>
 
 export const scopeChoices = (suite: Suite): Choice[] =>
   SUITE_TAGS[suite].map((value) => ({ value, label: scopeLabel(value) }))
+
+/**
+ * How a recorded run's tag reads in the history: `@smoke`, or nothing.
+ *
+ * A run of a whole service stores the tag `all`, which means "no tag" and read
+ * as `items @all` in every row, tooltip and newest-run line — a tag nobody
+ * wrote. Now that a service and a tag are both real, the tag is shown when
+ * there is one and left out when there is not.
+ */
+export const runTag = (tags: string): string | null => (tags === 'all' ? null : `@${tags}`)

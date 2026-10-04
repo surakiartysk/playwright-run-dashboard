@@ -5,13 +5,12 @@ import {
   afterSuiteChange,
   clampWorkers,
   defaultWorkers,
-  effectiveTags,
+  describeSelection,
   initialForm,
   refLocked,
-  runRequest,
+  runTag,
   scopeChoices,
   scopeLabel,
-  scopeLocked,
   serviceChoices,
   serviceFieldLabel,
   serviceLabel,
@@ -22,41 +21,70 @@ import {
 } from '../src/run-form'
 
 /**
- * The one rule the New run form has to keep: a service or a tag, never both.
+ * The New run form's rules, apart from drawing it.
  *
- * The API refuses a request naming both, so breaking this is not a wrong run —
- * it is a Run button that answers every press with a 422. It did exactly that
- * on an untouched form, whose initial state paired `items` with `smoke`.
+ * The service and the tag are two choices that combine, which the suites' own
+ * workflows could not take until they gained a second input. These tests hold
+ * what the form does with the pair: it sends both, untouched, and says in a
+ * sentence which tests that is.
  */
 
-describe('the run request', () => {
-  it('sends tags=all when a single service is named, whatever tag was picked', () => {
-    // The form's own initial state, which the API used to refuse.
-    const body = runRequest({
-      suite: 'api',
-      service: 'items',
-      tags: 'smoke',
-      ref: 'main',
-      workers: 4,
-    })
-
-    expect(body).toEqual({ suite: 'api', service: 'items', tags: 'all', ref: 'main', workers: 4 })
+describe('what the form sends', () => {
+  it('sends the service and the tag as two separate fields, as selected', async () => {
+    let sent: unknown
+    await submitRun(
+      { suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4 },
+      async (body) => {
+        sent = body
+        return { simulated: true }
+      },
+    )
+    expect(sent).toEqual({ suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4 })
   })
 
-  it('keeps the picked tag when running across every service', () => {
-    expect(
-      runRequest({ suite: 'ui', service: 'all', tags: 'smoke', ref: 'develop', workers: 2 }).tags,
-    ).toBe('smoke')
+  it('does not hand over its own state: a later change cannot alter what was sent', async () => {
+    const form = initialForm(4, { tags: 'smoke' })
+    let sent: { tags: string } | undefined
+    await submitRun(form, async (body) => {
+      sent = body
+      return { simulated: true }
+    })
+    form.tags = 'flow'
+    expect(sent?.tags).toBe('smoke')
   })
 })
 
-describe('the scope the form shows', () => {
-  it('reads all while a service is picked, so the control matches what is sent', () => {
-    expect(effectiveTags('reservations', 'flow')).toBe('all')
+describe('describeSelection', () => {
+  const d = (service: string, tags: string, suite: 'api' | 'ui' = 'api') =>
+    describeSelection({ suite, service, tags })
+
+  it('says everything when nothing narrows', () => {
+    expect(d('all', 'all')).toBe('Runs every test in the suite.')
   })
 
-  it('reads the picked tag when no service is', () => {
-    expect(effectiveTags('all', 'flow')).toBe('flow')
+  it('names the service alone', () => {
+    expect(d('maintenance-logs', 'all')).toBe('Runs the Maintenance logs tests.')
+  })
+
+  it('names the tag alone, across every service', () => {
+    expect(d('all', 'smoke')).toBe('Runs every test tagged @smoke.')
+  })
+
+  /** "items" and "@smoke" could be read as either; the sentence says which. */
+  it('says "that are also", so two choices read as an intersection and not a union', () => {
+    const text = d('items', 'smoke')
+    expect(text).toContain('Runs the Items tests that are also tagged @smoke.')
+  })
+
+  it('warns, before Run is pressed, that a pair nothing carries fails', () => {
+    expect(d('items', 'flow')).toContain('No tests found')
+    expect(d('items', 'all')).not.toContain('No tests found')
+    expect(d('all', 'smoke')).not.toContain('No tests found')
+  })
+
+  it('uses the UI suite’s own words for its slices', () => {
+    expect(d('auth', 'smoke', 'ui')).toContain('Runs the Auth tests that are also tagged @smoke.')
+    expect(d('all', 'smoke', 'ui')).toBe('Runs every test tagged @smoke.')
   })
 })
 
@@ -96,11 +124,6 @@ describe('afterSuiteChange', () => {
 })
 
 describe('what the form locks', () => {
-  it('locks scope while one service is named, and frees it for all', () => {
-    expect(scopeLocked('items')).toBe(true)
-    expect(scopeLocked('all')).toBe(false)
-  })
-
   it('locks the branch when there is nothing to choose between', () => {
     expect(refLocked(['main'])).toBe(true)
     expect(refLocked([])).toBe(true)
@@ -156,7 +179,7 @@ describe('initialForm', () => {
     expect(initialForm(16)).toEqual({
       suite: 'api',
       service: 'items',
-      tags: 'smoke',
+      tags: 'all',
       ref: 'main',
       workers: 4,
     })
@@ -170,10 +193,8 @@ describe('initialForm', () => {
     })
   })
 
-  it('opens in a state the API accepts, whatever the tag selected', () => {
-    // The untouched form is the first thing a demo visitor presses Run on.
-    const body = runRequest(initialForm(4))
-    expect(body.service === 'all' || body.tags === 'all').toBe(true)
+  it('opens on the whole of a service, which is what the form always opened on', () => {
+    expect(initialForm(4)).toMatchObject({ service: 'items', tags: 'all' })
   })
 })
 
@@ -195,16 +216,6 @@ describe('withSuite', () => {
 
 describe('submitRun', () => {
   const accepted = (simulated: boolean) => async () => ({ simulated })
-
-  /** The untouched form: `items` with `smoke` selected, which the API refuses if sent as is. */
-  it('sends the request, not the selection, so a named service goes out with tags=all', async () => {
-    let sent: unknown
-    await submitRun(initialForm(4), async (body) => {
-      sent = body
-      return { simulated: true }
-    })
-    expect(sent).toMatchObject({ service: 'items', tags: 'all' })
-  })
 
   it('says whether the run it started is simulated', async () => {
     expect(await submitRun(initialForm(4), accepted(true))).toContain('simulated')
@@ -257,5 +268,17 @@ describe('what the form calls things', () => {
         expect(choice.label, choice.value).not.toBe(choice.value)
       }
     }
+  })
+})
+
+describe('runTag', () => {
+  it('writes a tag as it is written in a spec', () => {
+    expect(runTag('smoke')).toBe('@smoke')
+    expect(runTag('cross-service')).toBe('@cross-service')
+  })
+
+  /** `all` is the absence of a tag; `items @all` named one nobody wrote. */
+  it('says nothing for a run that was not narrowed by a tag', () => {
+    expect(runTag('all')).toBeNull()
   })
 })

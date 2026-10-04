@@ -278,6 +278,12 @@ describe('describe — what one bar says', () => {
     expect(text).toContain('main')
   })
 
+  it('leaves out a tag that means "no tag", rather than printing @all', () => {
+    expect(describeBar({ ...point, tags: 'all' })).not.toContain('@')
+    expect(describeBar({ ...point, tags: 'all' })).toContain('API · items · main')
+    expect(describeBar(point)).toContain('API · items @smoke · main')
+  })
+
   it('says who started it', () => {
     expect(describeBar(point)).toContain('by qa')
   })

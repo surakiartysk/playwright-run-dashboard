@@ -132,7 +132,7 @@ describe('the callback the suite workflow sends', () => {
  * If `on-demand.yml` changes its accepted values, this list goes stale and the
  * mismatch shows up here rather than as a 422 from GitHub in production.
  */
-const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[] }> = {
+const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[]; tag: string[] }> = {
   api: {
     style: ['both', 'functional-style', 'class-style'],
     scope: [
@@ -146,13 +146,16 @@ const WORKFLOW_ACCEPTS: Record<Suite, { style: string[]; scope: string[] }> = {
       'core',
       'cross-service',
     ],
+    // The optional second input: the tags that cut across services.
+    tag: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
   },
-  // The UI suite's own on-demand.yml. Same four input names — GitHub rejects
+  // The UI suite's own on-demand.yml. Same five input names — GitHub rejects
   // a dispatch carrying an input a workflow does not declare — but a different
   // vocabulary: its journeys are grouped by spec file rather than by tag.
   ui: {
     style: ['both', 'locator-first', 'page-first'],
     scope: ['all', 'smoke', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+    tag: ['all', 'smoke'],
   },
 }
 
@@ -325,19 +328,13 @@ describe('the dispatch the dashboard sends', () => {
   })
 
   /*
-   * The dispatch must carry the axis the caller named — nothing quietly
-   * dropped.
+   * The dispatch must carry what the caller named — nothing quietly dropped.
    *
-   * `scope` is one input, so a request naming a service *and* a tag had the
-   * tag discarded here while the run row kept it: the history said
-   * `items @smoke` for a run of the whole `items` slice. Sixteen of the twenty
-   * combinations the dashboard offered were that, and nothing between the
-   * dropdowns and the workflow could see it — this test is where the two views
-   * meet.
-   *
-   * `POST /runs` now refuses the combination (see routes-runs.test.ts); this
-   * asserts the other half, that for every shape it *does* accept, the value
-   * the caller named is the value the workflow receives.
+   * It did not, once: `scope` was the one input, so a request naming a service
+   * *and* a tag had the tag discarded here while the run row kept it, and the
+   * history said `items @smoke` for a run of the whole `items` slice
+   * (decision 26). The workflows now take a second input, `tag`, so for every
+   * shape the API accepts, the value named is the value the workflow receives.
    */
   it.each(['api', 'ui'] as const)(
     'sends %s the exact axis the caller named, never the other one',
@@ -356,6 +353,49 @@ describe('the dispatch the dashboard sends', () => {
 
       // Neither axis named: the workflow's own "everything" value, not a blank.
       expect((await dispatchBody({ suite, service: 'all', tags: 'all' })).scope).toBe('all')
+    },
+  )
+
+  /*
+   * The one input that is not always sent, and why that matters.
+   *
+   * A workflow rejects a dispatch carrying an input it does not declare. QA
+   * dispatches against `develop` and `release`, whose copy of the workflow may
+   * predate `tag`; if every dispatch carried one, every QA run on those
+   * branches would be refused over a feature it never used. So `tag` is present
+   * only when a service and a tag are both named, and every other request is
+   * the body it always was.
+   */
+  it.each(['api', 'ui'] as const)(
+    'sends %s a tag only when a service and a tag are both named',
+    async (suite) => {
+      const offered = DASHBOARD_OFFERS[suite]
+      const services = offered.services.filter((s) => s !== 'all')
+      const tags = offered.tags.filter((t) => t !== 'all')
+
+      for (const service of services) {
+        expect(
+          await dispatchBody({ suite, service, tags: 'all' }),
+          `${service} alone`,
+        ).not.toHaveProperty('tag')
+      }
+      for (const tag of tags) {
+        expect(
+          await dispatchBody({ suite, service: 'all', tags: tag }),
+          `${tag} alone`,
+        ).not.toHaveProperty('tag')
+      }
+      expect(await dispatchBody({ suite, service: 'all', tags: 'all' })).not.toHaveProperty('tag')
+
+      for (const service of services) {
+        for (const tag of tags) {
+          const body = await dispatchBody({ suite, service, tags: tag })
+          expect(body.scope, `${service}+${tag} scope`).toBe(service)
+          expect(body.tag, `${service}+${tag} tag`).toBe(tag)
+          expect(WORKFLOW_ACCEPTS[suite].scope).toContain(body.scope)
+          expect(WORKFLOW_ACCEPTS[suite].tag).toContain(body.tag)
+        }
+      }
     },
   )
 

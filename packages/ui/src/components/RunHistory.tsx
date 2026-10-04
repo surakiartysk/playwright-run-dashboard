@@ -12,6 +12,7 @@ import {
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
+import { runTag } from '../run-form'
 import { useCompact } from '../use-compact'
 import { CLOSED, askDelete, cancelDelete, toggleRow, type RowState } from '../run-rows'
 import { STATUS_LOOK, pendingNote } from '../run-status'
@@ -330,7 +331,7 @@ export function RunHistory({
                           */}
                           <span style={s.runSuite}>{SUITE_LABELS[run.suite]}</span>
                           <span style={s.runService}>{run.service}</span>
-                          <span style={s.runTags}>@{run.tags}</span>
+                          {runTag(run.tags) && <span style={s.runTags}>{runTag(run.tags)}</span>}
                           <span style={s.runRef}>{run.ref}</span>
                           {run.simulated && (
                             <span

@@ -154,8 +154,16 @@ export async function dispatchWorkflow(
           // is no check on the suite side: each suite can see its own workflow
           // and neither can see this dashboard, so this is the only place the
           // three views meet.
+          //
+          // `tag` is the one input that is not always sent. It narrows `scope`
+          // (the service) to the tests carrying that tag too, and it exists
+          // only when both are named. Every other request is the body it always
+          // was, which matters: a run on a branch whose workflow predates the
+          // input — `develop`, say, for QA — would be refused by GitHub for an
+          // input it does not declare, over a feature the request never used.
           run_id: runId,
           scope: inputs.service === 'all' ? inputs.tags : inputs.service,
+          ...(inputs.service !== 'all' && inputs.tags !== 'all' ? { tag: inputs.tags } : {}),
           style: 'both',
           workers: String(inputs.workers ?? 4),
         },

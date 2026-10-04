@@ -180,8 +180,8 @@ export const statusOf = async (id: string): Promise<string | undefined> =>
 export const runsForService = async (service: string) =>
   (
     await env.DB.prepare(
-      `SELECT id, ref, status, triggered_by FROM runs WHERE service = ?1 ORDER BY started_at DESC`,
+      `SELECT id, ref, tags, status, triggered_by FROM runs WHERE service = ?1 ORDER BY started_at DESC`,
     )
       .bind(service)
-      .all<{ id: string; ref: string; status: string; triggered_by: string }>()
+      .all<{ id: string; ref: string; tags: string; status: string; triggered_by: string }>()
   ).results

@@ -140,31 +140,21 @@ runRoutes.post('/', async (c) => {
   }
 
   /*
-   * The suites filter on one axis, and this used to accept two.
+   * A service and a tag together are a real request: the tests of that service
+   * that carry that tag.
    *
-   * `scope` is a single workflow input whose accepted values are a union of
-   * tag names and service names — see `dispatchWorkflow`, which sends the
-   * service unless it is `all`, in which case it sends the tag. So a request
-   * naming both had its tag dropped on the way out, and the row still recorded
-   * it: `service=items, tags=smoke` ran the whole `items` slice while the
-   * history, the chart tooltip and the newest-run line all said `items @smoke`.
-   * Sixteen of the twenty combinations the dashboard offered were that.
+   * This used to be refused. The suites' workflows took a single `scope` input
+   * whose values were a union of tag names and service names, so a request
+   * naming both could only be honoured by dropping one — and the run row went
+   * on recording the one that was dropped (decision 26). Both suites now take
+   * an optional second input, `tag`, and `dispatchWorkflow` sends it only when
+   * both are named, so the request is passed on whole instead of narrowed.
    *
-   * Rejected rather than silently narrowed, for the reason the suite and status
-   * filters above are: a filter that quietly does nothing is a worse answer
-   * than an error, because the caller cannot tell it from one that worked.
+   * What is still not checked here is whether any test carries the pair. A
+   * combination nothing matches (`items` with `flow`) is a run the suite fails
+   * with "No tests found"; the API cannot know, because the tags live in the
+   * suites' specs and this repository cannot see them.
    */
-  if (service !== 'all' && tags !== 'all') {
-    return c.json(
-      {
-        error:
-          `The suite filters by one axis: name a service ('${service}') or a tag ` +
-          `('${tags}'), not both. Send tags='all' to run the whole service, or ` +
-          `service='all' to run the tag across every service.`,
-      },
-      422,
-    )
-  }
   if (!REF_RE.test(ref)) {
     return c.json({ error: 'ref contains characters that are not valid in a git ref' }, 422)
   }

@@ -167,23 +167,20 @@ describe('POST /runs — policy enforcement', () => {
   })
 
   /*
-   * The combination the dashboard offered and the suite could never run.
+   * The combination the dashboard used to offer and the suite could not run.
    *
-   * `scope` is one workflow input, and `dispatchWorkflow` sends the service
-   * unless it is `all`, in which case it sends the tag. A request naming both
-   * had its tag dropped on the way out while the row kept it, so the history
-   * and the chart both described `items @smoke` for a run of the whole `items`
-   * slice.
-   *
-   * 422 rather than a silent narrowing, for the same reason the suite and
-   * status filters above reject an unknown value: a filter that quietly does
-   * nothing cannot be told from one that worked.
+   * It was refused with a 422 for as long as the workflows took one `scope`
+   * input, because honouring both was impossible and silently dropping one
+   * left the history describing a run that never happened (decision 26). Both
+   * suites now take a second input, so the request is accepted and recorded
+   * as made — and `integration-contract.test.ts` holds what is sent for it.
    */
-  it('refuses a service and a tag together, because the suite filters by one axis', async () => {
-    const response = await create('admin', { service: 'items', tags: 'smoke' })
+  it('accepts a service and a tag together, and records both as asked', async () => {
+    const service = uniqueService()
+    const response = await create('admin', { service, tags: 'smoke' })
 
-    expect(response.status).toBe(422)
-    expect(((await response.json()) as { error: string }).error).toContain('one axis')
+    expect(response.status).toBe(201)
+    expect(await runsForService(service)).toEqual([expect.objectContaining({ tags: 'smoke' })])
   })
 
   it.each([
@@ -195,14 +192,14 @@ describe('POST /runs — policy enforcement', () => {
   })
 
   /*
-   * The rule is the API's, not the form's — so it holds for any caller posting
-   * the old combination, whichever role they hold. Without that, the dashboard
-   * would stop recording a false description while a script carried on
-   * producing them.
+   * Accepting the combination is not a privilege of one role: it is the shape of
+   * the request, not what the request is allowed to touch.
    */
-  it('refuses the combination whatever role asks for it', async () => {
-    const response = await create('qa', { service: 'items', tags: 'flow' })
-    expect(response.status).toBe(422)
+  it('accepts the combination for any role that may run at all', async () => {
+    for (const role of ['dev', 'qa', 'admin'] as const) {
+      const response = await create(role, { service: uniqueService(), tags: 'flow' })
+      expect(response.status, role).toBe(201)
+    }
   })
 
   it('records the requesting role as who triggered it, and defaults to main', async () => {

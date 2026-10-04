@@ -5,11 +5,10 @@ import { pausedReason } from '../gate-form'
 import { stepOption } from '../appearance'
 import {
   clampWorkers,
-  effectiveTags,
+  describeSelection,
   initialForm,
   refLocked,
   scopeChoices,
-  scopeLocked,
   serviceChoices,
   serviceFieldLabel,
   stepWorkers,
@@ -117,7 +116,6 @@ export function RunTrigger({
     }
   }
 
-  const scopeIsLocked = scopeLocked(service)
   const refIsLocked = refLocked(refs)
   const blocked = busy || gate !== null
 
@@ -151,18 +149,13 @@ export function RunTrigger({
 
         <PillSelect
           icon="tag"
-          label="Scope"
+          label="Tag"
           basis={136}
-          fill={compact}
           mono
-          // Shows the tag that will be sent, not the one last picked: a
-          // locked control reading `smoke` above a note saying "all" is the
-          // form contradicting itself.
-          value={effectiveTags(service, tags)}
+          fill={compact}
+          value={tags}
           options={scopeChoices(suite)}
           onChange={(tags) => set({ tags })}
-          locked={scopeIsLocked}
-          lockedReason="Scope is all while one service is picked — the suite filters by service or by tag, not both."
         />
 
         <PillSelect
@@ -210,20 +203,15 @@ export function RunTrigger({
       </div>
 
       {/*
-        Said here as well as in the locked control's tooltip: a tooltip is a
-        hover layer, and there is no hover on a phone. Naming the constraint is
-        what stops someone picking a service, seeing their tag lock, and
-        assuming the form lost it.
+        What pressing Run will run, said in words. Two dropdowns that combine
+        read as either "and" or "or"; this is where the form says which, and
+        where it says what it cannot know — whether any test carries both.
+        A tooltip would do neither on a phone.
       */}
-      {scopeIsLocked && (
-        <p style={s.fieldNote}>
-          <Icon name="info" size={14} />
-          <span>
-            Scope is <span style={mono}>all</span> while one service is picked — the suite filters
-            by service or by tag, not both.
-          </span>
-        </p>
-      )}
+      <p style={s.fieldNote}>
+        <Icon name="info" size={14} />
+        <span>{describeSelection(form)}</span>
+      </p>
 
       {/* Built by `pausedReason` rather than inline, so what it says is
           testable without rendering — see gate-form.ts. */}

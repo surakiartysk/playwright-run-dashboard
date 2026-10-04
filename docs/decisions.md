@@ -38,6 +38,7 @@ interviewer should press on hardest.
 27. [The mutation count states its gap rather than closing it](#27-the-mutation-count-states-its-gap-rather-than-closing-it)
 28. [Sign-in counts wrong passwords, and counts them before checking](#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)
 29. [The accent is a choice, and the palette is generated](#29-the-accent-is-a-choice-and-the-palette-is-generated)
+30. [A service and a tag combine, because the suites now take both](#30-a-service-and-a-tag-combine-because-the-suites-now-take-both)
 
 ---
 
@@ -1369,6 +1370,10 @@ from a person doing it; `actorFor` now records `key:release pipeline`, and
 
 ## 26. The run form has one axis, because the suites do
 
+> **Superseded by [decision 30](#30-a-service-and-a-tag-combine-because-the-suites-now-take-both).**
+> Kept as written: the reasoning for the 422 was sound for as long as the
+> workflows took one input, and the trade-off it names is the one 30 closes.
+
 **Context.** The form offered two dropdowns — Service and Scope — and sent both.
 The workflow on the other side takes one input, `scope`, whose accepted values
 are a union of tag names and service names: `all`, `smoke`, `isolated`, `flow`,
@@ -1624,6 +1629,58 @@ After sign-in, "View as" shows the real one.
   environment, so the Appearance panel's decisions (what it offers, how arrow
   keys move, what the button says) are tested as plain functions and the panel
   itself was exercised in a browser.
+
+---
+
+## 30. A service and a tag combine, because the suites now take both
+
+**Context.** [Decision 26](#26-the-run-form-has-one-axis-because-the-suites-do)
+made the form honest about a limit: the suites' workflows took one input,
+`scope`, so "the smoke tests of `items`" could not be asked for, and the form
+locked Scope to `all` whenever a service was picked. The decision named its own
+loose end — the fix "means a second workflow input in both suites" — and a
+lock that reads as a bug to anyone who wanted that combination.
+
+**Decision.** Both suites' `on-demand.yml` take an optional second input,
+`tag`, default `all`, and the run is the tests carrying both: the service (or,
+in the UI suite, the spec file) and the tag. The dashboard stops refusing the
+pair, unlocks the Tag field, and sends the pair on.
+
+- **Two lookaheads, not two greps.** The API suite builds the pattern
+  `(?=.*@items)(?=.*@smoke)`. Playwright matches a `--grep` as a regular
+  expression against the whole title, so this says "both, in either order";
+  `--grep @a --grep @b` says "either", the opposite of narrowing. The UI suite
+  needs no pattern for the file half: a file argument and a grep already
+  intersect.
+- **The input is sent only when it is used.** `tag` is in the dispatch body only
+  when a service and a tag are both named. A workflow rejects an input it does
+  not declare, and QA dispatches against `develop` and `release`, whose copy of
+  the workflow may predate `tag`. If every dispatch carried one, every QA run on
+  those branches would be refused over a feature it never used. Every legacy
+  request is byte-for-byte the body it was.
+- **The order of deployment is a requirement.** The suites merge first (the
+  change is invisible to a caller that does not send `tag`); the dashboard
+  deploys second. The other way round, a combined request reaches a workflow
+  that does not declare the input and GitHub refuses it.
+- **The form says what it will run.** Two dropdowns that combine read as "and"
+  or "or", so a sentence under them says "the Items tests that are also tagged
+  @smoke", and what it cannot know: whether any test carries both.
+
+**Trade-offs.**
+
+- **Some pairs match nothing.** `items` with `flow` is 0 tests in the API suite;
+  `defects` with `smoke` is 0 in the UI suite. Playwright fails such a run with
+  "No tests found", so it is loud rather than a green nothing, but the failure
+  names no culprit. The form warns in its sentence; it cannot prevent the pair,
+  because the tags live in the suites' specs and this repository cannot see them.
+  Publishing a matrix of valid pairs from each suite would fix that, and is one
+  more thing to keep in step across three repositories.
+- **Three repositories moved together.** Each has a check on its half
+  (`check:parity`, `check:journeys`, the contract test here), and none of them
+  can see the others: the contract test's lists are still copied by hand.
+- **History reads differently.** A run of a whole service stores the tag `all`;
+  the list, the tooltip and the newest-run line now leave it out instead of
+  printing `items @all`.
 
 ---
 

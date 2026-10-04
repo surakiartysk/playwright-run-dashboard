@@ -3,6 +3,7 @@ import { SUITE_LABELS, isPending, type Run, type Suite } from '../api'
 import { c, mono, status as sc } from '../theme'
 import { relative } from './RunHistory'
 import { Collapsible } from './Collapsible'
+import { runTag } from '../run-form'
 
 /**
  * Pass rate over the recent runs, oldest to newest — one bar per run.
@@ -63,7 +64,9 @@ export function describe(point: TrendPoint): string {
       : ratio
 
   return [
-    `${SUITE_LABELS[point.suite]} · ${point.service} @${point.tags} · ${point.ref}`,
+    [SUITE_LABELS[point.suite], '·', point.service, runTag(point.tags), '·', point.ref]
+      .filter(Boolean)
+      .join(' '),
     result,
     `by ${point.startedBy ?? point.triggeredBy} · ${relative(point.startedAt)}`,
   ].join('\n')
@@ -480,8 +483,9 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
         first anyway.
       */}
       <p style={s.latestLine}>
-        Newest: {SUITE_LABELS[latest.suite]} · {latest.service} @{latest.tags} · {latest.ref} ·{' '}
-        {latest.passedCount}/{latest.total} by {latest.startedBy ?? latest.triggeredBy}
+        Newest: {SUITE_LABELS[latest.suite]} · {latest.service}{' '}
+        {runTag(latest.tags) && `${runTag(latest.tags)} `}· {latest.ref} · {latest.passedCount}/
+        {latest.total} by {latest.startedBy ?? latest.triggeredBy}
       </p>
     </section>
   )

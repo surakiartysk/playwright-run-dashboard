@@ -40,10 +40,21 @@ describe('the first render of the command bar', () => {
     expect(html).toMatch(/aria-checked="false"[^>]*>(?:<svg.*?<\/svg>)UI/)
   })
 
-  it('locks the scope while a service is picked, and says why in words on the page', () => {
+  it('leaves the tag free while a service is picked: the two combine', () => {
     const html = render(policy())
-    expect(html).toMatch(/aria-label="Scope: All tests \(locked\)[^"]*"[^>]*disabled/)
-    expect(html).toContain('Scope is <span')
+    expect(html).toContain('aria-label="Tag"')
+    expect(html).not.toMatch(/aria-label="Tag[^"]*"[^>]*disabled/)
+    expect(html).not.toContain('(locked). Scope')
+  })
+
+  it('says in words what Run will run, before anything is pressed', () => {
+    expect(render(policy())).toContain('Runs the Items tests.')
+    expect(render(policy(), true, { service: 'items', tags: 'smoke' })).toContain(
+      'Runs the Items tests that are also tagged @smoke.',
+    )
+    expect(render(policy(), true, { service: 'all', tags: 'all' })).toContain(
+      'Runs every test in the suite.',
+    )
   })
 
   it('locks the branch for a role that may use only one, and names the role', () => {
@@ -79,12 +90,6 @@ describe('the first render of the command bar', () => {
     expect(html).not.toContain('role="status"')
   })
 
-  it('frees the scope and drops the note when every service is selected', () => {
-    const html = render(policy(), true, { service: 'all' })
-    expect(html).not.toMatch(/aria-label="Scope: [^"]*\(locked\)/)
-    expect(html).not.toContain('Scope is <span')
-  })
-
   it('disables both steppers for a role limited to one worker', () => {
     const html = render(policy({ maxWorkers: 1 }))
     expect(html).toMatch(/aria-label="Fewer workers"[^>]*disabled/)
@@ -113,6 +118,14 @@ describe('the first render of the command bar', () => {
     expect(ui).toMatch(/<option value="all"[^>]*>All journeys<\/option>/)
     expect(ui).not.toContain('aria-label="Service"')
     expect(render(policy())).toContain('aria-label="Service"')
+  })
+
+  it('shows the tag it was opened on', () => {
+    const html = render(policy({ role: 'qa', allowedRefs: ['*'] }), true, {
+      service: 'items',
+      tags: 'flow',
+    })
+    expect(html).toMatch(/<option value="flow" selected="">@flow<\/option>/)
   })
 
   it('writes a tag the way the specs do', () => {
