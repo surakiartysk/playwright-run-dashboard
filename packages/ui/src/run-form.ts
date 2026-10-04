@@ -37,3 +37,128 @@ export function effectiveTags(service: string, tags: string): string {
 export function runRequest(form: RunForm): RunForm {
   return { ...form, tags: effectiveTags(form.service, form.tags) }
 }
+
+/*
+ * What each suite can be sliced by.
+ *
+ * Two suites, two vocabularies: the API suite runs services, the UI suite runs
+ * journey groups. Sharing one list would offer `reservations` to a suite that
+ * has no such thing — the server would accept it (the column is free-form) and
+ * the run would match no tests and report a green nothing.
+ *
+ * Duplicated from the suites rather than fetched: these change when a suite
+ * gains a service, which is rare and always accompanied by a deploy. An
+ * endpoint to serve them would be a network round trip to learn a constant.
+ */
+export const SUITE_SERVICES: Record<Suite, string[]> = {
+  api: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
+  ui: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+}
+
+/**
+ * `all` first, and it is not padding.
+ *
+ * The suites filter on one axis: the workflow's `scope` input takes a tag name
+ * or a service name, never both. Picking a service therefore means no tag
+ * filter, and `all` is how that is said — the API refuses a request naming
+ * both, because the dispatch used to drop the tag and the run went on
+ * displaying it.
+ */
+export const SUITE_TAGS: Record<Suite, string[]> = {
+  api: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
+  ui: ['all', 'smoke'],
+}
+
+/**
+ * What the form selects after the suite changes.
+ *
+ * Without this, choosing UI while `reservations` is selected sends a service
+ * the UI suite has never heard of. The server accepts it, the run matches
+ * nothing and reports a green zero — silently passing on a slice that does not
+ * exist is the worst of the available failures. So whatever the new suite does
+ * not offer is replaced by what it does: the first real service (not `all`,
+ * which is the one a reader picks on purpose), and its first tag.
+ */
+export function afterSuiteChange(
+  next: Suite,
+  current: { service: string; tags: string },
+): { service: string; tags: string } {
+  const services = SUITE_SERVICES[next]
+  const tags = SUITE_TAGS[next]
+  return {
+    service: services.includes(current.service) ? current.service : (services[1] ?? 'all'),
+    tags: tags.includes(current.tags) ? current.tags : (tags[0] ?? 'all'),
+  }
+}
+
+/**
+ * Scope is only a choice when running across every service: with one named the
+ * suite filters by that service and `effectiveTags` is `all` whatever was
+ * picked. The control stays on screen, locked, so the form says why instead of
+ * losing a field.
+ */
+export const scopeLocked = (service: string): boolean => service !== 'all'
+
+/** One branch on offer is not a choice. `demo` and `dev` may only use `main`. */
+export const refLocked = (refs: readonly string[]): boolean => refs.length <= 1
+
+/**
+ * A worker count the API will take: a whole number from 1 to the role's limit.
+ *
+ * The count used to be a number field read with `Number(value)`, so clearing it
+ * sent 0 and typing past the limit sent the excess to a server that refuses it.
+ * A stepper cannot do either, but a count that came from anywhere else gets the
+ * same treatment: anything that is not a number is the minimum, not NaN.
+ */
+export function clampWorkers(value: number, max: number): number {
+  const ceiling = Math.max(1, Math.trunc(max))
+  if (!Number.isFinite(value)) return 1
+  return Math.min(ceiling, Math.max(1, Math.trunc(value)))
+}
+
+/** Move the count by one, stopping at both ends. */
+export const stepWorkers = (current: number, delta: 1 | -1, max: number): number =>
+  clampWorkers(current + delta, max)
+
+/** The first count offered: four, or fewer if the role may not use four. */
+export const defaultWorkers = (max: number): number => clampWorkers(4, max)
+
+/** What the form says once a run has been accepted, before the list shows it. */
+export const startedMessage = (simulated: boolean): string =>
+  simulated
+    ? 'Started a simulated run — it is in Recent runs below.'
+    : 'Started — the run is in Recent runs below.'
+
+/** The selection the form opens on: the API suite's `items`, on `main`. */
+export function initialForm(maxWorkers: number, over: Partial<RunForm> = {}): RunForm {
+  return {
+    suite: 'api',
+    service: 'items',
+    tags: 'smoke',
+    ref: 'main',
+    ...over,
+    workers: clampWorkers(over.workers ?? defaultWorkers(maxWorkers), maxWorkers),
+  }
+}
+
+/** The form after the suite is switched, with what that suite lacks replaced. */
+export function withSuite(form: RunForm, next: Suite): RunForm {
+  return { ...form, suite: next, ...afterSuiteChange(next, form) }
+}
+
+/**
+ * Send the form and say what happened, with `post` injected so what goes over
+ * the wire is testable without a network.
+ *
+ * What is sent is `runRequest(form)`, never the form as selected: the form
+ * opens on `items` with `smoke` still selected, and only the request builder
+ * knows that a named service means no tag. Posting the state directly is the
+ * mistake that answered every press of Run on an untouched form with a 422.
+ */
+export async function submitRun(
+  form: RunForm,
+  post: (body: RunForm) => Promise<{ simulated: boolean }>,
+): Promise<string> {
+  const run = await post(runRequest(form))
+  return startedMessage(run.simulated)
+}

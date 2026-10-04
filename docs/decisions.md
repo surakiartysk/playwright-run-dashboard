@@ -757,7 +757,7 @@ for facts that change on a Tuesday afternoon.
 _The second:_ the dashboard offers a list of services and tags that is **copied
 by hand from each suite's workflow**, and every suite multiplies the copies.
 Per suite it lives in four places — `SUITE_SERVICES`/`SUITE_TAGS` in
-`RunTrigger.tsx`, `DASHBOARD_OFFERS` and `WORKFLOW_ACCEPTS` in
+`run-form.ts`, `DASHBOARD_OFFERS` and `WORKFLOW_ACCEPTS` in
 `integration-contract.test.ts`, and `on-demand.yml` itself, which is in another
 repository. Adding a service means remembering all four.
 

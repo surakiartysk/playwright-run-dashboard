@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { STATUS_LOOK, elapsed, pendingNote } from '../src/run-status'
-import { ICON_PATHS } from '../src/components/StatusIcon'
+import { ICON_PATHS } from '../src/components/Icon'
 import type { RunStatus } from '../src/api'
 
 /**

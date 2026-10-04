@@ -244,7 +244,7 @@ if (distinct.size > 1) {
 // ── 3. The dropdown and the contract test's copy of it ─────────────────────
 //
 // `integration-contract.test.ts` holds `DASHBOARD_OFFERS`, a hand-copied
-// duplicate of the dropdown lists in `RunTrigger.tsx`. The duplication is
+// duplicate of the dropdown lists in `run-form.ts`. The duplication is
 // deliberate and explained there: importing the real lists would make that
 // test agree with the dashboard by construction, which is the one thing a
 // contract test must not do.
@@ -261,7 +261,7 @@ if (distinct.size > 1) {
 const listOf = (text) => [...text.matchAll(/'([^']+)'/g)].map((m) => m[1])
 
 function dropdownLists() {
-  const src = readFileSync(join(ROOT, 'packages/ui/src/components/RunTrigger.tsx'), 'utf8')
+  const src = readFileSync(join(ROOT, 'packages/ui/src/run-form.ts'), 'utf8')
   const grab = (name, suite) => {
     const block = src.match(new RegExp(`const ${name}[\\s\\S]*?\\n\\}`))?.[0]
     if (!block) return undefined
@@ -309,7 +309,7 @@ function contractCopy() {
       const theirs = copied?.[suite]?.[kind]
       if (!mine) {
         problems.push(
-          `RunTrigger.tsx: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
+          `run-form.ts: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
         )
         continue
       }
