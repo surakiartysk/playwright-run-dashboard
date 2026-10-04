@@ -268,7 +268,7 @@ const s: Record<string, CSSProperties> = {
     transformOrigin: 'top right',
     // Defined in index.html, which also stills it for anyone who asked for
     // less motion.
-    animation: 'pop-in 0.14s ease',
+    animation: 'pop-in var(--motion-fast) var(--ease)',
   },
   section: { display: 'flex', flexDirection: 'column', gap: 8 },
   label: { fontSize: 12.5, fontWeight: 700, color: c.t4 },

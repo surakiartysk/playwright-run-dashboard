@@ -384,7 +384,6 @@ const s: Record<string, CSSProperties> = {
     color: c.t1,
     font: 'inherit',
     fontSize: 13,
-    outline: 'none',
   },
   hint: { margin: '6px 0 0', fontSize: 11.5, color: c.t5, lineHeight: 1.45 },
   submit: {

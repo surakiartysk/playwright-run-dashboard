@@ -1575,7 +1575,7 @@ Two independent choices, kept apart:
   and text. "Follow the device" is a setting of its own, reached by removing the
   stored choice, not by the absence of one.
 - **Accent** — graphite, blue, teal or indigo — decides only the `--c-primary*`
-  and `--c-brand-*` tokens.
+  tokens.
 
 The default is **graphite**, a neutral. Decision 10's reasoning survives the
 change of colour: on a page that exists to show pass and fail, the accent must
@@ -1589,10 +1589,21 @@ are variables (`--font-ui`, `--font-mono`), so changing one is a single line.
 
 Everything an accent has to get right is tested as a table, for all four accents
 in both modes: text on the primary fill, resting and hovered, and the accent as
-text on the card and on its own tint, each at 4.5:1; and white text on the
-sign-in panel. The dark theme's two selectors are compared declaration by
-declaration. `prefers-reduced-motion` now stops every animation and transition
-on the page; before this nothing honoured it.
+text on the card and on its own tint, each at 4.5:1. The dark theme's two
+selectors are compared declaration by declaration. `prefers-reduced-motion` now
+stops every animation and transition on the page; before this nothing honoured
+it. Durations and the one easing curve are variables too (`--motion-*`,
+`--ease`), and a visible focus ring is one rule in `index.html` rather than
+something each field has to remember: the text fields used to switch their
+outline off in an inline style, which cannot express `:focus`, so a keyboard
+user could not see where they were.
+
+Sign-in is a plain centred card. The split panel it replaced said what the
+product is in prose a line under the title now carries, and it needed a media
+query and four `!important` overrides to stay usable on a phone. The table of
+what each role may do is not on it: `/demo/roles` requires a session, so a table
+on this screen would be a hard-coded copy that can drift from `policy.ts`.
+After sign-in, "View as" shows the real one.
 
 **Trade-offs.**
 

@@ -146,18 +146,3 @@ export function setAccent(accent: Accent): void {
   document.documentElement.setAttribute('data-accent', accent)
   localStorage.setItem(ACCENT_KEY, accent)
 }
-
-/**
- * The sign-in panel's backdrop.
- *
- * Four layers rather than a flat fill: faint diagonal stripes, two off-centre
- * spotlights, then the base gradient. Individually invisible; together they
- * give the panel depth, which is most of why a flat rectangle reads as
- * unfinished.
- */
-export const brandPanelBackground = `
-  repeating-linear-gradient(135deg, transparent 0px, transparent 80px, rgba(255,255,255,0.02) 80px, rgba(255,255,255,0.02) 81px),
-  radial-gradient(circle at 25% 20%, var(--c-brand-glow) 0%, transparent 55%),
-  radial-gradient(circle at 80% 85%, var(--c-brand-glow-faint) 0%, transparent 50%),
-  linear-gradient(165deg, var(--c-brand-1) 0%, var(--c-brand-2) 45%, var(--c-brand-3) 100%)
-`

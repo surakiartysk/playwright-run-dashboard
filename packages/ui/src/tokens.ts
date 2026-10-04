@@ -13,7 +13,7 @@
  * - **Mode** — light, dark, or follow the device — decides the neutral
  *   surfaces and text.
  * - **Accent** — one colour for buttons, the active item and highlights —
- *   decides only the `--c-primary*` and `--c-brand-*` tokens.
+ *   decides only the `--c-primary*` tokens.
  *
  * The default accent is graphite, a neutral. Decision 10's reason survives the
  * change of colour: on a page whose job is showing pass and fail, the accent
@@ -41,6 +41,21 @@ export const ACCENT_LABELS: Record<Accent, string> = {
 export const FONTS = {
   ui: "'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
   mono: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+} as const
+
+/**
+ * How long things take, and the one curve they share.
+ *
+ * Three durations: feedback (a press, a caret turning), state (a colour, a
+ * panel), and something entering. Anything slower is the first-load draw and
+ * does not belong here. One easing curve — a quick start and a soft landing —
+ * so nothing on the page moves in a different voice.
+ */
+export const MOTION = {
+  fast: '120ms',
+  base: '200ms',
+  enter: '320ms',
+  ease: 'cubic-bezier(0.2, 0.7, 0.1, 1)',
 } as const
 
 /** Neutral surfaces and text for one mode. Names are the CSS variables, minus `--c-`. */
@@ -115,40 +130,29 @@ export interface AccentTokens {
   'primary-border': string
   /** Text and icons on a `primary` fill. Not always white: a light fill needs dark text. */
   'on-primary': string
-  'brand-1': string
-  'brand-2': string
-  'brand-3': string
-  'brand-glow': string
-  'brand-glow-faint': string
 }
 
 interface AccentSpec {
   light: { fill: string; hover: string }
   dark: { fill: string; hover: string; on: string }
-  /** The sign-in panel's two ends. Dark in both modes: the panel carries white text. */
-  hero: [string, string]
 }
 
 const SPECS: Record<Accent, AccentSpec> = {
   graphite: {
     light: { fill: '#1f2937', hover: '#111827' },
     dark: { fill: '#e5e7eb', hover: '#ffffff', on: '#111827' },
-    hero: ['#111827', '#374151'],
   },
   blue: {
     light: { fill: '#1d4ed8', hover: '#1e40af' },
     dark: { fill: '#60a5fa', hover: '#93c5fd', on: '#06101f' },
-    hero: ['#1e3a8a', '#1d4ed8'],
   },
   teal: {
     light: { fill: '#0f766e', hover: '#115e59' },
     dark: { fill: '#2dd4bf', hover: '#5eead4', on: '#04201d' },
-    hero: ['#134e4a', '#0f766e'],
   },
   indigo: {
     light: { fill: '#4338ca', hover: '#3730a3' },
     dark: { fill: '#818cf8', hover: '#a5b4fc', on: '#0b1020' },
-    hero: ['#312e81', '#4338ca'],
   },
 }
 
@@ -182,8 +186,6 @@ const rgba = (hex: string, alpha: number): string => {
 
 export function accentTokens(accent: Accent, mode: Mode): AccentTokens {
   const spec = SPECS[accent]
-  const [h1, h2] = spec.hero
-
   if (mode === 'light') {
     const { fill, hover } = spec.light
     return {
@@ -192,11 +194,6 @@ export function accentTokens(accent: Accent, mode: Mode): AccentTokens {
       'primary-light': mix('#ffffff', fill, 0.1),
       'primary-border': mix('#ffffff', fill, 0.3),
       'on-primary': '#ffffff',
-      'brand-1': mix(h1, '#000000', 0.35),
-      'brand-2': h1,
-      'brand-3': h2,
-      'brand-glow': rgba(mix(h2, '#ffffff', 0.5), 0.3),
-      'brand-glow-faint': rgba(mix(h2, '#ffffff', 0.5), 0.16),
     }
   }
 
@@ -207,11 +204,6 @@ export function accentTokens(accent: Accent, mode: Mode): AccentTokens {
     'primary-light': rgba(fill, 0.14),
     'primary-border': rgba(fill, 0.34),
     'on-primary': on,
-    'brand-1': mix(h1, '#000000', 0.55),
-    'brand-2': mix(h1, '#000000', 0.2),
-    'brand-3': h2,
-    'brand-glow': rgba(mix(h2, '#ffffff', 0.5), 0.22),
-    'brand-glow-faint': rgba(mix(h2, '#ffffff', 0.5), 0.12),
   }
 }
 
@@ -242,7 +234,14 @@ const block = (selector: string, body: string): string => `${selector} {\n${body
  */
 export function tokensCss(): string {
   const parts: string[] = []
-  const fonts = `  --font-ui: ${FONTS.ui};\n  --font-mono: ${FONTS.mono};`
+  const fonts = [
+    `  --font-ui: ${FONTS.ui};`,
+    `  --font-mono: ${FONTS.mono};`,
+    `  --motion-fast: ${MOTION.fast};`,
+    `  --motion-base: ${MOTION.base};`,
+    `  --motion-enter: ${MOTION.enter};`,
+    `  --ease: ${MOTION.ease};`,
+  ].join('\n')
 
   parts.push(
     block(

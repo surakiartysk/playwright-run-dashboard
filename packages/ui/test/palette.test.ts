@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ACCENT_IDS,
+  MOTION,
   DEFAULT_ACCENT,
   FONTS,
   NEUTRALS,
@@ -100,11 +101,6 @@ describe('every accent, in every mode', () => {
           'on tint',
         ).toBeGreaterThanOrEqual(4.5)
       })
-
-      it(`${label}: white text on the sign-in panel clears 4.5:1`, () => {
-        const t = accentTokens(accent, mode)
-        expect(contrast('#ffffff', t['brand-3'])).toBeGreaterThanOrEqual(4.5)
-      })
     }
   }
 })
@@ -166,6 +162,13 @@ describe('the generated stylesheet', () => {
       ([k, v]) => `--c-${k}: ${v}`,
     )
     for (const line of expected) expect(base).toContain(line)
+  })
+
+  it('declares the three durations and the one easing curve', () => {
+    expect(css).toContain(`--motion-fast: ${MOTION.fast};`)
+    expect(css).toContain(`--motion-base: ${MOTION.base};`)
+    expect(css).toContain(`--motion-enter: ${MOTION.enter};`)
+    expect(css).toContain(`--ease: ${MOTION.ease};`)
   })
 
   it('declares both typefaces', () => {

@@ -295,7 +295,6 @@ const s: Record<string, CSSProperties> = {
     color: c.t1,
     font: 'inherit',
     fontSize: 14,
-    outline: 'none',
   },
   run: {
     padding: '9px 22px',

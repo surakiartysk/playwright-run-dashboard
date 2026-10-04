@@ -75,3 +75,20 @@ describe('reduced motion', () => {
     expect(html).toMatch(/@keyframes pop-in\s*\{/)
   })
 })
+
+describe('keyboard focus', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+
+  it('draws a focus ring on every kind of control, in the accent colour', () => {
+    expect(html).toMatch(
+      /:where\(button, input, select, textarea, a, summary\):focus-visible\s*\{\s*outline: 2px solid var\(--c-primary\)/,
+    )
+  })
+
+  it('does not switch the outline off in any component', () => {
+    for (const file of ['Login', 'ApiKeys', 'RunTrigger', 'GateControl', 'Appearance']) {
+      const source = readFileSync(new URL(`../src/components/${file}.tsx`, import.meta.url), 'utf8')
+      expect(source, file).not.toMatch(/outline:\s*'none'/)
+    }
+  })
+})
