@@ -10,7 +10,9 @@ import {
   type Suite,
 } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
+import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
+import { CLOSED, askDelete, cancelDelete, toggleRow, type RowState } from '../run-rows'
 import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
@@ -212,7 +214,8 @@ export function RunHistory({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
-  const [open, setOpen] = useState<string | null>(null)
+  const [rows, setRows] = useState<RowState>(CLOSED)
+  const { open, confirmingDelete } = rows
 
   /**
    * The button is shown whenever the *previewed* role may delete, so a demo
@@ -281,7 +284,7 @@ export function RunHistory({
                 return (
                   <Fragment key={run.id}>
                     <tr
-                      onClick={() => setOpen(expanded ? null : run.id)}
+                      onClick={() => setRows((r) => toggleRow(r, run.id))}
                       style={{ ...s.tr, ...(expanded ? s.trOpen : null) }}
                     >
                       {/*
@@ -349,7 +352,7 @@ export function RunHistory({
                           onClick={(e) => {
                             // The row would toggle it straight back.
                             e.stopPropagation()
-                            setOpen(expanded ? null : run.id)
+                            setRows((r) => toggleRow(r, run.id))
                           }}
                           style={s.caretButton}
                         >
@@ -408,30 +411,17 @@ export function RunHistory({
                             )}
                           </div>
 
-                          <div style={s.detailActions}>
-                            {run.reportUrl && (
-                              <a
-                                href={run.reportUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={s.report}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {run.simulated ? 'Sample report ↗' : 'Report ↗'}
-                              </a>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void remove(run.id)
-                                }}
-                                style={s.delete}
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </div>
+                          <RunActions
+                            run={run}
+                            canDelete={canDelete}
+                            confirming={confirmingDelete === run.id}
+                            onAskDelete={() => setRows((r) => askDelete(r, run.id))}
+                            onCancel={() => setRows(cancelDelete)}
+                            onConfirm={() => {
+                              setRows(cancelDelete)
+                              void remove(run.id)
+                            }}
+                          />
                         </td>
                       </tr>
                     )}
@@ -618,12 +608,6 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 4,
   },
   detailValue: { fontSize: 13, color: c.t2 },
-  detailActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-  },
 
   more: {
     display: 'flex',
@@ -699,25 +683,4 @@ const s: Record<string, CSSProperties> = {
     animation: 'indeterminate 1.4s ease-in-out infinite',
   },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
-
-  report: {
-    color: c.primary,
-    textDecoration: 'none',
-    fontSize: 13,
-    fontWeight: 500,
-    padding: '5px 11px',
-    background: c.primaryLight,
-    border: `1px solid ${c.primaryBorder}`,
-    borderRadius: 7,
-  },
-  delete: {
-    padding: '5px 11px',
-    background: 'transparent',
-    border: `1px solid ${c.border}`,
-    borderRadius: 7,
-    color: c.t4,
-    font: 'inherit',
-    fontSize: 12.5,
-    cursor: 'pointer',
-  },
 }
