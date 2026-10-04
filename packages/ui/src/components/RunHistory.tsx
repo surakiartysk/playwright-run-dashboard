@@ -7,6 +7,7 @@ import {
   isPending,
   type Role,
   type Run,
+  type RunOptions,
   type Suite,
 } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
@@ -25,6 +26,8 @@ import {
 } from '../run-rows'
 import { CopyButton } from './CopyButton'
 import { RunProblem } from './RunProblem'
+import { AdvancedFilters } from './AdvancedFilters'
+import { activeCount, type HistoryFilters } from '../run-query'
 import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
@@ -295,6 +298,9 @@ export function RunHistory({
   hasMore,
   loadingMore,
   onLoadMore,
+  options,
+  filters,
+  onFilters,
 }: {
   runs: Run[]
   role: Role
@@ -305,6 +311,10 @@ export function RunHistory({
   hasMore: boolean
   loadingMore: boolean
   onLoadMore: () => void
+  /** What the caller may run — the lists the filters offer. Null while it loads. */
+  options: RunOptions | null
+  filters: HistoryFilters
+  onFilters: (next: HistoryFilters) => void
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -350,6 +360,10 @@ export function RunHistory({
         <span style={s.scope}>{SCOPE_LABEL[role]}</span>
       </header>
 
+      {options && (
+        <AdvancedFilters options={options} filters={filters} viewing={role} onChange={onFilters} />
+      )}
+
       {/* Only worth offering once there is more than one row to narrow. */}
       {runs.length > 1 && (
         <div style={s.filters}>
@@ -360,7 +374,18 @@ export function RunHistory({
       {error && <div style={s.deleteError}>{error}</div>}
 
       {runs.length === 0 ? (
-        <div style={s.empty}>No runs yet. Start one above.</div>
+        activeCount(filters) > 0 ? (
+          // Distinct from "no runs yet": the filters are what is hiding them, and
+          // the way out is in the message rather than left to be guessed.
+          <div style={s.empty}>
+            No runs match these filters.{' '}
+            <button onClick={() => onFilters({})} style={s.clearFilter}>
+              Clear filters
+            </button>
+          </div>
+        ) : (
+          <div style={s.empty}>No runs yet. Start one above.</div>
+        )
       ) : shown.length === 0 ? (
         // Distinct from "no runs at all": the filter is what is hiding them,
         // and the way out is in the message rather than left to be guessed.

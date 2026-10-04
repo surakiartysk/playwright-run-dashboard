@@ -18,6 +18,7 @@ import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
 import { useWide } from './use-compact'
+import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { c } from './theme'
 
 export function App() {
@@ -36,6 +37,13 @@ export function App() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
   const [canPreview, setCanPreview] = useState(false)
+  // Which runs the list is narrowed to. Kept in the address bar so a filtered
+  // view can be linked and survives a reload; read once, here, from wherever
+  // the page was opened.
+  const [filters, setFilters] = useState<HistoryFilters>(() =>
+    typeof window === 'undefined' ? {} : fromSearch(window.location.search),
+  )
+
   // What the signed-in caller may ask for: null while it loads, an error if it cannot.
   const [options, setOptions] = useState<RunOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
@@ -113,7 +121,7 @@ export function App() {
   const refresh = useCallback(async () => {
     if (!role) return
     try {
-      const page = await api.listRuns()
+      const page = await api.listRuns(toQuery(filters))
       setRuns(page.runs)
       setTotal(page.total)
       setNextCursor(page.nextCursor)
@@ -128,7 +136,7 @@ export function App() {
       }
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
-  }, [role, endSession])
+  }, [role, endSession, filters])
 
   /** Appends the next page. The cursor makes this safe against new runs
    *  arriving at the top: it names a row, not an offset. */
@@ -136,7 +144,7 @@ export function App() {
     if (!nextCursor || loadingMore) return
     setLoadingMore(true)
     try {
-      const page = await api.listRuns({ cursor: nextCursor })
+      const page = await api.listRuns({ ...toQuery(filters), cursor: nextCursor })
       // Guards against a double-click racing two identical requests: a run
       // already on screen is never appended twice.
       setRuns((current) => {
@@ -155,11 +163,18 @@ export function App() {
     } finally {
       setLoadingMore(false)
     }
-  }, [nextCursor, loadingMore, endSession])
+  }, [nextCursor, loadingMore, endSession, filters])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // The address follows the filters, replacing the entry rather than adding one:
+  // narrowing the list is not a page someone will want to press Back through.
+  useEffect(() => {
+    const { pathname, hash } = window.location
+    window.history.replaceState(null, '', `${pathname}${toSearch(filters)}${hash}`)
+  }, [filters])
 
   /**
    * Polls only while something is in flight.
@@ -263,6 +278,9 @@ export function App() {
         hasMore={nextCursor !== null}
         loadingMore={loadingMore}
         onLoadMore={() => void loadMore()}
+        options={options}
+        filters={filters}
+        onFilters={setFilters}
       />
     </>
   )

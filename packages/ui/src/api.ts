@@ -228,10 +228,29 @@ export const api = {
    * list could only truncate silently, which is what it used to do. `cursor`
    * asks for the page after a given row; `nextCursor` is null on the last page.
    */
-  listRuns: (options: { cursor?: string | null; limit?: number; suite?: Suite | null } = {}) => {
+  listRuns: (
+    options: {
+      cursor?: string | null
+      limit?: number
+      suite?: string | null
+    } & Partial<
+      Record<'service' | 'tag' | 'ref' | 'since' | 'triggeredBy' | 'simulated', string>
+    > = {},
+  ) => {
     const query = new URLSearchParams({ limit: String(options.limit ?? RUNS_PER_PAGE) })
     if (options.cursor) query.set('cursor', options.cursor)
-    if (options.suite) query.set('suite', options.suite)
+    for (const key of [
+      'suite',
+      'service',
+      'tag',
+      'ref',
+      'since',
+      'triggeredBy',
+      'simulated',
+    ] as const) {
+      const value = options[key]
+      if (value) query.set(key, value)
+    }
     return request<RunPage>(`/runs?${query}`)
   },
 

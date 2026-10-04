@@ -8,7 +8,7 @@ import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
-import { refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
+import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
 import { mayUseRef, policyFor, redactForPreview, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
 
@@ -322,6 +322,73 @@ const decodeCursor = (raw: string): { startedAt: string; id: string } | null => 
   }
 }
 
+/**
+ * The narrower filters on the run list, read and checked.
+ *
+ * Every value is validated and a bad one is a 422, for the reason `suite` and
+ * `status` are: a filter that quietly does nothing cannot be told from one that
+ * worked, and a typo'd `since=7days` returning every run reads as "this filter
+ * does nothing". They are separate clauses rather than one string so each is
+ * bound as a parameter — none of these values is ever written into the SQL.
+ */
+const SINCE_MS: Record<string, number> = {
+  '24h': 24 * 3600_000,
+  '7d': 7 * 24 * 3600_000,
+  '30d': 30 * 24 * 3600_000,
+}
+
+export function readListFilters(
+  query: (name: string) => string | undefined,
+  now: number = Date.now(),
+): { clauses: { sql: string; params: unknown[] }[] } | { error: string } {
+  const clauses: { sql: string; params: unknown[] }[] = []
+
+  const service = query('service')
+  if (service !== undefined) {
+    if (!SERVICE_RE.test(service)) return { error: 'service must match /^[a-z][a-z0-9-]*$/' }
+    clauses.push({ sql: 'service = ?', params: [service] })
+  }
+
+  const tag = query('tag')
+  if (tag !== undefined) {
+    if (!TAG_RE.test(tag)) return { error: 'tag must match /^[a-z][a-z0-9-]*$/' }
+    clauses.push({ sql: 'tags = ?', params: [tag] })
+  }
+
+  const ref = query('ref')
+  if (ref !== undefined) {
+    if (!REF_RE.test(ref))
+      return { error: 'ref contains characters that are not valid in a git ref' }
+    clauses.push({ sql: 'ref = ?', params: [ref] })
+  }
+
+  const since = query('since')
+  if (since !== undefined) {
+    const span = SINCE_MS[since]
+    if (span === undefined)
+      return { error: `since must be one of: ${Object.keys(SINCE_MS).join(', ')}` }
+    clauses.push({ sql: 'started_at >= ?', params: [new Date(now - span).toISOString()] })
+  }
+
+  const triggeredBy = query('triggeredBy')
+  if (triggeredBy !== undefined) {
+    if (!(ROLES as readonly string[]).includes(triggeredBy)) {
+      return { error: `triggeredBy must be one of: ${ROLES.join(', ')}` }
+    }
+    clauses.push({ sql: 'triggered_by = ?', params: [triggeredBy] })
+  }
+
+  const simulated = query('simulated')
+  if (simulated !== undefined) {
+    if (simulated !== 'real' && simulated !== 'simulated') {
+      return { error: 'simulated must be one of: real, simulated' }
+    }
+    clauses.push({ sql: 'simulated = ?', params: [simulated === 'simulated' ? 1 : 0] })
+  }
+
+  return { clauses }
+}
+
 // ── GET /runs ───────────────────────────────────────────────────────────────
 runRoutes.get('/', async (c) => {
   const role = c.get('role')
@@ -330,6 +397,8 @@ runRoutes.get('/', async (c) => {
   const status = c.req.query('status')
   const suite = c.req.query('suite')
   const rawCursor = c.req.query('cursor')
+  const filters = readListFilters(c.req.query.bind(c.req))
+  if ('error' in filters) return c.json({ error: filters.error }, 422)
 
   // Rejected rather than ignored. A typo'd suite silently returning every run
   // reads as "this filter does nothing", which is a worse answer than an
@@ -368,6 +437,13 @@ runRoutes.get('/', async (c) => {
   if (suite) {
     conditions.push('suite = ?')
     params.push(suite)
+  }
+  // The same, for the narrower facets. Each is AND-ed with the role's visibility
+  // above, never instead of it: asking for `triggeredBy=admin` as a developer
+  // narrows what a developer may see, and reveals nothing they may not.
+  for (const clause of filters.clauses) {
+    conditions.push(clause.sql)
+    params.push(...clause.params)
   }
 
   // The total is counted against the same conditions but WITHOUT the cursor:

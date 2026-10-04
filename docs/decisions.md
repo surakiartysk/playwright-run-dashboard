@@ -43,6 +43,7 @@ interviewer should press on hardest.
 32. [The API says what can be asked for, and which branches exist](#32-the-api-says-what-can-be-asked-for-and-which-branches-exist)
 33. [A run says when it was and what it ran, and a preview keeps names back](#33-a-run-says-when-it-was-and-what-it-ran-and-a-preview-keeps-names-back)
 34. [A failed run names its tests, and an error is not a failure](#34-a-failed-run-names-its-tests-and-an-error-is-not-a-failure)
+35. [The history is narrowed by the server, and by what the caller could have run](#35-the-history-is-narrowed-by-the-server-and-by-what-the-caller-could-have-run)
 
 ---
 
@@ -1899,6 +1900,62 @@ and that there is no list to show.
   `flaky` in Playwright's report and passes in the totals, and is absent from
   the list. That matches the totals; it also hides flakiness, which wants a view
   of its own.
+
+---
+
+## 35. The history is narrowed by the server, and by what the caller could have run
+
+**Context.** The history could be narrowed by status, and only over the rows the
+page had loaded: "Failed" on a list of twenty-five, under a footer reading
+"Showing 25 of 91", answered a question about twenty-five rows. The suites and
+services a run can be about, the branches it ran on and who started it were not
+filterable at all.
+
+**Decision.** `GET /runs` takes `service`, `tag`, `ref`, `since` (24h, 7d, 30d),
+`triggeredBy` and `simulated` beside the existing `suite` and `status`. The run
+list has a "Filters" button that opens a panel with one control each, and chips
+for whatever is active stay on screen with the panel shut. They are kept in the
+address bar (`?suite=api&since=7d`), so a filtered view can be linked and
+survives a reload.
+
+- **They narrow the set, not the page.** The total, the pages, the summary and
+  the chart beside the list all describe what the filters select. The status
+  buttons remain a view over what is loaded (the
+  reasoning is in the header of `RunFilters.tsx`, and still holds): they answer "of these, what happened", and the
+  new filters are what let a reader shrink "these" until the page holds it all.
+- **A bad value is a 422, not ignored** — the reason `suite` and `status` are
+  rejected: a filter that quietly does nothing cannot be told from one that
+  worked. Every value is bound as a parameter and none is written into the SQL;
+  free text is limited to the same patterns a run's own fields are.
+- **A filter never widens what a role may see.** Each is AND-ed with the role's
+  visibility clause. A developer asking for `ref=develop` gets nothing, not
+  develop's runs; a demo session asking for `triggeredBy=admin` gets nothing.
+- **The choices are what the caller could have started.** The panel draws its
+  lists from `GET /runs/options`, the same source as the run form, so the
+  branches offered are the caller's own and the services are each suite's own
+  (a journey is not offered as a service). "Started by" is offered only to the
+  roles that see every run: for a developer or a demo session it would have one
+  useful value.
+- **An address is untrusted.** One that names a filter the form could not have
+  produced has that filter dropped rather than sent, so a pasted link arrives
+  unfiltered instead of as an error.
+
+**Trade-offs.**
+
+- **The status buttons and the new filters answer different questions, and the
+  seam shows.** "Failed 1" counts the loaded rows of the filtered set; load more
+  and it moves. That is the old limitation, now one click from being solved by
+  narrowing further, not removed.
+- **`triggeredBy` is a role, not a person.** A shared password means "qa" is
+  many people, and the name they typed is a claim kept on the run, not
+  something to filter on. Filtering by name would need an index and an answer to
+  what happens when two people give the same one.
+- **No free-text search, no date range.** Three windows cover "what happened
+  today" and "this sprint"; a range picker is more control than the question
+  usually needs, and a search box over titles needs the failures indexed, which
+  they are not (they live in one column per run, decision 34).
+- **Seven filters is a lot of controls.** They are behind one button with chips
+  for what is on, because most visits use none.
 
 ---
 
