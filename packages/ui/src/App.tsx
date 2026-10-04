@@ -166,10 +166,11 @@ export function App() {
     <>
       <RunStats runs={runs} total={total} />
 
-      <RunTrend runs={runs} />
+      <RunTrend runs={runs} collapsible={!wide} />
 
       {canPreview && policies.length > 0 && (
         <RoleSwitcher
+          collapsible={!wide}
           role={viewingRole}
           policies={policies}
           onSwitched={async (next) => {

@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { SUITE_LABELS, isPending, type Run, type Suite } from '../api'
 import { c, mono, status as sc } from '../theme'
 import { relative } from './RunHistory'
+import { Collapsible } from './Collapsible'
 
 /**
  * Pass rate over the recent runs, oldest to newest — one bar per run.
@@ -262,7 +263,14 @@ export function bars(points: TrendPoint[]): Bar[] {
   })
 }
 
-export function RunTrend({ runs }: { runs: Run[] }) {
+/** What the collapsed chart says about itself: how much it covers and where it stands. */
+export function trendHint(points: TrendPoint[]): string {
+  const latest = points[points.length - 1]
+  if (!latest) return ''
+  return `Last ${points.length} · newest ${Math.round(latest.rate)}%`
+}
+
+export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsible?: boolean }) {
   const points = trendPoints(runs)
 
   /**
@@ -282,11 +290,11 @@ export function RunTrend({ runs }: { runs: Run[] }) {
   const change = Math.round(latest.rate - first.rate)
   const failing = points.filter((p) => !p.passed).length
 
-  return (
+  const card = (
     <section style={s.wrap}>
       <header style={s.head}>
         <div>
-          <h2 style={s.title}>Run by run</h2>
+          {!collapsible && <h2 style={s.title}>Run by run</h2>}
           <p style={s.sub}>
             Last {points.length} finished runs, oldest first
             {change !== 0 && (
@@ -427,6 +435,14 @@ export function RunTrend({ runs }: { runs: Run[] }) {
         {latest.passedCount}/{latest.total} by {latest.startedBy ?? latest.triggeredBy}
       </p>
     </section>
+  )
+
+  return collapsible ? (
+    <Collapsible title="Run by run" hint={trendHint(points)}>
+      {card}
+    </Collapsible>
+  ) : (
+    card
   )
 }
 

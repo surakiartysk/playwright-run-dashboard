@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { Role, RolePolicy } from '../api'
 import { c } from '../theme'
+import { Collapsible } from './Collapsible'
 
 /**
  * Previews another role's read view without signing out — for a genuinely
@@ -20,10 +21,13 @@ export function RoleSwitcher({
   role,
   policies,
   onSwitched,
+  collapsible = false,
 }: {
   role: Role
   policies: RolePolicy[]
   onSwitched: (role: Role) => void | Promise<void>
+  /** Folded to one line until opened, for the stacked layout. */
+  collapsible?: boolean
 }) {
   const current = policies.find((p) => p.role === role)
 
@@ -32,7 +36,7 @@ export function RoleSwitcher({
     await onSwitched(next)
   }
 
-  return (
+  const panel = (
     <div style={s.wrap}>
       <div style={s.head}>
         <span style={s.label}>Viewing as</span>
@@ -72,6 +76,14 @@ export function RoleSwitcher({
         your real, signed-in role, on this deployment or any other.
       </p>
     </div>
+  )
+
+  return collapsible ? (
+    <Collapsible title="View as another role" hint={`Now: ${role}`}>
+      {panel}
+    </Collapsible>
+  ) : (
+    panel
   )
 }
 
