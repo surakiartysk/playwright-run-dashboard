@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
-import { migrate, sessionFor, seedRun, uniqueService } from './helpers'
+import { as, migrate, request, sessionFor, seedRun, uniqueService } from './helpers'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import worker from '../src/index'
 
@@ -148,5 +148,66 @@ describe('a demo session previewing admin can see what admin would see', () => {
 
     const body = (await response.json()) as { runs: { id: string }[] }
     expect(body.runs.some((r) => r.id === otherRolesRun)).toBe(false)
+  })
+})
+
+/**
+ * Previewing shows another role's runs, and a run carries one thing a person
+ * typed: the name they gave at sign-in. That must not reach a visitor who only
+ * pressed the demo button.
+ */
+describe('what a previewing demo session is not shown', () => {
+  const nameRun = async (triggeredBy: 'demo' | 'qa', startedBy: string) => {
+    const id = await seedRun({ triggeredBy })
+    await env.DB.prepare(`UPDATE runs SET started_by = ?2 WHERE id = ?1`).bind(id, startedBy).run()
+    return id
+  }
+
+  const previewing = async (as: 'admin' | 'qa') => {
+    const demo = await sessionFor('demo')
+    const preview = await request('/demo/preview-role', {
+      method: 'POST',
+      headers: { Cookie: demo, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: as }),
+    })
+    return `${demo}; ${preview.headers.get('Set-Cookie')!.split(';')[0]!}`
+  }
+
+  const startedByIn = async (cookie: string, id: string) => {
+    const list = (await (
+      await request('/runs?limit=100', { headers: { Cookie: cookie } })
+    ).json()) as {
+      runs: { id: string; startedBy: string | null }[]
+    }
+    return list.runs.find((r) => r.id === id)
+  }
+
+  it('withholds the name on another role’s run, in the list and on its own page', async () => {
+    const id = await nameRun('qa', 'Somchai')
+    const cookie = await previewing('admin')
+
+    expect((await startedByIn(cookie, id))?.startedBy).toBeNull()
+
+    const one = (await (await request(`/runs/${id}`, { headers: { Cookie: cookie } })).json()) as {
+      startedBy: string | null
+      triggeredBy: string
+    }
+    expect(one.startedBy).toBeNull()
+    // The role is the point of the preview and stays.
+    expect(one.triggeredBy).toBe('qa')
+  })
+
+  it('leaves the name on the demo’s own runs', async () => {
+    const id = await nameRun('demo', 'a visitor')
+    const cookie = await previewing('admin')
+    expect((await startedByIn(cookie, id))?.startedBy).toBe('a visitor')
+  })
+
+  it('does not hide the name from the role that really holds it', async () => {
+    const id = await nameRun('qa', 'Somchai')
+    const list = (await (await as('admin', '/runs?limit=100')).json()) as {
+      runs: { id: string; startedBy: string | null }[]
+    }
+    expect(list.runs.find((r) => r.id === id)?.startedBy).toBe('Somchai')
   })
 })

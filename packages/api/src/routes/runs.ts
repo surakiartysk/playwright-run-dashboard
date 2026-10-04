@@ -4,10 +4,11 @@ import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
 import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
 import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
+import { recordRefSha } from '../branches'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
-import { mayUseRef, policyFor, visibilityClause } from '../policy'
+import { mayUseRef, policyFor, redactForPreview, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
 
 export const runRoutes = new Hono<HonoEnv>()
@@ -285,6 +286,10 @@ runRoutes.post('/', async (c) => {
 
   if (dispatch.simulated) {
     c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service))
+  } else {
+    // Which commit the branch is at, written down while the run is still
+    // queued. After the response: nobody should wait on a second GitHub call.
+    c.executionCtx.waitUntil(recordRefSha(c.env, id, suite, ref))
   }
 
   return c.json({ runId: id, status: 'queued', simulated: dispatch.simulated }, 201)
@@ -399,11 +404,15 @@ runRoutes.get('/', async (c) => {
 
   const runs = await Promise.all(
     page.map(async (row) =>
-      toView(
-        row,
-        row.report_path
-          ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
-          : null,
+      redactForPreview(
+        role,
+        viewAs,
+        toView(
+          row,
+          row.report_path
+            ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
+            : null,
+        ),
       ),
     ),
   )
@@ -448,7 +457,7 @@ runRoutes.get('/:id', async (c) => {
     ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
     : null
 
-  return c.json(toView(row, reportUrl))
+  return c.json(redactForPreview(c.get('role'), viewAs, toView(row, reportUrl)))
 })
 
 // ── DELETE /runs/:id ────────────────────────────────────────────────────────

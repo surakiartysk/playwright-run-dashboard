@@ -90,3 +90,30 @@ export function visibilityClause(
   }
   return { sql: '', params: [], column: null, value: null }
 }
+
+/**
+ * What a previewing demo session is not shown of another role's runs.
+ *
+ * Previewing is deliberately wider than demo's own scope (decision 22): the
+ * point is to show what dev, qa and admin see, and on this deployment the runs
+ * are of public suites against public targets. But a run carries one thing a
+ * person typed — the name they gave when they signed in — and that is not
+ * public: it reached the page because a real colleague said who they were, not
+ * because anyone chose to publish it. A visitor with the one-click demo button
+ * could read every name anyone had ever signed in with.
+ *
+ * So the name is withheld unless the run is the demo's own. The role stays:
+ * `triggeredBy` is a role, and showing that is the point of the preview.
+ *
+ * @param real - the authenticated role (never the previewed one)
+ * @param viewing - the role whose view is being shown
+ */
+export function redactForPreview<T extends { triggeredBy: string; startedBy: string | null }>(
+  real: Role,
+  viewing: Role,
+  view: T,
+): T {
+  if (real !== 'demo' || viewing === 'demo') return view
+  if (view.triggeredBy === 'demo') return view
+  return view.startedBy === null ? view : { ...view, startedBy: null }
+}

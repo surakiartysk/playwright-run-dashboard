@@ -41,6 +41,7 @@ interviewer should press on hardest.
 30. [A service and a tag combine, because the suites now take both](#30-a-service-and-a-tag-combine-because-the-suites-now-take-both)
 31. [A run that never reports is ended, not left running](#31-a-run-that-never-reports-is-ended-not-left-running)
 32. [The API says what can be asked for, and which branches exist](#32-the-api-says-what-can-be-asked-for-and-which-branches-exist)
+33. [A run says when it was and what it ran, and a preview keeps names back](#33-a-run-says-when-it-was-and-what-it-ran-and-a-preview-keeps-names-back)
 
 ---
 
@@ -1785,6 +1786,56 @@ disagree about what is accepted.
   never heard of is still accepted and runs as nothing. Closing that would
   reject by name, and every test in this repository seeds runs under invented
   service names to keep them apart.
+
+---
+
+## 33. A run says when it was and what it ran, and a preview keeps names back
+
+**Context.** A row said "27d ago" and `main`. Neither helps place a run: past a
+day nobody can find a run by counting days back, and `main` names a branch whose
+contents change weekly — the run in last month's list ran last month's tests.
+Separately, [decision 22](#22-a-limit-on-demo-runs-and-why-it-is-not-a-security-control)
+let a previewing demo session read other roles' runs on the grounds that the
+suites and targets are public. It did not consider the one thing in a run that
+is not: the name a colleague typed when they signed in.
+
+**Decision.**
+
+- **When.** Within a day the column stays relative (`2h ago`); beyond it, the
+  date (`4 Sep`, with the year only when it is not this one). The exact local
+  time is the cell's tooltip. The month names are written out in the code, not
+  asked of `Intl`, whose short "September" is "Sep" in one release of the locale
+  data and "Sept" in another.
+- **What it ran.** The branch is followed by the suite's version once the result
+  has brought it (`main · v0.4.1`), by the commit until then, and stands alone
+  for a run that has neither (every simulated run). The commit is noted when a
+  _real_ dispatch goes out — the Worker asks GitHub what the branch is and writes
+  it down — so a queued row is not blank. It is a guess the workflow's own
+  callback replaces: a push while the run waited in the queue means a newer
+  commit ran. The write is `COALESCE`d the other way for the same reason: if the
+  callback has already arrived, the guess does not overwrite the fact.
+- **Which run.** The detail row offers _Copy id_ and _Copy link_, and a link of
+  the form `#run=<id>` opens the list on that run and scrolls to it. A fragment
+  and not a path, so it never reaches the server and needs no route configured
+  in the Cloudflare dashboard.
+- **A preview keeps names back.** A demo session previewing another role is not
+  shown `startedBy` on runs the demo did not start. The role stays — that is what
+  the preview is for — and so does the name on the demo's own runs, which no one
+  but a demo visitor typed.
+
+**Trade-offs.**
+
+- **Dates lose the "how long ago" at a glance.** `3 Oct` makes a reader do the
+  arithmetic the relative form did for them. Within a day, which is when it
+  matters, the relative form is still there.
+- **The commit can be wrong for a while.** Dispatch and checkout are not atomic.
+  The row shows the commit the branch was at when asked, and says nothing about a
+  push in between until the result corrects it.
+- **One more GitHub request per real run**, after the response, never awaited by
+  the caller. A failure leaves the row saying less; it does not fail the run.
+- **The redaction is by field, not by run.** A previewer still sees that a `qa`
+  run exists, on which branch, with what result. That was the point of
+  decision 22 and is unchanged; only the one free-text field is withheld.
 
 ---
 

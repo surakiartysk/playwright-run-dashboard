@@ -3,7 +3,10 @@ import {
   relative,
   duration,
   resultShares,
+  refLabel,
   rowMeta,
+  startedLabel,
+  startedTitle,
   suiteCommitUrl,
 } from '../src/components/RunHistory'
 import { COMPACT_BELOW, COMPACT_QUERY } from '../src/use-compact'
@@ -81,6 +84,16 @@ describe('duration', () => {
     [125_400, '125.4s'],
   ])('formats %sms as %s', (ms, expected) => {
     expect(duration(ms)).toBe(expected)
+  })
+})
+
+describe('rowMeta beyond a day', () => {
+  /** The phone's one-line form must say the date too, not "27d ago". */
+  it('gives the date for an old run, as the column does', () => {
+    at('2026-10-04T12:00:00Z')
+    const text = rowMeta({ startedAt: '2026-09-01T12:00:00Z', durationMs: 5700 })
+    expect(text).toMatch(/^1 Sep · 5\.7s$/)
+    expect(text).not.toContain('ago')
   })
 })
 
@@ -174,5 +187,75 @@ describe('the narrow layout', () => {
   it('starts just under the width the table needs', () => {
     expect(COMPACT_BELOW).toBeGreaterThanOrEqual(620)
     expect(COMPACT_QUERY).toBe(`(max-width: ${COMPACT_BELOW - 1}px)`)
+  })
+})
+
+describe('startedLabel', () => {
+  const NOW = Date.parse('2026-10-04T12:00:00Z')
+
+  it('stays relative within a day, which is what someone watching the list wants', () => {
+    at('2026-10-04T12:00:00Z')
+    expect(startedLabel('2026-10-04T09:00:00Z', NOW, 'UTC')).toBe('3h ago')
+    expect(startedLabel('2026-10-03T12:00:01Z', NOW, 'UTC')).toBe('24h ago')
+  })
+
+  /** Past a day nobody can place a run by counting days back. */
+  it('is the date once a day has passed', () => {
+    expect(startedLabel('2026-10-03T12:00:00Z', NOW, 'UTC')).toBe('3 Oct')
+    expect(startedLabel('2026-09-04T14:03:00Z', NOW, 'UTC')).toBe('4 Sep')
+  })
+
+  it('adds the year only when it is not this one', () => {
+    expect(startedLabel('2025-12-31T10:00:00Z', NOW, 'UTC')).toBe('31 Dec 2025')
+    expect(startedLabel('2026-01-02T10:00:00Z', NOW, 'UTC')).toBe('2 Jan')
+  })
+
+  it('reads the day in the reader’s zone, not UTC’s', () => {
+    // 20:00 UTC on the 3rd is already the 4th in Bangkok.
+    expect(startedLabel('2026-09-03T20:00:00Z', NOW, 'Asia/Bangkok')).toBe('4 Sep')
+    expect(startedLabel('2026-09-03T20:00:00Z', NOW, 'UTC')).toBe('3 Sep')
+  })
+
+  it('does not call a run from a clock slightly ahead a date', () => {
+    at('2026-10-04T12:00:00Z')
+    expect(startedLabel('2026-10-04T12:00:02Z', NOW, 'UTC')).toBe('0s ago')
+  })
+})
+
+describe('startedTitle', () => {
+  it('gives the exact time, to the second, in the zone asked for', () => {
+    expect(startedTitle('2026-09-04T14:03:09Z', 'UTC')).toBe('4 Sep 2026, 14:03:09')
+    expect(startedTitle('2026-09-04T14:03:09Z', 'Asia/Bangkok')).toBe('4 Sep 2026, 21:03:09')
+  })
+})
+
+describe('refLabel', () => {
+  const run = (over: Partial<Pick<Run, 'suiteVersion' | 'suiteSha'>> = {}) => ({
+    ref: 'main',
+    suiteVersion: null,
+    suiteSha: null,
+    ...over,
+  })
+
+  it('is the branch alone for a run that has neither a version nor a commit', () => {
+    expect(refLabel(run())).toBe('main')
+  })
+
+  it('adds the commit, short, as soon as the run has one', () => {
+    expect(refLabel(run({ suiteSha: 'a1b2c3d4e5f6071829' }))).toBe('main · a1b2c3d')
+  })
+
+  it('prefers the version once the result has brought it', () => {
+    expect(refLabel(run({ suiteVersion: '0.4.1', suiteSha: 'a1b2c3d4e5f6' }))).toBe('main · v0.4.1')
+  })
+
+  it('shows a version the suite reported without a commit (an older workflow)', () => {
+    expect(refLabel(run({ suiteVersion: '0.4.1' }))).toBe('main · v0.4.1')
+  })
+
+  it('keeps the branch it ran on', () => {
+    expect(refLabel({ ...run({ suiteSha: 'abcdef1234' }), ref: 'release' })).toBe(
+      'release · abcdef1',
+    )
   })
 })

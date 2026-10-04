@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { CLOSED, askDelete, cancelDelete, cancelsDelete, toggleRow } from '../src/run-rows'
+import {
+  CLOSED,
+  askDelete,
+  cancelDelete,
+  cancelsDelete,
+  initialRows,
+  runFromHash,
+  runHash,
+  toggleRow,
+} from '../src/run-rows'
 
 /**
  * The question "delete this run?" belongs to the open row and must not outlive
@@ -60,5 +69,38 @@ describe('cancelsDelete', () => {
 
   it('leaves Escape alone when there is no question', () => {
     expect(cancelsDelete(false, 'Escape')).toBe(false)
+  })
+})
+
+describe('run links', () => {
+  it('names a run in the fragment, so it never reaches the server', () => {
+    expect(runHash('20261004-1139-items-g31dv3')).toBe('#run=20261004-1139-items-g31dv3')
+  })
+
+  it('escapes what would break a fragment', () => {
+    expect(runHash('a b')).toBe('#run=a%20b')
+    expect(runHash('x#y')).toBe('#run=x%23y')
+  })
+
+  it('reads back what it wrote, including an id that needs escaping', () => {
+    for (const id of ['20261004-1139-items-g31dv3', 'a b/c', 'x#y']) {
+      expect(runFromHash(runHash(id))).toBe(id)
+    }
+  })
+
+  it.each(['', '#', '#run=', '#other=abc', 'run=abc', '#run=%E0%A4%A'])(
+    'does not read %j as a run link',
+    (hash) => {
+      expect(runFromHash(hash)).toBeNull()
+    },
+  )
+
+  it('opens the list on the run the address names, with nothing being asked about', () => {
+    expect(initialRows('#run=abc')).toEqual({ open: 'abc', confirmingDelete: null })
+  })
+
+  it('opens the list shut when the address names none', () => {
+    expect(initialRows('')).toEqual(CLOSED)
+    expect(initialRows('#something-else')).toEqual(CLOSED)
   })
 })

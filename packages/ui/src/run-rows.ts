@@ -32,3 +32,31 @@ export function cancelDelete(state: RowState): RowState {
  * there is a question: otherwise it belongs to whatever the reader is doing.
  */
 export const cancelsDelete = (confirming: boolean, key: string) => confirming && key === 'Escape'
+
+/**
+ * A link to one run: `#run=<id>`.
+ *
+ * In the fragment, not a path or a query: the dashboard is a single page behind
+ * a Worker whose routes are set in the Cloudflare dashboard, so a path would be
+ * answered by the SPA only until someone forgot a route, and a fragment never
+ * reaches the server at all.
+ */
+export const runHash = (id: string): string => `#run=${encodeURIComponent(id)}`
+
+/** The run a fragment names, or null for anything that is not a run link. */
+export function runFromHash(hash: string): string | null {
+  const match = /^#run=(.+)$/.exec(hash)
+  if (!match?.[1]) return null
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    // A malformed escape is not a run link, and is not worth an error.
+    return null
+  }
+}
+
+/** The list as it should open: on the run the address names, if it names one. */
+export const initialRows = (hash: string): RowState => ({
+  open: runFromHash(hash),
+  confirmingDelete: null,
+})

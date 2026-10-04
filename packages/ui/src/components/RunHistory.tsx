@@ -1,4 +1,4 @@
-import { Fragment, useState, type CSSProperties } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   RUNS_PER_PAGE,
   SUITE_LABELS,
@@ -14,7 +14,16 @@ import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
 import { runTag } from '../run-form'
 import { useCompact } from '../use-compact'
-import { CLOSED, askDelete, cancelDelete, toggleRow, type RowState } from '../run-rows'
+import {
+  askDelete,
+  cancelDelete,
+  initialRows,
+  runFromHash,
+  runHash,
+  toggleRow,
+  type RowState,
+} from '../run-rows'
+import { CopyButton } from './CopyButton'
 import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
@@ -59,6 +68,80 @@ export const relative = (iso: string) => {
   return `${Math.round(seconds / 86400)}d ago`
 }
 
+/**
+ * When a run started, for a column that is read by scanning.
+ *
+ * "27d ago" is a poor answer to "which run was that": past a day, nobody can
+ * place a run by counting days back. Within a day it stays relative ("2h ago" is
+ * what a person watching the list wants); beyond that it is the date, with the
+ * year only when it is not this one. The full local time is the cell's tooltip
+ * (`startedTitle`).
+ *
+ * `timeZone` is for tests; leaving it out shows the reader's own.
+ */
+export function startedLabel(iso: string, now: number = Date.now(), timeZone?: string): string {
+  const started = Date.parse(iso)
+  if (Math.max(0, now - started) < 86_400_000) return relative(iso)
+  const then = zoned(started, timeZone)
+  const sameYear = then.year === zoned(now, timeZone).year
+  return `${then.day} ${MONTHS[then.month - 1]}${sameYear ? '' : ` ${then.year}`}`
+}
+
+/** The exact time, in the reader's own zone, for a tooltip: `4 Sep 2026, 14:03:09`. */
+export function startedTitle(iso: string, timeZone?: string): string {
+  const p = zoned(Date.parse(iso), timeZone)
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${two(p.hour)}:${two(p.minute)}:${two(p.second)}`
+}
+
+/**
+ * Month names written out rather than asked of `Intl`: the short form of
+ * September is "Sep" in one version of the locale data and "Sept" in another,
+ * and a column that reads differently on two machines is a column nobody can
+ * rely on a screenshot of.
+ */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** The parts of an instant in a zone — numbers only, so nothing depends on locale wording. */
+function zoned(ms: number, timeZone?: string) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hourCycle: 'h23',
+    timeZone,
+  }).formatToParts(new Date(ms))
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0)
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+    minute: get('minute'),
+    second: get('second'),
+  }
+}
+
+/**
+ * The branch, and what it was when the run happened.
+ *
+ * "main" says which branch and nothing about what was on it: the suite behind
+ * `main` changes weekly and a run in last month's list ran last month's tests.
+ * The version is what a person quotes and the commit is what identifies the
+ * tree, and they arrive at different times — the commit is noted when the run is
+ * dispatched, the version comes with the result — so the label shows the
+ * version once it has one, the commit until then, and the branch alone for a
+ * run that has neither (every simulated run).
+ */
+export function refLabel(run: Pick<Run, 'ref' | 'suiteVersion' | 'suiteSha'>): string {
+  if (run.suiteVersion) return `${run.ref} · v${run.suiteVersion}`
+  if (run.suiteSha) return `${run.ref} · ${run.suiteSha.slice(0, 7)}`
+  return run.ref
+}
+
 export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 1000).toFixed(1)}s`)
 
 /**
@@ -67,7 +150,7 @@ export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 10
  * only when it started rather than a trailing separator.
  */
 export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
-  [relative(run.startedAt), duration(run.durationMs)].filter(Boolean).join(' · ')
+  [startedLabel(run.startedAt), duration(run.durationMs)].filter(Boolean).join(' · ')
 
 /**
  * What the visibility scoping actually means for the signed-in role, in
@@ -224,7 +307,9 @@ export function RunHistory({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
-  const [rows, setRows] = useState<RowState>(CLOSED)
+  const [rows, setRows] = useState<RowState>(() =>
+    initialRows(typeof window === 'undefined' ? '' : window.location.hash),
+  )
   const compact = useCompact()
   const { open, confirmingDelete } = rows
 
@@ -246,6 +331,16 @@ export function RunHistory({
   }
 
   const shown = applyFilter(runs, filter)
+
+  // A run link opens its row; scroll to it once, when the row exists. Only for
+  // the row the address named — opening a row by hand must not move the page.
+  const linked = useRef(runFromHash(typeof window === 'undefined' ? '' : window.location.hash))
+  useEffect(() => {
+    const id = linked.current
+    if (!id || !shown.some((r) => r.id === id)) return
+    linked.current = null
+    document.getElementById(`run-${id}`)?.scrollIntoView({ block: 'center' })
+  }, [shown])
 
   return (
     <section>
@@ -297,6 +392,7 @@ export function RunHistory({
                 return (
                   <Fragment key={run.id}>
                     <tr
+                      id={`run-${run.id}`}
                       onClick={() => setRows((r) => toggleRow(r, run.id))}
                       style={{
                         ...s.tr,
@@ -332,7 +428,9 @@ export function RunHistory({
                           <span style={s.runSuite}>{SUITE_LABELS[run.suite]}</span>
                           <span style={s.runService}>{run.service}</span>
                           {runTag(run.tags) && <span style={s.runTags}>{runTag(run.tags)}</span>}
-                          <span style={s.runRef}>{run.ref}</span>
+                          <span style={s.runRef} title={run.suiteSha ?? undefined}>
+                            {refLabel(run)}
+                          </span>
                           {run.simulated && (
                             <span
                               style={s.runSimulated}
@@ -352,7 +450,9 @@ export function RunHistory({
                       {!compact && (
                         <>
                           <td style={{ ...s.td, ...s.tdRight, ...mono }}>
-                            {relative(run.startedAt)}
+                            <span title={startedTitle(run.startedAt)}>
+                              {startedLabel(run.startedAt)}
+                            </span>
                           </td>
 
                           <td style={{ ...s.td, ...s.tdRight, ...mono }}>
@@ -399,7 +499,14 @@ export function RunHistory({
                         <td colSpan={6} style={{ ...s.detailCell, ...(compact ? s.block : null) }}>
                           <div style={s.detailGrid}>
                             <Detail label="Run id">
-                              <span style={{ ...mono, color: c.t2 }}>{run.id}</span>
+                              <span style={{ ...mono, color: c.t2 }}>{run.id}</span>{' '}
+                              <span style={s.copies}>
+                                <CopyButton text={run.id} label="Copy id" />
+                                <CopyButton
+                                  text={`${window.location.origin}${window.location.pathname}${runHash(run.id)}`}
+                                  label="Copy link"
+                                />
+                              </span>
                             </Detail>
 
                             {/*
@@ -654,6 +761,7 @@ const s: Record<string, CSSProperties> = {
     padding: '14px 16px 16px',
     borderBottom: `1px solid ${c.border}`,
   },
+  copies: { display: 'inline-flex', gap: 6, marginLeft: 6, verticalAlign: 'middle' },
   detailGrid: {
     display: 'flex',
     flexWrap: 'wrap',

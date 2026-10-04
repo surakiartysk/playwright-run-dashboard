@@ -57,3 +57,51 @@ export async function suiteBranches(
   cache.set(target.repo, { at: now, branches })
   return branches
 }
+
+/**
+ * Note on a run which commit its branch pointed at when it was dispatched.
+ *
+ * The workflow reports the commit it actually ran, but only when it finishes;
+ * until then a queued or running row could say nothing about what it was
+ * running. This asks GitHub what the branch is now and writes that down, so the
+ * row is useful from the moment it exists.
+ *
+ * It is a guess that the callback corrects: a push to the branch while the run
+ * waited in GitHub's queue means the workflow runs a newer commit, and the
+ * callback's `suite_sha` replaces this one. The other way round — the callback
+ * arriving first — is why this writes only where there is nothing yet.
+ *
+ * Never throws and never delays the response: it is run after the dispatch has
+ * succeeded, and a missing sha is a row that says less, not a run that failed.
+ */
+export async function recordRefSha(
+  env: Bindings,
+  runId: string,
+  suite: Suite,
+  ref: string,
+): Promise<void> {
+  const target = resolveTarget(env, suite)
+  if (!target || !env.GITHUB_TOKEN) return
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${target.repo}/commits/${encodeURIComponent(ref)}`,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+          'User-Agent': 'run-dashboard',
+        },
+      },
+    )
+    if (!response.ok) return
+    const { sha } = (await response.json()) as { sha?: unknown }
+    if (typeof sha !== 'string' || !/^[0-9a-f]{7,64}$/.test(sha)) return
+
+    await env.DB.prepare(`UPDATE runs SET suite_sha = COALESCE(suite_sha, ?2) WHERE id = ?1`)
+      .bind(runId, sha)
+      .run()
+  } catch {
+    // See above: not knowing is allowed.
+  }
+}
