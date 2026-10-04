@@ -1,43 +1,32 @@
 import { readFileSync } from 'node:fs'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  ACCENT_IDS,
+  DEFAULT_ACCENT,
+  FONTS,
+  NEUTRALS,
+  accentTokens,
+  tokensCss,
+  type Accent,
+  type Mode,
+} from '../src/tokens'
+import { TOKENS_MARKER, tokensPlugin } from '../vite.config'
 
 /**
- * The text tones against the backgrounds they sit on, read from index.html.
+ * The palette, checked as a table.
  *
  * t4 and t5 failed WCAG AA for a long time without anything noticing: t5, on
  * 34 hints and sub-labels, measured 2.7:1 on the light surface. Contrast is
  * invisible to every other test here and easy to lose again by nudging one hex
- * value, so the palette block itself is what gets checked.
+ * value, so the values themselves are what gets checked.
+ *
+ * These tests used to read `index.html`, where the palette was written out by
+ * hand. It is now generated from `src/tokens.ts`, so they read that, plus the
+ * stylesheet it produces for the things only the stylesheet can get wrong: a
+ * selector missing, or two copies of one theme drifting apart.
  */
 
-const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-
-/** The custom properties declared in the first `{ … }` after `marker`. */
-function block(marker: string): Record<string, string> {
-  const start = html.indexOf(marker)
-  if (start < 0) throw new Error(`no ${marker} in index.html`)
-  const open = html.indexOf('{', start + marker.length - 1)
-  const body = html.slice(open + 1, html.indexOf('}', open))
-  return Object.fromEntries(
-    [...body.matchAll(/--c-([\w-]+):\s*(#[0-9a-f]{6})/gi)].map((m) => [
-      m[1],
-      (m[2] ?? '').toLowerCase(),
-    ]),
-  )
-}
-
-const themes = {
-  light: block(':root {'),
-  'dark (system)': block(":root:not([data-theme='light']) {"),
-  'dark (chosen)': block("[data-theme='dark'] {"),
-}
-
-/** A token's value, or a failure naming the one that is missing. */
-function token(tokens: Record<string, string>, name: string): string {
-  const value = tokens[name]
-  if (!value) throw new Error(`--c-${name} is not declared in this block`)
-  return value
-}
+const MODES: Mode[] = ['light', 'dark']
 
 function channel(hex: string, at: number): number {
   const c = parseInt(hex.slice(at, at + 2), 16) / 255
@@ -53,15 +42,32 @@ function contrast(a: string, b: string): number {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
 }
 
-const TEXT = ['t1', 't2', 't3', 't4', 't5']
-const BACKGROUNDS = ['bg', 'card', 'surface', 'hover']
+/**
+ * A fill as it looks on `over`.
+ *
+ * The dark theme writes its tints as `rgba(…, 0.14)`, which has no contrast of
+ * its own: what matters is the colour a reader sees, so it is laid over the
+ * surface it sits on first.
+ */
+function flatten(colour: string, over: string): string {
+  if (colour.startsWith('#')) return colour
+  const m = /rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/.exec(colour)
+  if (!m) throw new Error(`cannot read ${colour}`)
+  const [r, g, b, a] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])]
+  const base = [1, 3, 5].map((i) => parseInt(over.slice(i, i + 2), 16))
+  const out = [r, g, b].map((v, i) => Math.round(v * a + (base[i] ?? 0) * (1 - a)))
+  return '#' + out.map((v) => v.toString(16).padStart(2, '0')).join('')
+}
+
+const TEXT = ['t1', 't2', 't3', 't4', 't5'] as const
+const BACKGROUNDS = ['bg', 'card', 'surface', 'hover'] as const
 
 describe('text contrast', () => {
-  for (const [theme, tokens] of Object.entries(themes)) {
+  for (const mode of MODES) {
     for (const text of TEXT) {
-      it(`${theme}: ${text} clears 4.5:1 on every background`, () => {
+      it(`${mode}: ${text} clears 4.5:1 on every background`, () => {
         for (const bg of BACKGROUNDS) {
-          const [fg, back] = [token(tokens, text), token(tokens, bg)]
+          const [fg, back] = [NEUTRALS[mode][text], NEUTRALS[mode][bg]]
           expect(contrast(fg, back), `${text} ${fg} on ${bg} ${back}`).toBeGreaterThanOrEqual(4.5)
         }
       })
@@ -69,17 +75,182 @@ describe('text contrast', () => {
   }
 
   it('keeps the tones in order, each lighter than the last on the light theme', () => {
-    const l = TEXT.map((t) => luminance(token(themes.light, t)))
+    const l = TEXT.map((t) => luminance(NEUTRALS.light[t]))
     expect(l).toEqual([...l].sort((a, b) => a - b))
+  })
+})
+
+describe('every accent, in every mode', () => {
+  for (const accent of ACCENT_IDS) {
+    for (const mode of MODES) {
+      const label = `${accent} / ${mode}`
+
+      it(`${label}: text on the primary fill clears 4.5:1, resting and hovered`, () => {
+        const t = accentTokens(accent, mode)
+        expect(contrast(t['on-primary'], t.primary), 'resting').toBeGreaterThanOrEqual(4.5)
+        expect(contrast(t['on-primary'], t['primary-dark']), 'hovered').toBeGreaterThanOrEqual(4.5)
+      })
+
+      it(`${label}: the accent as text reads on the card and on its own tint`, () => {
+        const t = accentTokens(accent, mode)
+        const card = NEUTRALS[mode].card
+        expect(contrast(t.primary, card), 'on card').toBeGreaterThanOrEqual(4.5)
+        expect(
+          contrast(t.primary, flatten(t['primary-light'], card)),
+          'on tint',
+        ).toBeGreaterThanOrEqual(4.5)
+      })
+
+      it(`${label}: white text on the sign-in panel clears 4.5:1`, () => {
+        const t = accentTokens(accent, mode)
+        expect(contrast('#ffffff', t['brand-3'])).toBeGreaterThanOrEqual(4.5)
+      })
+    }
+  }
+})
+
+/** The declarations of the block whose selector line is exactly `selector`. */
+function declarationsOf(css: string, selector: string): string {
+  const open = css.indexOf(`${selector} {`)
+  if (open < 0) throw new Error(`no block for ${selector}`)
+  const body = css.slice(css.indexOf('{', open) + 1, css.indexOf('}', open))
+  return body
+    .split(';')
+    .map((d) => d.trim())
+    .filter(Boolean)
+    .sort()
+    .join(';')
+}
+
+describe('the generated stylesheet', () => {
+  const css = tokensCss()
+
+  it('has a rule for every accent in all three ways a mode is reached', () => {
+    for (const accent of ACCENT_IDS) {
+      expect(css, `${accent} light`).toContain(`:root[data-accent='${accent}'] {`)
+      expect(css, `${accent} system dark`).toContain(
+        `:root:not([data-theme='light'])[data-accent='${accent}'] {`,
+      )
+      expect(css, `${accent} chosen dark`).toContain(
+        `[data-theme='dark'][data-accent='${accent}'] {`,
+      )
+    }
   })
 
   /*
    * The dark theme is written twice — once for a dark OS, once for an explicit
-   * choice — and nothing but this keeps the copies the same.
+   * choice. Nothing but this keeps the copies the same.
    */
-  it('declares the dark theme identically in both of its blocks', () => {
-    for (const t of [...TEXT, ...BACKGROUNDS]) {
-      expect(token(themes['dark (chosen)'], t), t).toBe(token(themes['dark (system)'], t))
+  it('declares each accent identically for a dark OS and for a chosen dark', () => {
+    for (const accent of ACCENT_IDS) {
+      expect(
+        declarationsOf(css, `:root:not([data-theme='light'])[data-accent='${accent}']`),
+        accent,
+      ).toBe(declarationsOf(css, `[data-theme='dark'][data-accent='${accent}']`))
+    }
+    expect(declarationsOf(css, ":root:not([data-theme='light'])")).toBe(
+      declarationsOf(css, "[data-theme='dark']"),
+    )
+  })
+
+  it('orders the rules so an equal-specificity rule for dark follows the one for light', () => {
+    const light = css.indexOf(`:root[data-accent='${DEFAULT_ACCENT}'] {`)
+    const dark = css.indexOf(`[data-theme='dark'][data-accent='${DEFAULT_ACCENT}'] {`)
+    expect(light).toBeGreaterThan(-1)
+    expect(dark).toBeGreaterThan(light)
+  })
+
+  it('makes the default accent the one with no attribute at all', () => {
+    const base = declarationsOf(css, ':root')
+    const expected = Object.entries(accentTokens(DEFAULT_ACCENT, 'light')).map(
+      ([k, v]) => `--c-${k}: ${v}`,
+    )
+    for (const line of expected) expect(base).toContain(line)
+  })
+
+  it('declares both typefaces', () => {
+    expect(css).toContain(`--font-ui: ${FONTS.ui};`)
+    expect(css).toContain(`--font-mono: ${FONTS.mono};`)
+  })
+})
+
+describe('index.html', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
+
+  it('has the marker the palette is built into, exactly once', () => {
+    expect(html.split(TOKENS_MARKER).length - 1).toBe(1)
+  })
+
+  it('does not carry a hand-written palette any more', () => {
+    expect(html).not.toMatch(/--c-[\w-]+:\s*(#|rgba)/)
+  })
+
+  it('refuses to build without the marker rather than shipping a page with no colours', () => {
+    const hook = tokensPlugin().transformIndexHtml as (html: string) => string
+    expect(() => hook('<style></style>')).toThrow(/palette/)
+    expect(hook(`<style>${TOKENS_MARKER}</style>`)).toContain('--c-primary:')
+  })
+
+  it('stamps a stored accent before first paint', () => {
+    expect(html).toContain("localStorage.getItem('rd_accent')")
+  })
+})
+
+/*
+ * What the Appearance control will call. A minimal document stands in for the
+ * browser: the point is the attribute and the storage key, not the DOM.
+ */
+describe('mode and accent', () => {
+  const attrs = new Map<string, string>()
+  const store = new Map<string, string>()
+
+  beforeEach(() => {
+    attrs.clear()
+    store.clear()
+    vi.stubGlobal('document', {
+      documentElement: {
+        getAttribute: (k: string) => attrs.get(k) ?? null,
+        setAttribute: (k: string, v: string) => void attrs.set(k, v),
+        removeAttribute: (k: string) => void attrs.delete(k),
+      },
+    })
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reads nothing stamped as the system setting, not as light', async () => {
+    const { currentMode } = await import('../src/theme')
+    expect(currentMode()).toBe('system')
+  })
+
+  it('stamps and stores a chosen mode, and system removes both', async () => {
+    const { setMode, currentMode } = await import('../src/theme')
+    setMode('dark')
+    expect([currentMode(), store.get('rd_theme')]).toEqual(['dark', 'dark'])
+    setMode('system')
+    expect([currentMode(), store.has('rd_theme'), attrs.has('data-theme')]).toEqual([
+      'system',
+      false,
+      false,
+    ])
+  })
+
+  it('falls back to the default accent for a missing or unknown name', async () => {
+    const { currentAccent } = await import('../src/theme')
+    expect(currentAccent()).toBe(DEFAULT_ACCENT)
+    attrs.set('data-accent', 'magenta')
+    expect(currentAccent()).toBe(DEFAULT_ACCENT)
+  })
+
+  it('stamps and stores a chosen accent', async () => {
+    const { setAccent, currentAccent } = await import('../src/theme')
+    for (const accent of ACCENT_IDS satisfies readonly Accent[]) {
+      setAccent(accent)
+      expect([currentAccent(), store.get('rd_accent')]).toEqual([accent, accent])
     }
   })
 })

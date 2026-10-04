@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { ACCENT_IDS, DEFAULT_ACCENT, type Accent } from './tokens'
 
 /**
  * Design tokens, as references to the CSS variables in index.html.
@@ -8,9 +9,11 @@ import type { CSSProperties } from 'react'
  * `c.card` is correct in both without knowing which is active. The theme
  * toggle changes one attribute on `<html>` and the whole page follows.
  *
- * The accent is indigo for one reason: on a dashboard whose whole job is
- * showing pass and fail, a red accent would compete with the failure state.
- * A neutral accent leaves red meaning exactly one thing.
+ * The accent is a choice (src/tokens.ts) and the default is graphite, for one
+ * reason: on a dashboard whose whole job is showing pass and fail, a red
+ * accent would compete with the failure state. A neutral accent leaves red
+ * meaning exactly one thing; blue, teal and indigo are offered because that
+ * rules out red, green and amber, not every colour.
  */
 
 export const c = {
@@ -77,11 +80,17 @@ export const status = {
  * `tabular-nums` comes with it.
  */
 export const mono: CSSProperties = {
-  fontFamily: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+  // The face lives in one place (--font-mono, from src/tokens.ts).
+  fontFamily: 'var(--font-mono)',
   fontVariantNumeric: 'tabular-nums',
 }
 
 export const THEME_KEY = 'rd_theme'
+export const ACCENT_KEY = 'rd_accent'
+
+// Re-exported so a component asks theme.ts for the accents and not tokens.ts.
+export { ACCENT_IDS, DEFAULT_ACCENT }
+export type { Accent }
 
 /**
  * What the viewer is actually looking at.
@@ -89,8 +98,9 @@ export const THEME_KEY = 'rd_theme'
  * Three states, not two: an explicit choice stamps the root element, and the
  * default — no stamp — follows the operating system. Reading only the stamp
  * reported 'light' to someone sitting in front of a dark page, which put the
- * wrong icon on the toggle and offered to switch them to the theme they were
- * already in.
+ * wrong icon on the old toggle and offered to switch them to the theme they
+ * were already in. The Appearance control still needs it, to draw the accent
+ * swatches in the colours of the mode on screen.
  */
 export function currentTheme(): 'light' | 'dark' {
   const stamped = document.documentElement.getAttribute('data-theme')
@@ -99,17 +109,42 @@ export function currentTheme(): 'light' | 'dark' {
 }
 
 /**
- * Always stamps, in both directions.
+ * What the viewer asked for, which is not always what they are looking at.
  *
- * Removing the attribute would hand the choice back to the operating system,
- * so a viewer on a dark OS who asked for light would get dark again on the
- * next paint — a toggle that appears not to work.
+ * `system` is a choice, not an absence: it is the setting that follows the
+ * device. `currentTheme()` answers a different question — which of the two is
+ * on screen — and the Appearance control needs both.
  */
-export function toggleTheme(): 'light' | 'dark' {
-  const next = currentTheme() === 'dark' ? 'light' : 'dark'
-  document.documentElement.setAttribute('data-theme', next)
-  localStorage.setItem(THEME_KEY, next)
-  return next
+export type ThemeMode = 'light' | 'dark' | 'system'
+
+export function currentMode(): ThemeMode {
+  const stamped = document.documentElement.getAttribute('data-theme')
+  return stamped === 'dark' || stamped === 'light' ? stamped : 'system'
+}
+
+/**
+ * `system` is the only way back to following the device: it removes the stamp
+ * and the stored choice, where `light` and `dark` stamp and store.
+ */
+export function setMode(mode: ThemeMode): void {
+  if (mode === 'system') {
+    document.documentElement.removeAttribute('data-theme')
+    localStorage.removeItem(THEME_KEY)
+    return
+  }
+  document.documentElement.setAttribute('data-theme', mode)
+  localStorage.setItem(THEME_KEY, mode)
+}
+
+/** Unknown or missing names are the default, matching what the stylesheet does with them. */
+export function currentAccent(): Accent {
+  const stamped = document.documentElement.getAttribute('data-accent')
+  return ACCENT_IDS.find((id) => id === stamped) ?? DEFAULT_ACCENT
+}
+
+export function setAccent(accent: Accent): void {
+  document.documentElement.setAttribute('data-accent', accent)
+  localStorage.setItem(ACCENT_KEY, accent)
 }
 
 /**

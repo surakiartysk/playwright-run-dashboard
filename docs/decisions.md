@@ -37,6 +37,7 @@ interviewer should press on hardest.
 26. [The run form has one axis, because the suites do](#26-the-run-form-has-one-axis-because-the-suites-do)
 27. [The mutation count states its gap rather than closing it](#27-the-mutation-count-states-its-gap-rather-than-closing-it)
 28. [Sign-in counts wrong passwords, and counts them before checking](#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)
+29. [The accent is a choice, and the palette is generated](#29-the-accent-is-a-choice-and-the-palette-is-generated)
 
 ---
 
@@ -298,6 +299,10 @@ from the part that has to be taken on trust.
 ---
 
 ## 10. Indigo, so that red means only failure
+
+> **Partly superseded by [decision 29](#29-the-accent-is-a-choice-and-the-palette-is-generated).**
+> The reason below still holds. The accent is no longer fixed at indigo, and the
+> typeface is now Manrope; the mono-for-machine-data rule is unchanged.
 
 **Context.** A dashboard whose entire job is showing pass and fail has one
 colour that must never be ambiguous: red. The accent colour — buttons, links,
@@ -1551,6 +1556,63 @@ would protect nothing a guesser could reach.
 - **Nothing sweeps the table.** One row per address that ever got a password
   wrong, kept until someone deletes them. Housekeeping, as with demo runs in
   decision 22, and the same unsolved kind.
+
+---
+
+## 29. The accent is a choice, and the palette is generated
+
+**Context.** Decision 10 fixed the accent at indigo and wrote the palette out by
+hand in `index.html`, three times: light, dark for a dark OS, dark for an
+explicit choice. A test kept the two dark copies equal. That held for one
+accent. Offering a choice multiplies every block, and a hand-copied block is
+where a value drifts without anything noticing.
+
+**Decision.** The palette is a table, `src/tokens.ts`, and the stylesheet is
+generated from it when the page is built (`tokensPlugin` in `vite.config.ts`).
+Two independent choices, kept apart:
+
+- **Mode** — light, dark, or follow the device — decides the neutral surfaces
+  and text. "Follow the device" is a setting of its own, reached by removing the
+  stored choice, not by the absence of one.
+- **Accent** — graphite, blue, teal or indigo — decides only the `--c-primary*`
+  and `--c-brand-*` tokens.
+
+The default is **graphite**, a neutral. Decision 10's reasoning survives the
+change of colour: on a page that exists to show pass and fail, the accent must
+not compete with red and green. That rules out red, green and amber as accents,
+not every colour, so blue, teal and indigo are offered. Status colours are still
+literals and still do not shift between themes.
+
+The typeface family changed from Archivo to Manrope with the redesign; the rule
+that anything the machine produced is set in JetBrains Mono does not. Both faces
+are variables (`--font-ui`, `--font-mono`), so changing one is a single line.
+
+Everything an accent has to get right is tested as a table, for all four accents
+in both modes: text on the primary fill, resting and hovered, and the accent as
+text on the card and on its own tint, each at 4.5:1; and white text on the
+sign-in panel. The dark theme's two selectors are compared declaration by
+declaration. `prefers-reduced-motion` now stops every animation and transition
+on the page; before this nothing honoured it.
+
+**Trade-offs.**
+
+- **One more build step.** `index.html` is no longer the whole story: the
+  palette exists only after Vite has run, so opening the file as it is shows an
+  unstyled page. The plugin throws if its marker is missing rather than shipping
+  a page with no colours.
+- **Three rules per accent.** Each accent is emitted for light, for a dark OS
+  and for a chosen dark. The order is what makes them win, and it is asserted,
+  because getting it wrong is silent: an explicit light choice would be
+  overridden by a dark OS, or the reverse.
+- **A choice is another thing to test.** Four accents in two modes is eight
+  palettes that all have to read. They are checked by value, not by eye, and a
+  fifth accent fails the build if it does not clear the same bars.
+- **The default changed the look.** A page that was indigo is now graphite until
+  someone picks otherwise. That is deliberate and visible on first load.
+- **No rendering test for the control.** The package has no DOM test
+  environment, so the Appearance panel's decisions (what it offers, how arrow
+  keys move, what the button says) are tested as plain functions and the panel
+  itself was exercised in a browser.
 
 ---
 

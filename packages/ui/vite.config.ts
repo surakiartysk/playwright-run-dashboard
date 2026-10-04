@@ -1,5 +1,27 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { tokensCss } from './src/tokens'
+
+/**
+ * Puts the generated palette where index.html marks it.
+ *
+ * Throws when the marker is missing rather than carrying on: a page built
+ * without it has no `--c-*` variables at all, which looks like every colour in
+ * the app turning transparent and says nothing about why.
+ */
+export const TOKENS_MARKER = '/* @tokens */'
+
+export function tokensPlugin(): Plugin {
+  return {
+    name: 'run-dashboard-tokens',
+    transformIndexHtml(html) {
+      if (!html.includes(TOKENS_MARKER)) {
+        throw new Error(`index.html has no ${TOKENS_MARKER}; the palette would not be built`)
+      }
+      return html.replace(TOKENS_MARKER, tokensCss())
+    },
+  }
+}
 
 /**
  * The proxy is what keeps the session cookie working in development.
@@ -18,7 +40,7 @@ import react from '@vitejs/plugin-react'
  * as nothing in the UI called it.
  */
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tokensPlugin()],
   server: {
     port: 5173,
     proxy: {

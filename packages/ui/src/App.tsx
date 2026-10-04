@@ -8,7 +8,8 @@ import { adminPanelMode } from './admin-panel'
 import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
-import { c, currentTheme, toggleTheme } from './theme'
+import { Appearance } from './components/Appearance'
+import { c } from './theme'
 
 export function App() {
   const [role, setRole] = useState<Role | null>(null)
@@ -27,8 +28,6 @@ export function App() {
   const [canPreview, setCanPreview] = useState(false)
   const [simulates, setSimulates] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Bumped by the theme toggle so the header re-renders with the new icon.
-  const [, setThemeTick] = useState(0)
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
 
@@ -180,16 +179,7 @@ export function App() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => {
-              toggleTheme()
-              setThemeTick((n) => n + 1)
-            }}
-            style={s.signOut}
-            aria-label="Toggle theme"
-          >
-            {currentTheme() === 'dark' ? '☀' : '☾'}
-          </button>
+          <Appearance />
           <button
             onClick={() =>
               void api

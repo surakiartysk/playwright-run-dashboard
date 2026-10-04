@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=JetBrains+Mono:wght@400..600&display=swap"
       rel="stylesheet"
     />
     <script>
@@ -21,128 +21,25 @@
         // or the media query below overrides the viewer's own choice.
         var t = localStorage.getItem('rd_theme')
         if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t)
+        // An unknown name matches no rule, which leaves the default accent.
+        var a = localStorage.getItem('rd_accent')
+        if (a && /^[a-z]+$/.test(a)) document.documentElement.setAttribute('data-accent', a)
       })()
     </script>
     <style>
       /*
-       * The palette, as CSS variables.
+       * The palette, as CSS variables, is generated from src/tokens.ts when
+       * the page is built (tokensPlugin in vite.config.ts) and put where the
+       * marker below is. It used to be written out here three times — light,
+       * dark for a dark OS, dark for an explicit choice — and a fourth accent
+       * colour would have made it twelve.
        *
-       * Two themes off one set of names: components never branch on theme, they
-       * use `var(--c-card)` and get the right value. Adding a third would be a
-       * block here rather than an edit to every component.
-       *
-       * Text tones are numbered t1..t6 (darkest to lightest) rather than named
-       * primary/secondary/muted — names run out at three, numbers do not, and a
-       * reader can tell at a glance which of two labels is meant to recede.
-       *
-       * t1–t5 are text and each clears WCAG AA, 4.5:1, on every background
-       * here in both themes — test/palette.test.ts reads this block and checks.
-       * t4 and t5 used to fail it: t5 measured 2.7:1 on the light surface,
-       * and it carries 34 hints and sub-labels. Meeting it pulled t3–t5
-       * closer together, so the steps between them are small; size and
-       * weight carry more of the hierarchy than they did. t6 is for rules and
-       * disabled controls only, which the ratio exempts.
+       * Components never branch on theme: they use `var(--c-card)` and get the
+       * right value. Text tones are numbered t1..t6 (darkest to lightest)
+       * rather than named, and t1–t5 each clear WCAG AA on every background in
+       * every mode — test/palette.test.ts checks the table, not this file.
        */
-      :root {
-        --c-bg: #f3f6f9;
-        --c-card: #ffffff;
-        --c-surface: #eaeff5;
-        --c-input: #ffffff;
-        --c-hover: #eef2fc;
-        --c-border: #dce3ec;
-        --c-divider: #e9eef4;
-        --c-t1: #10151c;
-        --c-t2: #2a323d;
-        --c-t3: #4c5765;
-        --c-t4: #576270;
-        --c-t5: #626c7a;
-        --c-t6: #c2cad3;
-        --c-primary: #2f4ecc;
-        --c-primary-dark: #2540ad;
-        --c-primary-light: #e9edfb;
-        --c-primary-border: #c2cef2;
-        /* Text on a --c-primary fill. Not white in dark: the dark primary is
-         * light enough that white on it measured 2.7:1. */
-        --c-on-primary: #ffffff;
-        /* Error text and fields. #dc2626 measured 4.45:1 here and 3.9:1 on
-         * the dark background, both short of AA for 13px text. */
-        --c-danger: #b91c1c;
-        --c-danger-bg: #fff5f5;
-        --c-danger-border: #fca5a5;
-        --c-warn: #b45309;
-        --c-brand-1: #131a3d;
-        --c-brand-2: #222f6b;
-        --c-brand-3: #33429a;
-        --c-brand-glow: rgba(126, 148, 255, 0.3);
-        --c-brand-glow-faint: rgba(126, 148, 255, 0.16);
-      }
-      /*
-       * Three states, not two. An explicit choice stamps the root; the
-       * default 'system' setting stamps nothing, and only the media query
-       * separates light from dark there — without it a dark-OS visitor who
-       * has never touched the toggle was served the light theme.
-       */
-      @media (prefers-color-scheme: dark) {
-        :root:not([data-theme='light']) {
-          --c-bg: #0e1116;
-          --c-card: #161a21;
-          --c-surface: #1e242d;
-          --c-input: #10141a;
-          --c-hover: #1a2130;
-          --c-border: #2a313b;
-          --c-divider: #212730;
-          --c-t1: #e9edf2;
-          --c-t2: #c7cfda;
-          --c-t3: #97a1ad;
-          --c-t4: #8d97a3;
-          --c-t5: #838d99;
-          --c-t6: #3a424d;
-          --c-primary: #8098f7;
-          --c-primary-dark: #93a8ff;
-          --c-primary-light: rgba(128, 152, 247, 0.14);
-          --c-primary-border: rgba(128, 152, 247, 0.34);
-          --c-on-primary: #0e1116;
-          --c-danger: #f87171;
-          --c-danger-bg: rgba(239, 68, 68, 0.1);
-          --c-danger-border: rgba(248, 113, 113, 0.55);
-          --c-warn: #f59e0b;
-          --c-brand-1: #0a0d15;
-          --c-brand-2: #141b36;
-          --c-brand-3: #1f2a5c;
-          --c-brand-glow: rgba(128, 152, 247, 0.22);
-          --c-brand-glow-faint: rgba(128, 152, 247, 0.12);
-        }
-      }
-
-      [data-theme='dark'] {
-        --c-bg: #0e1116;
-        --c-card: #161a21;
-        --c-surface: #1e242d;
-        --c-input: #10141a;
-        --c-hover: #1a2130;
-        --c-border: #2a313b;
-        --c-divider: #212730;
-        --c-t1: #e9edf2;
-        --c-t2: #c7cfda;
-        --c-t3: #97a1ad;
-        --c-t4: #8d97a3;
-        --c-t5: #838d99;
-        --c-t6: #3a424d;
-        --c-primary: #8098f7;
-        --c-primary-dark: #93a8ff;
-        --c-primary-light: rgba(128, 152, 247, 0.14);
-        --c-primary-border: rgba(128, 152, 247, 0.34);
-        --c-on-primary: #0e1116;
-        --c-danger: #f87171;
-        --c-danger-bg: rgba(239, 68, 68, 0.1);
-        --c-danger-border: rgba(248, 113, 113, 0.55);
-        --c-warn: #f59e0b;
-        --c-brand-1: #0a0d15;
-        --c-brand-2: #141b36;
-        --c-brand-3: #1f2a5c;
-        --c-brand-glow: rgba(128, 152, 247, 0.22);
-        --c-brand-glow-faint: rgba(128, 152, 247, 0.12);
-      }
+      /* @tokens */
 
       *,
       *::before,
@@ -154,18 +51,14 @@
 
       body {
         /*
-         * Archivo for anything a person wrote, JetBrains Mono for anything the
+         * Manrope for anything a person wrote, JetBrains Mono for anything the
          * machine produced — run ids, counts, durations, refs. That split is
          * the page's one typographic rule, and it does information-design work:
          * a reader can tell generated data from prose without reading either.
+         * The faces are --font-ui and --font-mono (src/tokens.ts), so changing
+         * one is a single line.
          */
-        font-family:
-          'Archivo',
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          'Segoe UI',
-          sans-serif;
+        font-family: var(--font-ui);
         background: var(--c-bg);
         color: var(--c-t1);
         -webkit-font-smoothing: antialiased;
@@ -186,6 +79,16 @@
           transform: translateY(0);
         }
       }
+      @keyframes pop-in {
+        from {
+          opacity: 0;
+          transform: scale(0.94) translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
       @keyframes pulse-dot {
         0%,
         100% {
@@ -195,6 +98,24 @@
         50% {
           opacity: 0.4;
           transform: scale(0.75);
+        }
+      }
+
+      /*
+       * For anyone who asked their system for less motion, everything here
+       * stops. Nothing relies on it: a running run is still marked by its
+       * label and colour, the spinner just sits still, and the page was
+       * already complete without the entrance fades. Animations are cut to
+       * one frame rather than removed so that an element which starts
+       * invisible and animates in still ends up visible.
+       */
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
         }
       }
 
