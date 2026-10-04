@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
-import { ApiError, api, isPending, type Role, type RolePolicy, type Run } from './api'
+import {
+  ApiError,
+  api,
+  isPending,
+  type Role,
+  type RolePolicy,
+  type Run,
+  type RunOptions,
+} from './api'
 import { Login } from './components/Login'
 import { RoleSwitcher } from './components/RoleSwitcher'
 import { RunTrigger } from './components/RunTrigger'
@@ -28,7 +36,9 @@ export function App() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
   const [canPreview, setCanPreview] = useState(false)
-  const [simulates, setSimulates] = useState(false)
+  // What the signed-in caller may ask for: null while it loads, an error if it cannot.
+  const [options, setOptions] = useState<RunOptions | null>(null)
+  const [optionsError, setOptionsError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
@@ -50,7 +60,8 @@ export function App() {
     setNextCursor(null)
     setPolicies([])
     setCanPreview(false)
-    setSimulates(false)
+    setOptions(null)
+    setOptionsError(null)
     setError(null)
   }, [])
 
@@ -63,6 +74,20 @@ export function App() {
       .finally(() => setChecking(false))
   }, [])
 
+  // Read once per sign-in: what the form offers is a fact about the caller, and
+  // it does not change while they look at it.
+  useEffect(() => {
+    if (!role) return
+    setOptions(null)
+    setOptionsError(null)
+    api
+      .options()
+      .then(setOptions)
+      .catch((e: unknown) =>
+        setOptionsError(e instanceof Error ? e.message : 'Could not load what you can run'),
+      )
+  }, [role])
+
   useEffect(() => {
     if (!role) return
     api
@@ -70,7 +95,6 @@ export function App() {
       .then((r) => {
         setPolicies(r.roles)
         setCanPreview(r.canPreview)
-        setSimulates(r.simulates)
       })
       .catch(() => setPolicies([]))
   }, [role])
@@ -157,7 +181,6 @@ export function App() {
   // previewing another role only changes what runs are shown below, never
   // what a new run may target or how many workers it may use.
   const viewingRole = viewAs ?? role
-  const policy = policies.find((p) => p.role === role)
   const viewPolicy = policies.find((p) => p.role === viewingRole)
   const panelMode = adminPanelMode(role, viewingRole)
   const pending = runs.filter((run) => isPending(run.status)).length
@@ -218,14 +241,17 @@ export function App() {
         />
       )}
 
-      {policy && (
+      {options ? (
         <RunTrigger
           key={`${role}-${gateTick}`}
-          policy={policy}
+          options={options}
           role={role}
-          simulates={simulates}
           onStarted={() => void refresh()}
         />
+      ) : (
+        <section style={s.optionsPending} aria-live="polite">
+          {optionsError ?? 'Loading what you can run…'}
+        </section>
       )}
 
       <RunHistory
@@ -331,6 +357,15 @@ const s: Record<string, CSSProperties> = {
     font: 'inherit',
     fontSize: 13,
     cursor: 'pointer',
+  },
+  optionsPending: {
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderRadius: 12,
+    padding: '18px 20px',
+    marginBottom: 18,
+    color: c.t4,
+    fontSize: 13.5,
   },
   error: {
     background: c.card,

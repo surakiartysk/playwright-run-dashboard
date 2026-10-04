@@ -9,6 +9,7 @@ import { webhookRoutes } from './routes/webhook'
 import { reportRoutes } from './routes/reports'
 import { gateRoutes } from './routes/gate'
 import { keyRoutes } from './routes/keys'
+import { optionsRoutes } from './routes/options'
 import { sweepStaleRuns } from './stale'
 import pkg from '../package.json'
 
@@ -114,6 +115,11 @@ app.get('/health', (c) => {
 app.route('/auth', authRoutes)
 // Read-only role preview for an authenticated `demo` session — see routes/demo.ts.
 app.route('/demo', demoRoutes)
+// Mounted before `/runs` and under it: Worker routes on the production hostname
+// are configured in the Cloudflare dashboard, so a new top-level path would be
+// answered by the SPA until someone added it there. `/runs/*` is already routed,
+// and this must come first or `/runs/:id` reads "options" as a run id.
+app.route('/runs/options', optionsRoutes)
 app.route('/runs', runRoutes)
 app.route('/gate', gateRoutes)
 // Admin-only throughout — see routes/keys.ts.

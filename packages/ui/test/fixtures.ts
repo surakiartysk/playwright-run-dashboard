@@ -1,4 +1,4 @@
-import type { Run } from '../src/api'
+import type { Run, RunOptions } from '../src/api'
 import type { TrendPoint } from '../src/components/RunTrend'
 
 /**
@@ -76,5 +76,35 @@ export function point(overrides: Partial<TrendPoint> = {}): TrendPoint {
     total,
     startedAt: '2026-01-01T12:00:00Z',
     ...overrides,
+  }
+}
+
+/**
+ * What `GET /runs/options` answers, for tests of the form.
+ *
+ * The lists are the suites' own, written out here on purpose: the form no longer
+ * holds them, so a test that imported them from the API would agree with it by
+ * construction. Overrides replace a whole suite's entry's fields.
+ */
+export function runOptions(over: Partial<RunOptions> = {}): RunOptions {
+  return {
+    role: 'qa',
+    simulated: true,
+    maxWorkers: 8,
+    suites: {
+      api: {
+        services: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
+        tags: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
+        refs: ['main', 'develop', 'release'],
+        refsFrom: 'policy',
+      },
+      ui: {
+        services: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
+        tags: ['all', 'smoke'],
+        refs: ['main', 'develop', 'release'],
+        refsFrom: 'policy',
+      },
+    },
+    ...over,
   }
 }

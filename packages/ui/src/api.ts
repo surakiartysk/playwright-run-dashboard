@@ -61,6 +61,29 @@ export interface Run {
   simulated: boolean
 }
 
+/**
+ * What one suite can be asked for, by the caller who asked.
+ *
+ * `refs` is what that caller may use and the repository really has, which is
+ * narrower than either alone — see `refsFor` in the Worker.
+ */
+export interface SuiteOptions {
+  services: string[]
+  tags: string[]
+  refs: string[]
+  /** `github` when the branches were read from the repository, `policy` when they were not. */
+  refsFrom: 'github' | 'policy'
+}
+
+/** `GET /runs/options`: the form's dropdowns, and a `curl`'s vocabulary. */
+export interface RunOptions {
+  role: Role
+  /** Whether a run this caller starts is simulated. */
+  simulated: boolean
+  maxWorkers: number
+  suites: Record<Suite, SuiteOptions>
+}
+
 export interface RolePolicy {
   role: Role
   allowedRefs: string[]
@@ -127,6 +150,9 @@ export const api = {
     request<{ mode: 'full' | 'demo-only'; passwords: Partial<Record<Role, string>> }>(
       '/auth/dev-credentials',
     ),
+
+  /** What the caller may ask for — see `RunOptions`. */
+  options: () => request<RunOptions>('/runs/options'),
 
   /** `simulates` is whether runs this session starts are simulated. */
   roles: () =>

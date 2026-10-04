@@ -1,4 +1,4 @@
-import type { Suite } from './api'
+import type { RunOptions, Suite, SuiteOptions } from './api'
 
 /**
  * What the New run form holds: which suite, the slice of it, and how to run it.
@@ -18,54 +18,36 @@ export interface RunForm {
 }
 
 /*
- * What each suite can be sliced by.
+ * What each suite can be sliced by, and which branches may be picked, is the
+ * API's to say (`GET /runs/options`), not the form's. The lists were written
+ * out here, in the contract test and in the API; they are in the API now, and
+ * what is below takes them as an argument.
  *
  * Two suites, two vocabularies: the API suite runs services, the UI suite runs
- * journey groups. Sharing one list would offer `reservations` to a suite that
- * has no such thing — the server would accept it (the column is free-form) and
- * the run would match no tests and report a green nothing.
- *
- * Duplicated from the suites rather than fetched: these change when a suite
- * gains a service, which is rare and always accompanied by a deploy. An
- * endpoint to serve them would be a network round trip to learn a constant.
+ * journey groups. Offering one the other's names sends a slice that matches
+ * nothing. `all` comes first and is how "no narrowing on this side" is said.
  */
-export const SUITE_SERVICES: Record<Suite, string[]> = {
-  api: ['all', 'items', 'reservations', 'maintenance-logs', 'core'],
-  ui: ['all', 'auth', 'catalogue', 'cart', 'checkout', 'defects'],
-}
-
-/**
- * `all` first, and it is not padding.
- *
- * `all` is how "no narrowing on this side" is said, and a form that opens on it
- * runs the whole of whatever the other choice names. The workflows' `scope`
- * input takes a tag or a service; their optional `tag` input narrows it by one
- * of these (decision 30).
- */
-export const SUITE_TAGS: Record<Suite, string[]> = {
-  api: ['all', 'smoke', 'isolated', 'flow', 'cross-service'],
-  ui: ['all', 'smoke'],
-}
 
 /**
  * What the form selects after the suite changes.
  *
  * Without this, choosing UI while `reservations` is selected sends a service
- * the UI suite has never heard of. The server accepts it, the run matches
- * nothing and reports a green zero — silently passing on a slice that does not
- * exist is the worst of the available failures. So whatever the new suite does
- * not offer is replaced by what it does: the first real service (not `all`,
- * which is the one a reader picks on purpose), and its first tag.
+ * the UI suite has never heard of, and the run matches nothing. So whatever the
+ * new suite does not offer is replaced by what it does: the first real service
+ * (not `all`, which is the one a reader picks on purpose), its first tag, and —
+ * since each suite is its own repository with its own branches — a branch it
+ * has, when the one selected is not among them.
  */
 export function afterSuiteChange(
   next: Suite,
-  current: { service: string; tags: string },
-): { service: string; tags: string } {
-  const services = SUITE_SERVICES[next]
-  const tags = SUITE_TAGS[next]
+  current: { service: string; tags: string; ref: string },
+  catalogue: Record<Suite, SuiteOptions>,
+): { service: string; tags: string; ref: string } {
+  const { services, tags, refs } = catalogue[next]
   return {
     service: services.includes(current.service) ? current.service : (services[1] ?? 'all'),
     tags: tags.includes(current.tags) ? current.tags : (tags[0] ?? 'all'),
+    ref: refs.includes(current.ref) ? current.ref : (refs[0] ?? current.ref),
   }
 }
 
@@ -99,21 +81,32 @@ export const startedMessage = (simulated: boolean): string =>
     ? 'Started a simulated run — it is in Recent runs below.'
     : 'Started — the run is in Recent runs below.'
 
-/** The selection the form opens on: the API suite's `items`, on `main`. */
-export function initialForm(maxWorkers: number, over: Partial<RunForm> = {}): RunForm {
+/**
+ * The selection the form opens on: the API suite's `items` where it has one,
+ * otherwise the first real service, on `main` where the caller may use it.
+ *
+ * Built from what the caller was offered, so a form never opens on a choice its
+ * own dropdowns do not contain.
+ */
+export function initialForm(options: RunOptions, over: Partial<RunForm> = {}): RunForm {
+  const api = options.suites.api
   return {
     suite: 'api',
-    service: 'items',
+    service: api.services.includes('items') ? 'items' : (api.services[1] ?? 'all'),
     tags: 'all',
-    ref: 'main',
+    ref: api.refs.includes('main') ? 'main' : (api.refs[0] ?? 'main'),
     ...over,
-    workers: clampWorkers(over.workers ?? defaultWorkers(maxWorkers), maxWorkers),
+    workers: clampWorkers(over.workers ?? defaultWorkers(options.maxWorkers), options.maxWorkers),
   }
 }
 
 /** The form after the suite is switched, with what that suite lacks replaced. */
-export function withSuite(form: RunForm, next: Suite): RunForm {
-  return { ...form, suite: next, ...afterSuiteChange(next, form) }
+export function withSuite(
+  form: RunForm,
+  next: Suite,
+  catalogue: Record<Suite, SuiteOptions>,
+): RunForm {
+  return { ...form, suite: next, ...afterSuiteChange(next, form, catalogue) }
 }
 
 /**
@@ -186,11 +179,11 @@ export const serviceLabel = (suite: Suite, id: string): string =>
 /** A tag is shown the way it is written in the specs, `@smoke`, which is also how it is searched. */
 export const scopeLabel = (id: string): string => (id === 'all' ? 'All tests' : `@${id}`)
 
-export const serviceChoices = (suite: Suite): Choice[] =>
-  SUITE_SERVICES[suite].map((value) => ({ value, label: serviceLabel(suite, value) }))
+export const serviceChoices = (suite: Suite, catalogue: Record<Suite, SuiteOptions>): Choice[] =>
+  catalogue[suite].services.map((value) => ({ value, label: serviceLabel(suite, value) }))
 
-export const scopeChoices = (suite: Suite): Choice[] =>
-  SUITE_TAGS[suite].map((value) => ({ value, label: scopeLabel(value) }))
+export const scopeChoices = (suite: Suite, catalogue: Record<Suite, SuiteOptions>): Choice[] =>
+  catalogue[suite].tags.map((value) => ({ value, label: scopeLabel(value) }))
 
 /**
  * How a recorded run's tag reads in the history: `@smoke`, or nothing.
@@ -201,3 +194,18 @@ export const scopeChoices = (suite: Suite): Choice[] =>
  * there is one and left out when there is not.
  */
 export const runTag = (tags: string): string | null => (tags === 'all' ? null : `@${tags}`)
+
+/**
+ * Why the branch cannot be changed, said so as to be true however it came about.
+ *
+ * One branch on offer is one of two situations: the role may only use one, or
+ * the role may use more and the suite's repository has only that one. The form
+ * is not told which, and a sentence naming either would be wrong in the other
+ * case — so it says what is the same in both: that is the only one available to
+ * this caller, here.
+ */
+export const refLockedReason = (role: string, refs: readonly string[]): string =>
+  `Suite branch: the branch of the test code, not of the app under test. ` +
+  (refs[0]
+    ? `Only ${refs[0]} is available to ${role} here.`
+    : `No branch is available to ${role} here.`)

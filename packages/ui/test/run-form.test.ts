@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { runOptions } from './fixtures'
 import {
-  SUITE_SERVICES,
-  SUITE_TAGS,
   afterSuiteChange,
   clampWorkers,
   defaultWorkers,
   describeSelection,
   initialForm,
   refLocked,
+  refLockedReason,
   runTag,
   scopeChoices,
   scopeLabel,
@@ -19,6 +19,9 @@ import {
   submitRun,
   withSuite,
 } from '../src/run-form'
+
+const options = runOptions()
+const catalogue = options.suites
 
 /**
  * The New run form's rules, apart from drawing it.
@@ -43,7 +46,7 @@ describe('what the form sends', () => {
   })
 
   it('does not hand over its own state: a later change cannot alter what was sent', async () => {
-    const form = initialForm(4, { tags: 'smoke' })
+    const form = initialForm(runOptions({ maxWorkers: 4 }), { tags: 'smoke' })
     let sent: { tags: string } | undefined
     await submitRun(form, async (body) => {
       sent = body
@@ -94,31 +97,46 @@ describe('afterSuiteChange', () => {
    * does not exist, which the server accepts and runs as a green nothing.
    */
   it('replaces a service the new suite does not have', () => {
-    expect(afterSuiteChange('ui', { service: 'reservations', tags: 'all' }).service).toBe('auth')
+    expect(
+      afterSuiteChange('ui', { service: 'reservations', tags: 'all', ref: 'main' }, catalogue)
+        .service,
+    ).toBe('auth')
   })
 
   it('replaces it with a real service, not with all', () => {
     for (const suite of ['api', 'ui'] as const) {
-      expect(afterSuiteChange(suite, { service: 'nope', tags: 'all' }).service).not.toBe('all')
+      expect(
+        afterSuiteChange(suite, { service: 'nope', tags: 'all', ref: 'main' }, catalogue).service,
+      ).not.toBe('all')
     }
   })
 
   it('keeps a service both suites share', () => {
     // `all` is the only name the two suites have in common.
-    expect(afterSuiteChange('ui', { service: 'all', tags: 'smoke' }).service).toBe('all')
-    expect(afterSuiteChange('api', { service: 'items', tags: 'all' }).service).toBe('items')
+    expect(
+      afterSuiteChange('ui', { service: 'all', tags: 'smoke', ref: 'main' }, catalogue).service,
+    ).toBe('all')
+    expect(
+      afterSuiteChange('api', { service: 'items', tags: 'all', ref: 'main' }, catalogue).service,
+    ).toBe('items')
   })
 
   it('replaces a tag the new suite does not have, and keeps one it does', () => {
-    expect(afterSuiteChange('ui', { service: 'all', tags: 'cross-service' }).tags).toBe('all')
-    expect(afterSuiteChange('ui', { service: 'all', tags: 'smoke' }).tags).toBe('smoke')
+    expect(
+      afterSuiteChange('ui', { service: 'all', tags: 'cross-service', ref: 'main' }, catalogue)
+        .tags,
+    ).toBe('all')
+    expect(
+      afterSuiteChange('ui', { service: 'all', tags: 'smoke', ref: 'main' }, catalogue).tags,
+    ).toBe('smoke')
   })
 
   it('only ever selects what the suite offers', () => {
     for (const suite of ['api', 'ui'] as const) {
-      const next = afterSuiteChange(suite, { service: 'zzz', tags: 'zzz' })
-      expect(SUITE_SERVICES[suite]).toContain(next.service)
-      expect(SUITE_TAGS[suite]).toContain(next.tags)
+      const next = afterSuiteChange(suite, { service: 'zzz', tags: 'zzz', ref: 'main' }, catalogue)
+      expect(catalogue[suite].services).toContain(next.service)
+      expect(catalogue[suite].tags).toContain(next.tags)
+      expect(catalogue[suite].refs).toContain(next.ref)
     }
   })
 })
@@ -176,41 +194,51 @@ describe('startedMessage', () => {
 
 describe('initialForm', () => {
   it('opens on the API suite, items, main, with workers inside the role’s limit', () => {
-    expect(initialForm(16)).toEqual({
+    expect(initialForm(runOptions({ maxWorkers: 16 }))).toEqual({
       suite: 'api',
       service: 'items',
       tags: 'all',
       ref: 'main',
       workers: 4,
     })
-    expect(initialForm(2).workers).toBe(2)
+    expect(initialForm(runOptions({ maxWorkers: 2 })).workers).toBe(2)
   })
 
   it('takes what it is given, but never a worker count the role may not use', () => {
-    expect(initialForm(8, { service: 'all', workers: 99 })).toMatchObject({
+    expect(
+      initialForm(runOptions({ maxWorkers: 8 }), { service: 'all', workers: 99 }),
+    ).toMatchObject({
       service: 'all',
       workers: 8,
     })
   })
 
   it('opens on the whole of a service, which is what the form always opened on', () => {
-    expect(initialForm(4)).toMatchObject({ service: 'items', tags: 'all' })
+    expect(initialForm(runOptions({ maxWorkers: 4 }))).toMatchObject({
+      service: 'items',
+      tags: 'all',
+    })
   })
 })
 
 describe('withSuite', () => {
-  const form = initialForm(4, { service: 'reservations', tags: 'all', ref: 'develop', workers: 3 })
+  const form = initialForm(runOptions({ maxWorkers: 4 }), {
+    service: 'reservations',
+    tags: 'all',
+    ref: 'develop',
+    workers: 3,
+  })
 
   it('changes the suite and moves a service the new one lacks', () => {
-    expect(withSuite(form, 'ui')).toMatchObject({ suite: 'ui', service: 'auth' })
+    expect(withSuite(form, 'ui', catalogue)).toMatchObject({ suite: 'ui', service: 'auth' })
   })
 
   it('leaves what the suite switch does not concern alone', () => {
-    expect(withSuite(form, 'ui')).toMatchObject({ ref: 'develop', workers: 3 })
+    expect(withSuite(form, 'ui', catalogue)).toMatchObject({ ref: 'develop', workers: 3 })
   })
 
   it('keeps a service the new suite has', () => {
-    expect(withSuite({ ...form, service: 'all' }, 'ui').service).toBe('all')
+    expect(withSuite({ ...form, service: 'all' }, 'ui', catalogue).service).toBe('all')
   })
 })
 
@@ -218,15 +246,21 @@ describe('submitRun', () => {
   const accepted = (simulated: boolean) => async () => ({ simulated })
 
   it('says whether the run it started is simulated', async () => {
-    expect(await submitRun(initialForm(4), accepted(true))).toContain('simulated')
-    expect(await submitRun(initialForm(4), accepted(false))).not.toContain('simulated')
+    expect(await submitRun(initialForm(runOptions({ maxWorkers: 4 })), accepted(true))).toContain(
+      'simulated',
+    )
+    expect(
+      await submitRun(initialForm(runOptions({ maxWorkers: 4 })), accepted(false)),
+    ).not.toContain('simulated')
   })
 
   it('lets a refusal through for the form to show, rather than swallowing it', async () => {
     const refuse = async () => {
       throw new Error('runs are paused')
     }
-    await expect(submitRun(initialForm(4), refuse)).rejects.toThrow('runs are paused')
+    await expect(submitRun(initialForm(runOptions({ maxWorkers: 4 })), refuse)).rejects.toThrow(
+      'runs are paused',
+    )
   })
 })
 
@@ -256,14 +290,19 @@ describe('what the form calls things', () => {
   /** Only the words change: what is sent has to be the suite's own name. */
   it('keeps every value exactly as the suite names it, in the same order', () => {
     for (const suite of ['api', 'ui'] as const) {
-      expect(serviceChoices(suite).map((c) => c.value)).toEqual(SUITE_SERVICES[suite])
-      expect(scopeChoices(suite).map((c) => c.value)).toEqual(SUITE_TAGS[suite])
+      expect(serviceChoices(suite, catalogue).map((c) => c.value)).toEqual(
+        catalogue[suite].services,
+      )
+      expect(scopeChoices(suite, catalogue).map((c) => c.value)).toEqual(catalogue[suite].tags)
     }
   })
 
   it('gives every choice a label that is not the raw identifier', () => {
     for (const suite of ['api', 'ui'] as const) {
-      for (const choice of [...serviceChoices(suite), ...scopeChoices(suite)]) {
+      for (const choice of [
+        ...serviceChoices(suite, catalogue),
+        ...scopeChoices(suite, catalogue),
+      ]) {
         expect(choice.label.length, choice.value).toBeGreaterThan(0)
         expect(choice.label, choice.value).not.toBe(choice.value)
       }
@@ -280,5 +319,67 @@ describe('runTag', () => {
   /** `all` is the absence of a tag; `items @all` named one nobody wrote. */
   it('says nothing for a run that was not narrowed by a tag', () => {
     expect(runTag('all')).toBeNull()
+  })
+})
+
+describe('branches are per suite', () => {
+  /** Each suite is its own repository: a branch one has and the other lacks. */
+  const split = runOptions({
+    suites: {
+      api: { ...catalogue.api, refs: ['main', 'develop'] },
+      ui: { ...catalogue.ui, refs: ['main'] },
+    },
+  }).suites
+
+  it('moves the branch when the other suite does not have it', () => {
+    const form = initialForm(runOptions(), { ref: 'develop' })
+    expect(withSuite(form, 'ui', split).ref).toBe('main')
+  })
+
+  it('keeps a branch both have', () => {
+    const form = initialForm(runOptions(), { ref: 'main' })
+    expect(withSuite(form, 'ui', split).ref).toBe('main')
+  })
+
+  it('keeps the branch when the suite offers none, rather than inventing one', () => {
+    const none = { ...split, ui: { ...split.ui, refs: [] } }
+    expect(afterSuiteChange('ui', { service: 'auth', tags: 'all', ref: 'main' }, none).ref).toBe(
+      'main',
+    )
+  })
+})
+
+describe('what the form opens on', () => {
+  it('opens on main where the caller may use it, and on the first branch when not', () => {
+    expect(initialForm(runOptions()).ref).toBe('main')
+    const odd = runOptions()
+    odd.suites.api.refs = ['develop', 'release']
+    expect(initialForm(odd).ref).toBe('develop')
+  })
+
+  it('opens on items where the suite has it, and on its first real service when not', () => {
+    expect(initialForm(runOptions()).service).toBe('items')
+    const odd = runOptions()
+    odd.suites.api.services = ['all', 'billing', 'core']
+    expect(initialForm(odd).service).toBe('billing')
+  })
+
+  it('never opens on a choice its own dropdowns do not contain', () => {
+    const form = initialForm(runOptions())
+    expect(options.suites[form.suite].services).toContain(form.service)
+    expect(options.suites[form.suite].tags).toContain(form.tags)
+    expect(options.suites[form.suite].refs).toContain(form.ref)
+  })
+})
+
+describe('refLockedReason', () => {
+  it('names the one branch and the caller, without claiming why there is only one', () => {
+    const text = refLockedReason('dev', ['main'])
+    expect(text).toContain('Only main is available to dev here.')
+    expect(text).not.toContain('may only use')
+  })
+
+  it('says so when there is nothing to pick, rather than naming a branch', () => {
+    expect(refLockedReason('qa', [])).toContain('No branch is available to qa here.')
   })
 })

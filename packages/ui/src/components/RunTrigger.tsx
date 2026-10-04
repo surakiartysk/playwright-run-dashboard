@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { api, SUITES, SUITE_LABELS, type Role, type RolePolicy, type Suite } from '../api'
+import { api, SUITES, SUITE_LABELS, type Role, type RunOptions, type Suite } from '../api'
 import { c, mono, status } from '../theme'
 import { pausedReason } from '../gate-form'
 import { stepOption } from '../appearance'
@@ -8,6 +8,7 @@ import {
   describeSelection,
   initialForm,
   refLocked,
+  refLockedReason,
   scopeChoices,
   serviceChoices,
   serviceFieldLabel,
@@ -40,22 +41,24 @@ import { Icon, type IconName } from './Icon'
 const SUITE_ICON: Record<Suite, IconName> = { api: 'braces', ui: 'monitor' }
 
 export function RunTrigger({
-  policy,
+  options,
   role,
-  simulates,
   onStarted,
   initial,
 }: {
-  policy: RolePolicy
+  /**
+   * What this caller may ask for, from `GET /runs/options`: the dropdowns, the
+   * branches they may use that exist, the worker ceiling, and whether the run
+   * will be simulated — said before Run, not after.
+   */
+  options: RunOptions
   role: Role
-  /** Whether a run started here is simulated — said before Run, not after. */
-  simulates: boolean
   onStarted: () => void
   /** What the form opens on, where it should not be the API suite's `items`. */
   initial?: Partial<RunForm>
 }) {
   const compact = useCompact()
-  const [form, setForm] = useState<RunForm>(() => initialForm(policy.maxWorkers, initial))
+  const [form, setForm] = useState<RunForm>(() => initialForm(options, initial))
   const { suite, service, tags, ref, workers } = form
   const set = (change: Partial<RunForm>) => setForm((f) => ({ ...f, ...change }))
   const [busy, setBusy] = useState(false)
@@ -94,11 +97,10 @@ export function RunTrigger({
   // "Suite branch" for that reason: "Branch" alone reads as the caller's own
   // branch, which this has never been.
   //
-  // `*` means any branch; offer the common ones rather than a free-text field
-  // nobody wants to type into.
-  const refs = policy.allowedRefs.includes('*')
-    ? ['main', 'develop', 'release', 'feature/example']
-    : policy.allowedRefs
+  // What the caller may use *and* the suite's repository has, per suite: they
+  // are two repositories with their own branches. The form used to offer the
+  // policy's list, and picking a branch that did not exist was an error run.
+  const refs = options.suites[suite].refs
 
   async function start() {
     setBusy(true)
@@ -124,7 +126,7 @@ export function RunTrigger({
       <header style={s.head}>
         <h2 style={s.title}>New run</h2>
         <span style={s.hint}>
-          {simulates
+          {options.simulated
             ? 'Simulated here: no workflow runs, and Report opens a shared sample'
             : 'Runs the published suites on GitHub Actions'}
         </span>
@@ -134,7 +136,7 @@ export function RunTrigger({
         <SuiteChoice
           fill={compact}
           value={suite}
-          onChange={(next) => setForm((f) => withSuite(f, next))}
+          onChange={(next) => setForm((f) => withSuite(f, next, options.suites))}
         />
 
         <PillSelect
@@ -143,7 +145,7 @@ export function RunTrigger({
           basis={124}
           fill={compact}
           value={service}
-          options={serviceChoices(suite)}
+          options={serviceChoices(suite, options.suites)}
           onChange={(service) => set({ service })}
         />
 
@@ -154,7 +156,7 @@ export function RunTrigger({
           mono
           fill={compact}
           value={tags}
-          options={scopeChoices(suite)}
+          options={scopeChoices(suite, options.suites)}
           onChange={(tags) => set({ tags })}
         />
 
@@ -168,13 +170,13 @@ export function RunTrigger({
           options={refs.map((value) => ({ value, label: value }))}
           onChange={(ref) => set({ ref })}
           locked={refIsLocked}
-          lockedReason={`Suite branch: the branch of the test code, not of the app under test. ${role} may only use ${refs[0] ?? 'main'}.`}
+          lockedReason={refLockedReason(role, refs)}
         />
 
         <Workers
           fill={compact}
           value={workers}
-          max={policy.maxWorkers}
+          max={options.maxWorkers}
           onChange={(workers) => set({ workers })}
         />
 

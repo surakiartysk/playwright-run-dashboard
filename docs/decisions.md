@@ -40,6 +40,7 @@ interviewer should press on hardest.
 29. [The accent is a choice, and the palette is generated](#29-the-accent-is-a-choice-and-the-palette-is-generated)
 30. [A service and a tag combine, because the suites now take both](#30-a-service-and-a-tag-combine-because-the-suites-now-take-both)
 31. [A run that never reports is ended, not left running](#31-a-run-that-never-reports-is-ended-not-left-running)
+32. [The API says what can be asked for, and which branches exist](#32-the-api-says-what-can-be-asked-for-and-which-branches-exist)
 
 ---
 
@@ -758,12 +759,14 @@ for facts that change on a Tuesday afternoon.
 
 _The second:_ the dashboard offers a list of services and tags that is **copied
 by hand from each suite's workflow**, and every suite multiplies the copies.
-Per suite it lives in four places — `SUITE_SERVICES`/`SUITE_TAGS` in
+Per suite it lived in four places — `SUITE_SERVICES`/`SUITE_TAGS` in the UI's
 `run-form.ts`, `DASHBOARD_OFFERS` and `WORKFLOW_ACCEPTS` in
 `integration-contract.test.ts`, and `on-demand.yml` itself, which is in another
-repository. Adding a service means remembering all four.
+repository. Adding a service meant remembering all four. The first is gone: the
+lists are in the API's `options.ts` and the form is served them by
+`GET /runs/options` ([decision 32](#32-the-api-says-what-can-be-asked-for-and-which-branches-exist)).
 
-Two of those pairs are now checked: `check:claims` compares the dropdown with
+Two of those pairs are checked: `check:claims` compares the offered lists with
 `DASHBOARD_OFFERS`, and the contract test compares `DASHBOARD_OFFERS` with
 `WORKFLOW_ACCEPTS`. **Nothing catches `WORKFLOW_ACCEPTS` drifting from the
 workflow it claims to copy** — the one comparison that crosses a repository
@@ -1726,6 +1729,62 @@ slow run dead.
 - **It cannot tell you why.** `timeout` says the dashboard stopped waiting, not
   whether the runner died, the workflow was cancelled or the callback was lost.
   The run's workflow link, when it has one, is where that is answered.
+
+---
+
+## 32. The API says what can be asked for, and which branches exist
+
+**Context.** Two things the run form offered were guesses. The services and
+tags were written out in the form, in the contract test and in the API, three
+copies of what each suite's workflow accepts. And the branches came from the
+role's policy: QA was offered `develop` and `release`, an admin `feature/example`
+(a placeholder this repository invented), on a deployment whose suites each had
+one branch. Choosing any of them made GitHub refuse the dispatch, and the run
+was recorded as an error for picking what the form had offered.
+
+**Decision.** `GET /runs/options` answers, for the caller who asks, what they
+may request: each suite's services and tags, the branches they may use **and**
+that the suite's repository has, the worker ceiling, and whether the run would
+be simulated. The form draws its dropdowns from it and no longer holds the
+lists. A person writing a `curl` reads the same answer, so the two cannot
+disagree about what is accepted.
+
+- **Branches are asked of GitHub**, per suite (two repositories, two sets), with
+  the server's own token, and remembered for five minutes in the isolate. The
+  policy still decides what is _allowed_; the repository decides what _exists_;
+  the form is offered the intersection. If the branches cannot be read — no
+  token, GitHub refusing, a simulated deployment — the policy's own list stands,
+  and the answer says so (`refsFrom: policy`) rather than presenting a guess as
+  a fact. A role that may use any branch falls back to `main`, `develop`,
+  `release`, which a list cannot enumerate.
+- **A simulated run never asks GitHub.** `demo` always simulates, so a demo
+  session costs no request, and cannot be used to make the Worker spend its API
+  quota.
+- **Narrowed to the caller, key included.** A key may be limited below its role,
+  and what it is told it may use is that limit. The route reads the real role: a
+  demo session looking at admin's view is not offered admin's branches.
+- **Mounted at `/runs/options`**, before `/runs/:id`. Worker routes on the
+  production hostname are set in the Cloudflare dashboard; a new top-level path
+  would be answered by the SPA until someone added it there, and `/runs/*` is
+  already routed.
+
+**Trade-offs.**
+
+- **The form waits on a request it did not used to need.** It shows "Loading
+  what you can run…" until the answer arrives, and says so if it fails. The
+  alternative was the guess.
+- **A branch pushed a minute ago may not be offered yet.** Up to five minutes
+  stale, in either direction: a deleted branch can be offered, a new one not.
+  Picking a deleted one is the old failure, once, and a refresh settles it.
+- **The lists are still copied once.** `options.ts` copies what each workflow
+  accepts, and the contract test holds a second snapshot because a test that
+  imports what it checks agrees by construction. `check:claims` compares the two;
+  nothing here can compare either with the workflow, which is in another
+  repository.
+- **POST /runs does not check against these lists.** A service the suite has
+  never heard of is still accepted and runs as nothing. Closing that would
+  reject by name, and every test in this repository seeds runs under invented
+  service names to keep them apart.
 
 ---
 

@@ -2,7 +2,8 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { RunTrigger } from '../src/components/RunTrigger'
-import type { Role, RolePolicy } from '../src/api'
+import type { Role, RunOptions } from '../src/api'
+import { runOptions } from './fixtures'
 import type { RunForm } from '../src/run-form'
 
 /**
@@ -13,21 +14,45 @@ import type { RunForm } from '../src/run-form'
  * in run-form.test.ts, where the rules live.
  */
 
-const policy = (over: Partial<RolePolicy> = {}): RolePolicy => ({
+/**
+ * A caller, as the form is told about them: who, which branches they may use
+ * (`*` standing for the three a role with any branch is offered), how many
+ * workers. Turned into the `GET /runs/options` answer the form actually takes.
+ */
+interface Caller {
+  role: Role
+  allowedRefs: string[]
+  maxWorkers: number
+}
+
+const policy = (over: Partial<Caller> = {}): Caller => ({
   role: 'demo',
   allowedRefs: ['main'],
   maxWorkers: 2,
-  canDelete: false,
-  sees: 'only the runs it started itself',
   ...over,
 })
 
-const render = (p: RolePolicy, simulates = true, initial?: Partial<RunForm>) =>
+const optionsFor = (caller: Caller, simulated: boolean): RunOptions => {
+  const refs = caller.allowedRefs.includes('*')
+    ? ['main', 'develop', 'release']
+    : caller.allowedRefs
+  const base = runOptions()
+  return {
+    role: caller.role,
+    simulated,
+    maxWorkers: caller.maxWorkers,
+    suites: {
+      api: { ...base.suites.api, refs },
+      ui: { ...base.suites.ui, refs },
+    },
+  }
+}
+
+const render = (p: Caller, simulates = true, initial?: Partial<RunForm>) =>
   renderToStaticMarkup(
     createElement(RunTrigger, {
-      policy: p,
-      role: p.role as Role,
-      simulates,
+      options: optionsFor(p, simulates),
+      role: p.role,
       initial,
       onStarted: () => undefined,
     }),
@@ -59,7 +84,9 @@ describe('the first render of the command bar', () => {
 
   it('locks the branch for a role that may use only one, and names the role', () => {
     const html = render(policy({ role: 'dev', allowedRefs: ['main'] }))
-    expect(html).toMatch(/aria-label="Suite branch: main \(locked\)[^"]*dev may only use main/)
+    expect(html).toMatch(
+      /aria-label="Suite branch: main \(locked\)[^"]*Only main is available to dev here/,
+    )
   })
 
   it('leaves the branch open for a role with a choice', () => {
@@ -132,5 +159,29 @@ describe('the first render of the command bar', () => {
     const html = render(policy({ role: 'qa', allowedRefs: ['*'] }), true, { service: 'all' })
     expect(html).toContain('<option value="cross-service">@cross-service</option>')
     expect(html).toMatch(/<option value="all"[^>]*>All tests<\/option>/)
+  })
+
+  it('offers the branches of the suite it is on, not of the other', () => {
+    const base = optionsFor(policy({ role: 'qa', allowedRefs: ['*'] }), true)
+    base.suites.api.refs = ['main', 'develop']
+    base.suites.ui.refs = ['main']
+    const html = (initial?: Partial<RunForm>) =>
+      renderToStaticMarkup(
+        createElement(RunTrigger, {
+          options: base,
+          role: 'qa',
+          initial,
+          onStarted: () => undefined,
+        }),
+      )
+    expect(html()).toContain('<option value="develop"')
+    expect(html({ suite: 'ui', service: 'auth', ref: 'main' })).not.toContain(
+      '<option value="develop"',
+    )
+  })
+
+  it('says what is the same however the branch came to be alone', () => {
+    const html = render(policy({ role: 'qa', allowedRefs: ['main'] }))
+    expect(html).toContain('Only main is available to qa here.')
   })
 })

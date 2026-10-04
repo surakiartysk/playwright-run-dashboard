@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                    |
 | ------------------- | ------------------------------------------------------- |
-| `pnpm test`         | Both packages — 404 Worker tests, then 288 UI tests     |
+| `pnpm test`         | Both packages — 430 Worker tests, then 298 UI tests     |
 | `pnpm verify`       | Everything CI runs: format, lint, types, tests, claims  |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale |
 
@@ -227,9 +227,9 @@ Four things, each of which has gone stale before:
 - **The decisions Contents.** Every entry must match a heading in
   [`docs/decisions.md`](docs/decisions.md) — same number, same title, and an
   anchor GitHub resolves.
-- **The dropdown against the contract test.** `SUITE_SERVICES` and `SUITE_TAGS`
-  in [`run-form.ts`](packages/ui/src/run-form.ts) are what a
-  user can actually pick; `DASHBOARD_OFFERS` in
+- **What is offered against the contract test.** `SUITE_OPTIONS` in
+  [`options.ts`](packages/api/src/options.ts) is what the run form offers (it
+  reaches the form through `GET /runs/options`) and what a `curl` is told; `DASHBOARD_OFFERS` in
   [`integration-contract.test.ts`](packages/api/test/integration-contract.test.ts)
   is the hand-copied list that gets checked against both workflows. A slice
   added to the dropdown and not to the copy is never tested against the

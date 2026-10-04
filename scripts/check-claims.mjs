@@ -241,10 +241,11 @@ if (distinct.size > 1) {
   }
 }
 
-// ── 3. The dropdown and the contract test's copy of it ─────────────────────
+// ── 3. What the dashboard offers and the contract test's copy of it ────────
 //
 // `integration-contract.test.ts` holds `DASHBOARD_OFFERS`, a hand-copied
-// duplicate of the dropdown lists in `run-form.ts`. The duplication is
+// duplicate of the lists the dashboard offers, which live in the API's
+// `options.ts` and reach the form through `GET /runs/options`. The duplication is
 // deliberate and explained there: importing the real lists would make that
 // test agree with the dashboard by construction, which is the one thing a
 // contract test must not do.
@@ -261,16 +262,18 @@ if (distinct.size > 1) {
 const listOf = (text) => [...text.matchAll(/'([^']+)'/g)].map((m) => m[1])
 
 function dropdownLists() {
-  const src = readFileSync(join(ROOT, 'packages/ui/src/run-form.ts'), 'utf8')
-  const grab = (name, suite) => {
-    const block = src.match(new RegExp(`const ${name}[\\s\\S]*?\\n\\}`))?.[0]
+  const src = readFileSync(join(ROOT, 'packages/api/src/options.ts'), 'utf8')
+  // One block, `SUITE_OPTIONS = { api: { services: [...], tags: [...] }, ui: {...} }`.
+  const block = src.match(/export const SUITE_OPTIONS[\s\S]*?\n\}/)?.[0]
+  const grab = (suite, kind) => {
     if (!block) return undefined
-    const inner = block.match(new RegExp(`\\b${suite}:\\s*\\[([^\\]]*)\\]`))?.[1]
+    const seg = block.match(new RegExp(`\\b${suite}:\\s*\\{([\\s\\S]*?)\\n  \\}`))?.[1]
+    const inner = seg?.match(new RegExp(`${kind}:\\s*\\[([^\\]]*)\\]`))?.[1]
     return inner === undefined ? undefined : listOf(inner)
   }
   return {
-    api: { services: grab('SUITE_SERVICES', 'api'), tags: grab('SUITE_TAGS', 'api') },
-    ui: { services: grab('SUITE_SERVICES', 'ui'), tags: grab('SUITE_TAGS', 'ui') },
+    api: { services: grab('api', 'services'), tags: grab('api', 'tags') },
+    ui: { services: grab('ui', 'services'), tags: grab('ui', 'tags') },
   }
 }
 
@@ -309,7 +312,7 @@ function contractCopy() {
       const theirs = copied?.[suite]?.[kind]
       if (!mine) {
         problems.push(
-          `run-form.ts: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
+          `options.ts: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
         )
         continue
       }
