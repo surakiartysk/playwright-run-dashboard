@@ -12,6 +12,7 @@ import {
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
+import { useCompact } from '../use-compact'
 import { CLOSED, askDelete, cancelDelete, toggleRow, type RowState } from '../run-rows'
 import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
@@ -58,6 +59,14 @@ export const relative = (iso: string) => {
 }
 
 export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 1000).toFixed(1)}s`)
+
+/**
+ * "Started" and "Took" as one line, for the narrow layout where they are no
+ * longer columns. A run still in flight has no duration to give, so it gives
+ * only when it started rather than a trailing separator.
+ */
+export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
+  [relative(run.startedAt), duration(run.durationMs)].filter(Boolean).join(' · ')
 
 /**
  * What the visibility scoping actually means for the signed-in role, in
@@ -215,6 +224,7 @@ export function RunHistory({
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [rows, setRows] = useState<RowState>(CLOSED)
+  const compact = useCompact()
   const { open, confirmingDelete } = rows
 
   /**
@@ -265,18 +275,20 @@ export function RunHistory({
         </div>
       ) : (
         <div style={s.tableWrap}>
-          <table style={s.table}>
-            <thead>
-              <tr>
-                <th style={{ ...s.th, ...s.thStatus }} aria-label="Status" />
-                <th style={s.th}>Run</th>
-                <th style={s.th}>Result</th>
-                <th style={{ ...s.th, ...s.thRight }}>Started</th>
-                <th style={{ ...s.th, ...s.thRight }}>Took</th>
-                <th style={s.th} aria-label="Details" />
-              </tr>
-            </thead>
-            <tbody>
+          <table style={compact ? s.tableCompact : s.table}>
+            {!compact && (
+              <thead>
+                <tr>
+                  <th style={{ ...s.th, ...s.thStatus }} aria-label="Status" />
+                  <th style={s.th}>Run</th>
+                  <th style={s.th}>Result</th>
+                  <th style={{ ...s.th, ...s.thRight }}>Started</th>
+                  <th style={{ ...s.th, ...s.thRight }}>Took</th>
+                  <th style={s.th} aria-label="Details" />
+                </tr>
+              </thead>
+            )}
+            <tbody style={compact ? s.block : undefined}>
               {shown.map((run) => {
                 const look = STATUS_LOOK[run.status]
                 const expanded = open === run.id
@@ -285,7 +297,11 @@ export function RunHistory({
                   <Fragment key={run.id}>
                     <tr
                       onClick={() => setRows((r) => toggleRow(r, run.id))}
-                      style={{ ...s.tr, ...(expanded ? s.trOpen : null) }}
+                      style={{
+                        ...s.tr,
+                        ...(expanded ? s.trOpen : null),
+                        ...(compact ? s.trCompact : null),
+                      }}
                     >
                       {/*
                         The edge is the status colour drawn down the row's left
@@ -297,14 +313,15 @@ export function RunHistory({
                         style={{
                           ...s.td,
                           ...s.tdStatus,
+                          ...(compact ? cellSpan(1) : null),
                           boxShadow: `inset 4px 0 0 ${look.color}`,
                         }}
                       >
                         <StatusIcon status={run.status} />
                       </td>
 
-                      <td style={s.td}>
-                        <div style={s.runCell}>
+                      <td style={{ ...s.td, ...(compact ? cellTop(2) : null) }}>
+                        <div style={{ ...s.runCell, ...(compact ? s.runCellCompact : null) }}>
                           {/*
                             In the existing cell rather than a column of its
                             own: the table already carries six, and a seventh
@@ -326,17 +343,24 @@ export function RunHistory({
                         </div>
                       </td>
 
-                      <td style={s.td}>
+                      <td style={{ ...s.td, ...(compact ? cellBottom(2) : null) }}>
                         <ResultBar run={run} />
+                        {compact && <div style={s.meta}>{rowMeta(run)}</div>}
                       </td>
 
-                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>{relative(run.startedAt)}</td>
+                      {!compact && (
+                        <>
+                          <td style={{ ...s.td, ...s.tdRight, ...mono }}>
+                            {relative(run.startedAt)}
+                          </td>
 
-                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>
-                        {duration(run.durationMs) ?? '—'}
-                      </td>
+                          <td style={{ ...s.td, ...s.tdRight, ...mono }}>
+                            {duration(run.durationMs) ?? '—'}
+                          </td>
+                        </>
+                      )}
 
-                      <td style={{ ...s.td, ...s.tdRight }}>
+                      <td style={{ ...s.td, ...s.tdRight, ...(compact ? cellSpan(3) : null) }}>
                         {/*
                           A button, because the row is not one. The row takes
                           a click, but a <tr> cannot take focus, so with only
@@ -370,8 +394,8 @@ export function RunHistory({
                     </tr>
 
                     {expanded && (
-                      <tr style={s.detailRow}>
-                        <td colSpan={6} style={s.detailCell}>
+                      <tr style={{ ...s.detailRow, ...(compact ? s.block : null) }}>
+                        <td colSpan={6} style={{ ...s.detailCell, ...(compact ? s.block : null) }}>
                           <div style={s.detailGrid}>
                             <Detail label="Run id">
                               <span style={{ ...mono, color: c.t2 }}>{run.id}</span>
@@ -467,6 +491,30 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
   )
 }
 
+// Both lines of a row are pinned to a column and a grid line, because the cells
+// are not in source order: Started and Took are gone in the narrow layout.
+const cellSpan = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: '1 / 3',
+  // Stretched, so the status edge runs the full height of the two-line row,
+  // and centred by hand: a grid item is not a table cell, so vertical-align
+  // no longer centres what is in it.
+  alignSelf: 'stretch',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+})
+const cellTop = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: 1,
+  paddingBottom: 2,
+})
+const cellBottom = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: 2,
+  paddingTop: 0,
+})
+
 const s: Record<string, CSSProperties> = {
   head: {
     display: 'flex',
@@ -523,6 +571,17 @@ const s: Record<string, CSSProperties> = {
     // is harder to scan than one you push sideways.
     minWidth: 620,
   },
+  // The narrow layout. A row is a grid: the status takes the first column over
+  // both lines, the caret the last, and what ran sits above its result.
+  tableCompact: { width: '100%', display: 'block' },
+  block: { display: 'block' },
+  trCompact: {
+    display: 'grid',
+    gridTemplateColumns: '52px minmax(0, 1fr) 44px',
+    alignItems: 'center',
+  },
+  runCellCompact: { flexWrap: 'wrap', rowGap: 4 },
+  meta: { ...mono, fontSize: 12, color: c.t5, marginTop: 5 },
   th: {
     textAlign: 'left',
     fontSize: 11,
