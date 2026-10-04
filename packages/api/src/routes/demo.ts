@@ -6,6 +6,7 @@ import {
   signPreviewRole,
   previewRoleCookie,
   clearPreviewRoleCookie,
+  isHttps,
 } from '../auth'
 import { DEV_TOKEN_SECRET } from '../config'
 import { POLICIES } from '../policy'
@@ -59,7 +60,7 @@ demoRoutes.post('/preview-role', async (c) => {
   )
   const maxAge = sessionExpiresAt - Math.floor(Date.now() / 1000)
 
-  c.header('Set-Cookie', previewRoleCookie(token, maxAge))
+  c.header('Set-Cookie', previewRoleCookie(token, maxAge, isHttps(c.req.url)))
   return c.json({ previewing: previewed })
 })
 
@@ -85,7 +86,7 @@ demoRoutes.post('/keys', async (c) => {
 })
 
 demoRoutes.post('/stop-preview', (c) => {
-  c.header('Set-Cookie', clearPreviewRoleCookie())
+  c.header('Set-Cookie', clearPreviewRoleCookie(isHttps(c.req.url)))
   return c.json({ ok: true })
 })
 

@@ -53,8 +53,15 @@ export const migrate = () => applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
  */
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const ctx = createExecutionContext()
-  return worker.fetch(new Request(`http://api.test${path}`, init), env, ctx)
+  return worker.fetch(new Request(url(path), init), env, ctx)
 }
+
+/**
+ * A path on the test host over plain HTTP, as every test has always sent — or,
+ * given a whole URL, that URL. The scheme is the one thing a test may need to
+ * choose: cookies are `Secure` only when the request came over HTTPS.
+ */
+const url = (path: string) => (/^https?:\/\//.test(path) ? path : `http://api.test${path}`)
 
 /**
  * Calls the Worker and waits for its background work to finish.
@@ -64,7 +71,7 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
  */
 export async function settle(path: string, init: RequestInit = {}): Promise<Response> {
   const ctx = createExecutionContext()
-  const response = await worker.fetch(new Request(`http://api.test${path}`, init), env, ctx)
+  const response = await worker.fetch(new Request(url(path), init), env, ctx)
   await waitOnExecutionContext(ctx)
   return response
 }

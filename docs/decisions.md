@@ -48,6 +48,8 @@ interviewer should press on hardest.
 37. [QA's release branches are `release/<version>`, one per version](#37-qas-release-branches-are-releaseversion-one-per-version)
 38. [A run says when a key started it, and the list notices runs it did not start](#38-a-run-says-when-a-key-started-it-and-the-list-notices-runs-it-did-not-start)
 39. [A limit says when it lifts, and using a key writes at most once an hour](#39-a-limit-says-when-it-lifts-and-using-a-key-writes-at-most-once-an-hour)
+40. [A report is someone else's program on this origin, so it is fenced](#40-a-report-is-someone-elses-program-on-this-origin-so-it-is-fenced)
+41. [A cookie is Secure when its request was](#41-a-cookie-is-secure-when-its-request-was)
 
 ---
 
@@ -2173,6 +2175,128 @@ database without limit, past a rate limit that counts only the runs it accepts.
   allowances. Stopping a flood before the Worker is Cloudflare's job — see
   "Rate limiting at the edge" in the README, which is configuration this
   repository cannot hold.
+
+## 40. A report is someone else's program on this origin, so it is fenced
+
+**Context.** Reports are served from `/reports/*` on the dashboard's own
+hostname, and the session cookie is `Path=/`. Whatever script runs in a report
+runs as this origin, with the viewer's session — it can call the API as an
+admin if an admin is looking.
+
+The worry written down beforehand was the content: a report shows request and
+response bodies from the systems under test, and one of those could carry
+markup. Opening a real Allure 3.20 single-file report in Chromium, with a JSON
+attachment holding `<img src=x onerror=…>` and an HTML attachment holding a
+`<script>`, said otherwise: the JSON is shown as text, and HTML attachments go
+into an iframe sandboxed without `allow-scripts`, so the script did not run.
+
+What the same run did show is that the report is not only our content. Allure
+writes a Google Analytics tag into every report it builds
+(`analyticsEnable: true` in its generator, with no option to turn it off). So
+every report opened here loaded a script from Google on to the dashboard's
+origin — a script that could have called the API as the viewer — and GA4's
+`page_location` defaults to the full URL, which here carries the report's
+token. The load was observed; the analytics request itself was not, because
+this environment's proxy refuses Google, so the token half rests on GA's
+documented default.
+
+**Decision.** Fence the report, on three sides:
+
+- **A CSP on every report response** that admits only the page itself:
+  `'unsafe-inline'`, `data:` and `blob:`, never `'self'` or a host, with
+  `default-src 'none'`. Checked in Chromium against that report: the list, a
+  failed test, the JSON, HTML, PNG and WebM attachments all render; the
+  analytics tag and a `fetch('/runs')` from the page are refused. The first
+  version left out `media-src`, and the video did not play — which is the kind
+  of thing this policy will do to a report that changes shape.
+- **`Referrer-Policy: no-referrer`**, because the token is in the URL and
+  [decision 5](#5-report-links-are-signed-scoped-and-short-lived) names
+  referrers as where such URLs leak. Modern browsers already send only the
+  origin cross-site; this stops depending on that.
+- **`Cross-Origin-Opener-Policy: same-origin` on everything else** — every
+  Worker response but a report's, and the UI's pages through Pages' `_headers`.
+  The CSP does not stop a report calling `window.open('/runs')` and reading the
+  new window, which the browser allows between same-origin windows; that read
+  worked under the CSP alone, with the cookie. With the API in its own
+  browsing-context group the handle the report gets back cannot see in. The
+  report must stay _out_ of this: with the same header on the report as well,
+  the two shared a group again and the read worked — also tried.
+
+The UI also gets `frame-ancestors 'none'`. `SameSite=Lax` already means a copy
+framed by another site is signed out; this means it does not render.
+
+**Rejected: `sandbox` in the report's CSP.** The obvious one-line isolation —
+give the report an opaque origin — and the one this was first going to be.
+The report rendered nothing: Allure reads `localStorage` as it starts, and an
+opaque origin throws on that.
+
+**Rejected for now: a separate hostname for reports.** The real fix. A report
+on `reports.<domain>` is cross-origin to the API, and nothing above would be
+needed. It needs a second hostname routed to the Worker, links minted for it,
+the report cookie scoped to it, and the routing list in the README kept in
+step — infrastructure this repository does not hold, for a risk that is now
+fenced rather than open.
+
+**Trade-offs.**
+
+- **This is a fence, not isolation.** `'unsafe-inline'` is the price of a
+  single-file report, so a script that got into one would still run on this
+  origin. The CSP and the opener policy close the ways in that were tried —
+  `fetch`, a popup read, a third-party script. One not thought of stays open,
+  and that is what being same-origin means.
+- **A report can still read another report.** Neither carries the opener
+  policy, so a report could open another run's report and read it — if the
+  viewer opened that one within the hour, so its path-scoped cookie is still
+  in the browser.
+- **The policy is fitted to Allure 3.20.** A later Allure that fetches a font
+  or a script from a CDN will render broken here, and it will look like a bad
+  report rather than a refused one. The tests pin the headers; whether a real
+  report renders under them was checked by hand, not in CI.
+- **A multi-file report is refused**, even with the asset cookie from
+  [decision 14](#14-one-real-allure-report-shared-by-every-simulated-run)
+  still in place. Nothing stores one; a suite that moved back would need
+  `'self'` added, and `connect-src 'self'` is the line that hands a report the
+  API again.
+- **Every report now logs a refused script** in the console — Allure's
+  analytics, every time. Harmless, and the first thing someone opening the
+  developer tools will ask about.
+- **The UI has no script CSP.** Its `index.html` has an inline theme script
+  and loads Google Fonts, so a policy would need the script's hash built in or
+  the script moved out. React escapes what it renders and nothing in the UI
+  writes HTML, so the gain is a second line behind the first. Not done.
+- **The opener policy takes `window.opener` away from the UI.** Nothing uses
+  it today; a sign-in popup from another site, if one were ever added, would
+  need it.
+
+---
+
+## 41. A cookie is Secure when its request was
+
+**Context.** None of the three cookies — the session, the preview role, a
+report's assets — said `Secure`, and nothing said why. On this deployment that
+changed nothing: `.dev` is on the HSTS preload list, so no browser makes a
+plain-HTTP request to the dashboard for a cookie to ride on. That is exactly why
+it went unnoticed, and why the domain is a poor place for it to live — a clone
+deployed under any other name inherits none of it.
+
+**Decision.** One builder, `cookie` in `auth.ts`, for every cookie the Worker
+sets or clears, adding `Secure` when the request came in over HTTPS and not
+otherwise. `wrangler dev` and the Vite proxy are plain HTTP, and keep working.
+
+**Trade-offs.**
+
+- **No change on the live site.** Said plainly, because a security fix that
+  does nothing where it is deployed reads like more than it is. Its value is
+  in every other deployment.
+- **It trusts the scheme the runtime reports.** Behind Cloudflare that is the
+  scheme the browser used. Behind a proxy that ends TLS and forwards plain
+  HTTP, it would quietly stop adding `Secure`. Always adding it would avoid
+  that, and would break local sign-in in any browser that does not treat
+  `http://localhost` as secure.
+- **Not `__Host-`.** The prefix would also stop a sibling subdomain planting a
+  session cookie, but it means renaming the cookies — signing everyone out
+  once — and it cannot apply to the report cookie at all, which is scoped to
+  one run's path by design.
 
 ---
 
