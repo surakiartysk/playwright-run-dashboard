@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { summarise } from '../src/components/RunStats'
+import { coverage, ringBackground, summarise } from '../src/components/RunStats'
+import { COMPACT_BELOW, WIDE_FROM, WIDE_QUERY } from '../src/use-compact'
+import { status as sc } from '../src/theme'
 import type { Run, RunStatus } from '../src/api'
 import { run as fixture } from './fixtures'
 
@@ -125,5 +127,63 @@ describe('summarise', () => {
     it('is never fewer than the runs on screen', () => {
       expect(summarise([run('passed'), run('failed'), run('passed')], 1).available).toBe(3)
     })
+  })
+})
+
+describe('coverage', () => {
+  /**
+   * The figures are computed from the loaded runs, so after "Showing 25 of 140"
+   * a "Failing 3" is a fact about 25. The footnote says so, and only then.
+   */
+  it('says how much the figures cover when more runs exist than are loaded', () => {
+    expect(coverage({ available: 140, total: 25 })).toBe('Figures cover the newest 25 of 140 runs.')
+  })
+
+  it('says nothing when every run is loaded', () => {
+    expect(coverage({ available: 25, total: 25 })).toBeNull()
+  })
+
+  it('works from what summarise reports', () => {
+    expect(coverage(summarise([run('passed'), run('failed')], 40))).toContain('2 of 40')
+    expect(coverage(summarise([run('passed'), run('failed')]))).toBeNull()
+  })
+})
+
+describe('ringBackground', () => {
+  it('fills the share that passed in green and the rest in red', () => {
+    const bg = ringBackground(75)
+    expect(bg).toContain(`${sc.pass} 0 75%`)
+    expect(bg).toContain(`${sc.fail} 75% 100%`)
+  })
+
+  it('is all green at 100 and all red at 0', () => {
+    expect(ringBackground(100)).toContain(`${sc.pass} 0 100%`)
+    expect(ringBackground(0)).toContain(`${sc.pass} 0 0%`)
+    expect(ringBackground(0)).toContain(`${sc.fail} 0% 100%`)
+  })
+
+  /** An empty track, not a ring at 0%: nothing finished is not "everything failed". */
+  it('draws no red when nothing has finished', () => {
+    expect(ringBackground(null)).not.toContain(sc.fail)
+    expect(ringBackground(null)).not.toContain('conic-gradient')
+  })
+
+  it('clamps a figure outside 0-100 instead of drawing a broken ring', () => {
+    expect(ringBackground(140)).toContain('100%')
+    expect(ringBackground(140)).not.toContain('140')
+    expect(ringBackground(-5)).not.toContain('-5')
+  })
+})
+
+describe('the two-column layout', () => {
+  /**
+   * Both breakpoints are about the same list. The column appears only where the
+   * list's 620px and the 320px beside it fit, and the list is already in its
+   * two-line form below COMPACT_BELOW, so the two can never be in conflict.
+   */
+  it('puts the column only where the list and the column both fit', () => {
+    expect(WIDE_FROM).toBeGreaterThanOrEqual(620 + 320)
+    expect(WIDE_FROM).toBeGreaterThan(COMPACT_BELOW)
+    expect(WIDE_QUERY).toBe(`(min-width: ${WIDE_FROM}px)`)
   })
 })

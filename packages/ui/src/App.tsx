@@ -9,9 +9,11 @@ import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
+import { useWide } from './use-compact'
 import { c } from './theme'
 
 export function App() {
+  const wide = useWide()
   const [role, setRole] = useState<Role | null>(null)
   // Differs from `role` only while a demo session is previewing another
   // role's read view — mirrors the backend's role/viewAs split exactly, so
@@ -160,40 +162,11 @@ export function App() {
   const panelMode = adminPanelMode(role, viewingRole)
   const pending = runs.filter((run) => isPending(run.status)).length
 
-  return (
-    <div style={s.page}>
-      <header style={s.top}>
-        <div>
-          <h1 style={s.h1}>Test Run Dashboard</h1>
-          <p style={s.sub}>
-            Signed in as <strong style={{ color: c.t1 }}>{role}</strong>
-            {viewingRole !== role && (
-              <span style={{ color: c.t4 }}> · previewing {viewingRole}</span>
-            )}
-            {pending > 0 && (
-              <span style={{ color: c.warn }}>
-                {' '}
-                · {pending} run{pending > 1 ? 's' : ''} in flight
-              </span>
-            )}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Appearance />
-          <button
-            onClick={() =>
-              void api
-                .logout()
-                .then(endSession, (e: unknown) =>
-                  setError(e instanceof Error ? e.message : 'Could not sign out'),
-                )
-            }
-            style={s.signOut}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+  const asideContent = (
+    <>
+      <RunStats runs={runs} total={total} />
+
+      <RunTrend runs={runs} />
 
       {canPreview && policies.length > 0 && (
         <RoleSwitcher
@@ -221,23 +194,11 @@ export function App() {
           }}
         />
       )}
+    </>
+  )
 
-      {error && <div style={s.error}>{error}</div>}
-
-      {/*
-        State before action.
-
-        The order used to be gate, trigger, then the numbers — controls first,
-        answers last. But nobody opens a test dashboard to press a button; they
-        open it to find out whether the last run passed, and had to scroll past
-        two forms to reach that. Summary, then trend, then the controls, then
-        the history a reader digs into once the headline has told them whether
-        they need to.
-      */}
-      <RunStats runs={runs} total={total} />
-
-      <RunTrend runs={runs} />
-
+  const mainContent = (
+    <>
       {/*
         Decided on the REAL role, never `viewingRole` alone. A demo session
         previewing admin gets the read-only panel — the live gate and what keys
@@ -275,6 +236,64 @@ export function App() {
         loadingMore={loadingMore}
         onLoadMore={() => void loadMore()}
       />
+    </>
+  )
+
+  return (
+    <div style={wide ? { ...s.page, ...s.pageWide } : s.page}>
+      <header style={s.top}>
+        <div>
+          <h1 style={s.h1}>Test Run Dashboard</h1>
+          <p style={s.sub}>
+            Signed in as <strong style={{ color: c.t1 }}>{role}</strong>
+            {viewingRole !== role && (
+              <span style={{ color: c.t4 }}> · previewing {viewingRole}</span>
+            )}
+            {pending > 0 && (
+              <span style={{ color: c.warn }}>
+                {' '}
+                · {pending} run{pending > 1 ? 's' : ''} in flight
+              </span>
+            )}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Appearance />
+          <button
+            onClick={() =>
+              void api
+                .logout()
+                .then(endSession, (e: unknown) =>
+                  setError(e instanceof Error ? e.message : 'Could not sign out'),
+                )
+            }
+            style={s.signOut}
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      {error && <div style={s.error}>{error}</div>}
+
+      {/*
+        Two columns when there is room: the form that feeds the run list and
+        the list itself on the left, what they add up to and who is looking on
+        the right. Below that the column folds into one stack with the summary
+        first. State before action: nobody opens a test dashboard to press a
+        button, they open it to find out whether the last run passed.
+      */}
+      {wide ? (
+        <div style={s.columns}>
+          <div style={s.main}>{mainContent}</div>
+          <aside style={s.aside}>{asideContent}</aside>
+        </div>
+      ) : (
+        <>
+          {asideContent}
+          {mainContent}
+        </>
+      )}
     </div>
   )
 }
@@ -282,6 +301,16 @@ export function App() {
 const s: Record<string, CSSProperties> = {
   loading: { padding: 40, color: c.t4 },
   page: { maxWidth: '62rem', margin: '0 auto', padding: '30px 24px 60px' },
+  // Wide enough for the list (about 620px) beside a 320px column.
+  pageWide: { maxWidth: '76rem' },
+  columns: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr) 320px',
+    gap: 24,
+    alignItems: 'start',
+  },
+  main: { minWidth: 0 },
+  aside: { minWidth: 0 },
   top: {
     display: 'flex',
     justifyContent: 'space-between',

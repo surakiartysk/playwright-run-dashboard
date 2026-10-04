@@ -286,7 +286,7 @@ export function RunTrend({ runs }: { runs: Run[] }) {
     <section style={s.wrap}>
       <header style={s.head}>
         <div>
-          <h2 style={s.title}>Pass rate</h2>
+          <h2 style={s.title}>Run by run</h2>
           <p style={s.sub}>
             Last {points.length} finished runs, oldest first
             {change !== 0 && (
