@@ -1,6 +1,7 @@
 import type { Bindings } from './types'
 import { mintKey } from './apiKeys'
 import { DEV_TOKEN_SECRET } from './config'
+import { secondsUntilRoom } from './retry'
 
 /**
  * Keys a visitor mints for themselves, and how they are kept from costing
@@ -16,6 +17,8 @@ import { DEV_TOKEN_SECRET } from './config'
  * identity to key a bucket on and an address is spoofable and shared by every
  * NAT.
  */
+
+const HOUR_MS = 60 * 60 * 1000
 
 /** How long a key lives. Long enough to try the thing; short enough not to be kept. */
 export const SANDBOX_TTL_MS = 24 * 60 * 60 * 1000
@@ -37,7 +40,12 @@ export type Issued =
       expiresAt: string
       limits: { runsPerHour: number; maxWorkers: number; refs: string[]; simulated: true }
     }
-  | { ok: false; error: string }
+  | {
+      ok: false
+      error: string
+      /** Seconds until the limit that refused this has room, for `Retry-After`. */
+      retryAfter: number
+    }
 
 /**
  * Mint a sandbox key, unless the dashboard has issued enough.
@@ -65,6 +73,20 @@ export async function issueSandboxKey(env: Bindings, now: number = Date.now()): 
   if ((recent?.n ?? 0) >= SANDBOX_KEYS_PER_HOUR) {
     return {
       ok: false,
+      retryAfter: await secondsUntilRoom(
+        env.DB,
+        {
+          from: 'api_keys',
+          where: 'sandbox = 1 AND created_at > ?1',
+          column: 'created_at',
+          params: [hourAgo],
+          count: recent?.n ?? 0,
+          limit: SANDBOX_KEYS_PER_HOUR,
+          holdMs: HOUR_MS,
+          atMostMs: HOUR_MS,
+        },
+        now,
+      ),
       error:
         'Sandbox keys have been issued as fast as they are allowed this hour. Try again within the hour — ' +
         'or clone the repo and run it locally with no limit.',
@@ -73,6 +95,21 @@ export async function issueSandboxKey(env: Bindings, now: number = Date.now()): 
   if ((active?.n ?? 0) >= SANDBOX_ACTIVE_MAX) {
     return {
       ok: false,
+      // Room opens when a key expires, which is when it stops being live.
+      retryAfter: await secondsUntilRoom(
+        env.DB,
+        {
+          from: 'api_keys',
+          where: 'sandbox = 1 AND revoked_at IS NULL AND expires_at > ?1',
+          column: 'expires_at',
+          params: [nowIso],
+          count: active?.n ?? 0,
+          limit: SANDBOX_ACTIVE_MAX,
+          holdMs: 0,
+          atMostMs: SANDBOX_TTL_MS,
+        },
+        now,
+      ),
       error: 'There are as many sandbox keys live as the dashboard allows. Some expire every day.',
     }
   }
@@ -115,6 +152,33 @@ export async function issueSandboxKey(env: Bindings, now: number = Date.now()): 
       simulated: true,
     },
   }
+}
+
+/** Seconds until a spent sandbox key may start another run. */
+export async function sandboxKeyRetryAfter(
+  db: D1Database,
+  keyId: string,
+  now: number = Date.now(),
+): Promise<number> {
+  const since = new Date(now - HOUR_MS).toISOString()
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM runs WHERE api_key_id = ?1 AND started_at > ?2`)
+    .bind(keyId, since)
+    .first<{ n: number }>()
+  return secondsUntilRoom(
+    db,
+    {
+      from: 'runs',
+      where: 'api_key_id = ?1 AND started_at > ?2',
+      column: 'started_at',
+      params: [keyId, since],
+      count: row?.n ?? 0,
+      limit: SANDBOX_RUNS_PER_HOUR,
+      holdMs: HOUR_MS,
+      atMostMs: HOUR_MS,
+    },
+    now,
+  )
 }
 
 /**

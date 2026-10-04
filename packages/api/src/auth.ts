@@ -263,6 +263,17 @@ export const previewRoleCookie = (token: string, maxAgeSeconds: number) =>
 export const clearPreviewRoleCookie = () =>
   `${PREVIEW_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
 
+export const LAST_USED_GRANULARITY_MS = 60 * 60 * 1000
+
+/** Whether `last_used_at` is old enough to be worth another write. */
+export function lastUsedIsStale(lastUsedAt: string | null, now: number = Date.now()): boolean {
+  if (lastUsedAt === null) return true
+  const at = Date.parse(lastUsedAt)
+  // A value that is not a time is as good as none; one from the future (clock
+  // skew between Workers) is left alone until it is genuinely an hour old.
+  return Number.isNaN(at) || now - at >= LAST_USED_GRANULARITY_MS
+}
+
 /**
  * Authenticates a request with an API key, or returns null if it is not one.
  *
@@ -296,11 +307,17 @@ async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<
     policy: effectivePolicy(key),
     sandbox: key.sandbox === 1,
   })
-  c.executionCtx.waitUntil(
-    c.env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
-      .bind(key.id, new Date().toISOString())
-      .run(),
-  )
+  // At most once an hour. Written on every request it made a valid key a way to
+  // write to D1 without limit — each request, including the ones refused with a
+  // 429, cost a write that no rate limit counts. What the field is for is
+  // telling an unused key from a used one, and an hour's precision does that.
+  if (lastUsedIsStale(key.last_used_at)) {
+    c.executionCtx.waitUntil(
+      c.env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
+        .bind(key.id, new Date().toISOString())
+        .run(),
+    )
+  }
 
   return key.role
 }

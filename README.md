@@ -72,7 +72,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 997 tests — 570 in the Worker, 427 in the UI
+pnpm test          # 1018 tests — 591 in the Worker, 427 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -159,6 +159,30 @@ The paths the Worker must own:
 /auth/*   /demo/*   /runs   /runs/*   /gate   /keys   /keys/*
 /webhook  /reports/*   /health
 ```
+
+### Rate limiting at the edge
+
+The limits in this repository are counted in D1, which means a request has
+already reached the Worker (and read the database) by the time one refuses it.
+They bound what a caller can _do_, not what they can _send_. Stopping a flood or
+a bot before the Worker is Cloudflare's rate limiting, and it is **configuration
+in the Cloudflare dashboard, not something this repository sets or checks** —
+nothing here fails if it is missing.
+
+Rules are per zone, so one zone covers every site on it. Suggested rules, by
+path, counted per IP address (adjust the numbers; what the dashboard offers for
+period and block duration depends on the plan, and the free plan's are narrower):
+
+| Path (host `runs.…`) | Why                                                                                  | Starting point        |
+| -------------------- | ------------------------------------------------------------------------------------ | --------------------- |
+| `/auth/*`            | sign-in guessing; the D1 limit (decision 28) only starts after the Worker is reached | 10 requests / minute  |
+| `/demo/keys`         | minting sandbox keys                                                                 | 10 requests / minute  |
+| `/runs*`             | creating and listing runs                                                            | 60 requests / minute  |
+| `/webhook`           | GitHub's callbacks; signed, so this only bounds noise                                | 120 requests / minute |
+
+The static sites (the hub and the dashboard's own pages) are served by
+Cloudflare Pages and need nothing beyond what Cloudflare does by default. A site
+hosted elsewhere, such as the Paygate sandbox on Vercel, is not behind any of this.
 
 ### The order matters
 

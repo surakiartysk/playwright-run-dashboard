@@ -47,6 +47,7 @@ interviewer should press on hardest.
 36. [A visitor can mint a key that can only pretend](#36-a-visitor-can-mint-a-key-that-can-only-pretend)
 37. [QA's release branches are `release/<version>`, one per version](#37-qas-release-branches-are-releaseversion-one-per-version)
 38. [A run says when a key started it, and the list notices runs it did not start](#38-a-run-says-when-a-key-started-it-and-the-list-notices-runs-it-did-not-start)
+39. [A limit says when it lifts, and using a key writes at most once an hour](#39-a-limit-says-when-it-lifts-and-using-a-key-writes-at-most-once-an-hour)
 
 ---
 
@@ -2136,6 +2137,42 @@ was all.
   under their eyes was judged worse.
 - **The key's runs are a flag, not a name.** Two keys' runs look the same in the
   list. The admin panel is where a key has a label.
+
+---
+
+## 39. A limit says when it lifts, and using a key writes at most once an hour
+
+**Context.** Asked "what happens to someone hammering the API with a key", the
+honest answer had two holes. A refusal said only "within the hour", which a
+script cannot act on: the limits count a sliding hour, so room can be a minute
+away or fifty. And every request carrying a valid key — the ones refused with a
+429 included — wrote `last_used_at` to D1, so a key was a way to write to the
+database without limit, past a rate limit that counts only the runs it accepts.
+
+**Decision.**
+
+- **`Retry-After` on the three limits the dashboard owns** — a spent sandbox key,
+  the demo's shared thirty an hour, and minting. The value is worked out from the
+  rows, after the refusal and only then: the limit opens when enough of the
+  oldest counted rows are an hour old, so when the count is over the limit by
+  more than one it waits for as many to age out as it takes. For the cap on live
+  keys it is when the soonest key expires, which can be most of a day.
+- **`last_used_at` is written when the stored value is an hour old or absent.**
+  The field exists so an admin can tell an unused key from a used one, and an
+  hour's resolution does that. The check reads the row already loaded to
+  authenticate, so it costs nothing.
+
+**Trade-offs.**
+
+- **`last_used_at` is up to an hour out of date.** A key used a minute ago can
+  read as used fifty minutes ago. Nobody decides to revoke a key on that margin.
+- **The sign-in limit (decision 28) has no `Retry-After`.** It counts a fixed
+  window, not a sliding one, and was left as it was.
+- **None of this stops a request arriving.** Each one, refused or not, is still a
+  Worker invocation and a D1 read, and counts against Cloudflare's own
+  allowances. Stopping a flood before the Worker is Cloudflare's job — see
+  "Rate limiting at the edge" in the README, which is configuration this
+  repository cannot hold.
 
 ---
 

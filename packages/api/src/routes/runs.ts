@@ -6,7 +6,8 @@ import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
-import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent } from '../sandbox'
+import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent, sandboxKeyRetryAfter } from '../sandbox'
+import { secondsUntilRoom } from '../retry'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
@@ -215,6 +216,16 @@ runRoutes.post('/', async (c) => {
       .first<{ n: number }>()
 
     if ((recent?.n ?? 0) >= DEMO_RUNS_PER_HOUR) {
+      const retryAfter = await secondsUntilRoom(c.env.DB, {
+        from: 'runs',
+        where: `triggered_by = 'demo' AND started_at > ?1`,
+        column: 'started_at',
+        params: [since],
+        count: recent?.n ?? 0,
+        limit: DEMO_RUNS_PER_HOUR,
+        holdMs: 60 * 60 * 1000,
+        atMostMs: 60 * 60 * 1000,
+      })
       return c.json(
         {
           error:
@@ -224,6 +235,7 @@ runRoutes.post('/', async (c) => {
         // 429, and it is the honest status: the request is allowed, the caller
         // is simply making too many of them.
         429,
+        { 'Retry-After': String(retryAfter) },
       )
     }
   }
@@ -237,6 +249,7 @@ runRoutes.post('/', async (c) => {
         error: `This sandbox key has started its ${SANDBOX_RUNS_PER_HOUR} runs for the hour. It resets within the hour.`,
       },
       429,
+      { 'Retry-After': String(await sandboxKeyRetryAfter(c.env.DB, apiKey.id)) },
     )
   }
 

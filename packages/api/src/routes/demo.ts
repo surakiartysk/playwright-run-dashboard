@@ -77,7 +77,9 @@ demoRoutes.post('/keys', async (c) => {
   }
 
   const issued = await issueSandboxKey(c.env)
-  if (!issued.ok) return c.json({ error: issued.error }, 429)
+  if (!issued.ok) {
+    return c.json({ error: issued.error }, 429, { 'Retry-After': String(issued.retryAfter) })
+  }
 
   return c.json({ key: issued.plaintext, expiresAt: issued.expiresAt, limits: issued.limits }, 201)
 })
