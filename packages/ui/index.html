@@ -103,18 +103,14 @@
           transform: none;
         }
       }
-      @keyframes pulse-dot {
-        0%,
-        100% {
-          opacity: 1;
-          transform: scale(1);
+      @keyframes indeterminate {
+        0% {
+          transform: translateX(-100%);
         }
-        50% {
-          opacity: 0.4;
-          transform: scale(0.75);
+        100% {
+          transform: translateX(263%);
         }
       }
-
       /*
        * For anyone who asked their system for less motion, everything here
        * stops. Nothing relies on it: a running run is still marked by its

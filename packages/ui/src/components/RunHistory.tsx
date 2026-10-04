@@ -7,10 +7,11 @@ import {
   isPending,
   type Role,
   type Run,
-  type RunStatus,
   type Suite,
 } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
+import { StatusIcon } from './StatusIcon'
+import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
 /**
@@ -69,15 +70,6 @@ const SCOPE_LABEL: Record<Role, string> = {
   dev: 'main branch only — your role’s scope',
   qa: 'every branch',
   admin: 'every branch',
-}
-
-const STATUS: Record<RunStatus, { fg: string; bg: string; label: string }> = {
-  passed: { fg: sc.pass, bg: sc.passBg, label: 'passed' },
-  failed: { fg: sc.fail, bg: sc.failBg, label: 'failed' },
-  error: { fg: sc.fail, bg: sc.failBg, label: 'error' },
-  timeout: { fg: sc.fail, bg: sc.failBg, label: 'timeout' },
-  queued: { fg: sc.pending, bg: sc.pendingBg, label: 'queued' },
-  running: { fg: sc.pending, bg: sc.pendingBg, label: 'running' },
 }
 
 /**
@@ -154,7 +146,21 @@ function SuiteChip({ suite, version, sha }: { suite: Suite; version: string; sha
 }
 
 function ResultBar({ run }: { run: Run }) {
-  if (isPending(run.status) || run.total === null) {
+  if (isPending(run.status)) {
+    // No counts exist yet, so no counts are drawn: the API reports nothing
+    // about progress until the callback, and a filling bar would be invented.
+    // The moving bar says "in flight"; the words say for how long.
+    return (
+      <div style={{ minWidth: 130 }}>
+        <div style={{ ...s.resultNumbers, color: c.t4, fontSize: 12.5 }}>{pendingNote(run)}</div>
+        <div style={s.bar} role="progressbar" aria-label={`${run.status}, no progress figure yet`}>
+          {run.status === 'running' && <div style={s.indeterminate} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (run.total === null) {
     return <span style={{ color: c.t5, fontSize: 13 }}>—</span>
   }
 
@@ -259,7 +265,7 @@ export function RunHistory({
           <table style={s.table}>
             <thead>
               <tr>
-                <th style={{ ...s.th, ...s.thStatus }}>Status</th>
+                <th style={{ ...s.th, ...s.thStatus }} aria-label="Status" />
                 <th style={s.th}>Run</th>
                 <th style={s.th}>Result</th>
                 <th style={{ ...s.th, ...s.thRight }}>Started</th>
@@ -269,7 +275,7 @@ export function RunHistory({
             </thead>
             <tbody>
               {shown.map((run) => {
-                const st = STATUS[run.status]
+                const look = STATUS_LOOK[run.status]
                 const expanded = open === run.id
 
                 return (
@@ -278,13 +284,20 @@ export function RunHistory({
                       onClick={() => setOpen(expanded ? null : run.id)}
                       style={{ ...s.tr, ...(expanded ? s.trOpen : null) }}
                     >
-                      <td style={{ ...s.td, ...s.tdStatus }}>
-                        <span style={{ ...s.badge, color: st.fg, background: st.bg }}>
-                          {isPending(run.status) && (
-                            <span style={{ ...s.dot, background: st.fg }} />
-                          )}
-                          {st.label}
-                        </span>
+                      {/*
+                        The edge is the status colour drawn down the row's left
+                        side, so a column of rows reads as a column of results
+                        before any of it is read. An inset shadow rather than a
+                        border: a border would shift the cell by its width.
+                      */}
+                      <td
+                        style={{
+                          ...s.td,
+                          ...s.tdStatus,
+                          boxShadow: `inset 4px 0 0 ${look.color}`,
+                        }}
+                      >
+                        <StatusIcon status={run.status} />
                       </td>
 
                       <td style={s.td}>
@@ -531,7 +544,7 @@ const s: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${c.border}`,
     whiteSpace: 'nowrap',
   },
-  thStatus: { width: 108 },
+  thStatus: { width: 56, paddingLeft: 18, paddingRight: 4 },
   thRight: { textAlign: 'right' },
   tr: {
     cursor: 'pointer',
@@ -544,7 +557,7 @@ const s: Record<string, CSSProperties> = {
     color: c.t2,
     verticalAlign: 'middle',
   },
-  tdStatus: { width: 108 },
+  tdStatus: { width: 56, paddingLeft: 18, paddingRight: 4 },
   tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
@@ -655,23 +668,6 @@ const s: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
 
-  badge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '4px 11px',
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 600,
-    flexShrink: 0,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    animation: 'pulse-dot 1.4s ease-in-out infinite',
-  },
-
   resultNumbers: {
     ...mono,
     display: 'flex',
@@ -691,6 +687,16 @@ const s: Record<string, CSSProperties> = {
     // as part of the pass bar. The gap is the boundary; the colour is the
     // label on it.
     gap: 2,
+  },
+  // A segment that travels the length of the bar. Colour is the pending amber;
+  // reduced motion cuts the animation to one frame (index.html) and leaves it
+  // as a short bar at the start, still distinct from an empty one.
+  indeterminate: {
+    height: '100%',
+    width: '38%',
+    borderRadius: 3,
+    background: sc.pending,
+    animation: 'indeterminate 1.4s ease-in-out infinite',
   },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
 
