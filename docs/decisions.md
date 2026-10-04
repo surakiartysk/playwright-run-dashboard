@@ -39,6 +39,7 @@ interviewer should press on hardest.
 28. [Sign-in counts wrong passwords, and counts them before checking](#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)
 29. [The accent is a choice, and the palette is generated](#29-the-accent-is-a-choice-and-the-palette-is-generated)
 30. [A service and a tag combine, because the suites now take both](#30-a-service-and-a-tag-combine-because-the-suites-now-take-both)
+31. [A run that never reports is ended, not left running](#31-a-run-that-never-reports-is-ended-not-left-running)
 
 ---
 
@@ -1681,6 +1682,50 @@ pair, unlocks the Tag field, and sends the pair on.
 - **History reads differently.** A run of a whole service stores the tag `all`;
   the list, the tooltip and the newest-run line now leave it out instead of
   printing `items @all`.
+
+---
+
+## 31. A run that never reports is ended, not left running
+
+**Context.** A run reaches a final state because something says so: the
+workflow's signed callback for a real one, the simulator for a simulated one.
+Either can fail to arrive — a runner lost mid-job, a workflow cancelled from the
+Actions tab, an isolate that died with a simulation half-run. Nothing then ever
+changes the row. It stays `queued` or `running` for good; the history shows an
+amber spinner on a run from last week; and the page polls every two seconds for
+as long as it is open, because it polls while anything is in flight.
+
+`timeout` was already a status. The column accepted it, the list had an icon for
+it, the filters counted it as a failure — and no code anywhere wrote it.
+
+**Decision.** A scheduled handler on the Worker, every ten minutes, marks any
+`queued` or `running` run older than thirty minutes as `timeout` and stamps when
+it did. Thirty is the suites' own 20-minute job limit plus ten for GitHub to
+queue it: longer leaves a dead run looking alive for no reason, shorter calls a
+slow run dead.
+
+- **It is a guess, and a real result outranks it.** The webhook updates a run by
+  id with no condition on its current status, so a callback that turns up after
+  the sweep replaces `timeout` with what actually happened. The sweep does not
+  forbid that; a test holds it.
+- **Only unfinished runs are touched.** A run with a result keeps it however
+  old, and a run whose dispatch already failed (`error`) keeps that.
+- **Strictly older than the cutoff.** A run exactly at the limit has its full
+  time.
+
+**Trade-offs.**
+
+- **A timeout can be wrong.** A run that is merely slow past thirty minutes is
+  recorded as timed out until its callback lands. That is rare — the job is
+  capped at twenty — and self-correcting, but for a while the history says
+  something untrue.
+- **One more thing that runs without a request.** A cron is configured in
+  `wrangler.toml` and registered by `wrangler deploy`; it does not exist locally
+  unless `wrangler dev --test-scheduled` is asked for it, so the handler is
+  tested by calling it rather than by waiting.
+- **It cannot tell you why.** `timeout` says the dashboard stopped waiting, not
+  whether the runner died, the workflow was cancelled or the callback was lost.
+  The run's workflow link, when it has one, is where that is answered.
 
 ---
 

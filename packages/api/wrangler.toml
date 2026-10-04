@@ -23,6 +23,12 @@ migrations_dir = "migrations"
 binding = "REPORTS"
 bucket_name = "run-dashboard-reports"
 
+# Every ten minutes, end runs that were never going to report (see src/stale.ts).
+# A cron costs one UPDATE; with none, a run whose callback never arrives is
+# `running` for ever and the page polls for as long as it is open.
+[triggers]
+crons = ["*/10 * * * *"]
+
 [vars]
 # The repository whose workflow gets dispatched. Overridden per environment —
 # set it to your own `owner/repo` before deploying. Only read when

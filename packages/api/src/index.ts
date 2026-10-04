@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import type { HonoEnv } from './types'
+import type { Bindings, HonoEnv } from './types'
 import { assertDeployable } from './config'
 import { authRoutes } from './routes/auth'
 import { demoRoutes } from './routes/demo'
@@ -9,6 +9,7 @@ import { webhookRoutes } from './routes/webhook'
 import { reportRoutes } from './routes/reports'
 import { gateRoutes } from './routes/gate'
 import { keyRoutes } from './routes/keys'
+import { sweepStaleRuns } from './stale'
 import pkg from '../package.json'
 
 /**
@@ -127,4 +128,21 @@ app.onError((err, c) => {
   return c.json({ error: 'Internal error' }, 500)
 })
 
-export default app
+/**
+ * The Worker has two entry points: requests (everything above) and a schedule.
+ *
+ * The schedule is `[triggers] crons` in wrangler.toml, and what it does is
+ * `sweepStaleRuns` — see stale.ts for why a run can be left unfinished and why
+ * something has to end it. `waitUntil` so the sweep is allowed to finish after
+ * the handler returns.
+ */
+export default {
+  fetch: app.fetch,
+  scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
+    ctx.waitUntil(
+      sweepStaleRuns(env.DB).then((marked) => {
+        if (marked > 0) console.log(`[stale] marked ${marked} unfinished run(s) as timeout`)
+      }),
+    )
+  },
+}
