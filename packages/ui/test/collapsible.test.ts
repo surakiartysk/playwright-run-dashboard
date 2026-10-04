@@ -3,8 +3,18 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Collapsible } from '../src/components/Collapsible'
 import { RoleSwitcher, policyLines, previewNote } from '../src/components/RoleSwitcher'
-import { RunTrend, trendHint, trendPoints } from '../src/components/RunTrend'
+import {
+  CHART_HEIGHT,
+  PLOT_HEIGHT,
+  RunTrend,
+  STRIP_GAP,
+  STRIP_HEIGHT,
+  failureSummary,
+  trendHint,
+  trendPoints,
+} from '../src/components/RunTrend'
 import type { RolePolicy } from '../src/api'
+import { status as sc } from '../src/theme'
 import { run } from './fixtures'
 
 /**
@@ -47,7 +57,7 @@ describe('Collapsible', () => {
 
 describe('the folded chart', () => {
   it('says how much it covers and where the newest run stands', () => {
-    expect(trendHint(trendPoints(runs))).toBe('Last 4 · newest 100%')
+    expect(trendHint(trendPoints(runs))).toBe('Last 4 · 1 failed')
   })
 
   it('says nothing when there is nothing to chart', () => {
@@ -97,6 +107,92 @@ describe('the folded role switcher', () => {
     const html = render(false)
     expect(html).not.toContain('<details')
     expect(html).toContain('>admin</button>')
+  })
+})
+
+describe('failureSummary', () => {
+  const points = (...statuses: ('passed' | 'failed' | 'error' | 'timeout')[]) =>
+    trendPoints(
+      statuses.map((status) => run({ status, total: 40, passed: status === 'passed' ? 40 : 30 })),
+    )
+
+  it('says outright that everything passed', () => {
+    expect(failureSummary(points('passed', 'passed', 'passed'))).toEqual({
+      failed: 0,
+      text: 'All 3 runs passed',
+    })
+  })
+
+  it('says how many did not, out of how many are charted', () => {
+    expect(failureSummary(points('passed', 'failed', 'passed', 'failed', 'passed'))).toEqual({
+      failed: 2,
+      text: '2 of the last 5 runs did not pass',
+    })
+  })
+
+  /** A run that errored or timed out is not a run that passed. */
+  it('counts error and timeout as not passing', () => {
+    expect(failureSummary(points('passed', 'error', 'timeout')).failed).toBe(2)
+  })
+
+  /**
+   * Decided by the run's status, not by whether it reported failing tests: a
+   * run that timed out reported nothing failed, and was still not a pass.
+   */
+  it('counts a run that did not pass even when it reported no failed tests', () => {
+    const silent = trendPoints([
+      run({ status: 'timeout', total: 40, passed: 40 }),
+      run({ status: 'passed', total: 40, passed: 40 }),
+    ])
+    expect(silent.map((p) => p.failed)).toEqual([0, 0])
+    expect(failureSummary(silent).failed).toBe(1)
+  })
+
+  it('reads sensibly for one run, and for none', () => {
+    expect(failureSummary(points('passed')).text).toBe('The run passed')
+    expect(failureSummary([])).toEqual({ failed: 0, text: '' })
+  })
+
+  it('feeds the folded row, so it says what went wrong and not only how many', () => {
+    expect(trendHint(points('passed', 'passed', 'passed'))).toBe('Last 3 · all passed')
+    expect(trendHint(points('passed', 'failed', 'passed'))).toBe('Last 3 · 1 failed')
+  })
+
+  it('puts the line on the open card, in the danger colour only when something failed', () => {
+    const red = renderToStaticMarkup(createElement(RunTrend, { runs }))
+    expect(red).toContain('1 of the last 4 runs did not pass')
+    expect(red).toContain('color:var(--c-danger)">1 of the last 4')
+    const green = renderToStaticMarkup(
+      createElement(RunTrend, { runs: [runs[0]!, runs[2]!, runs[3]!] }),
+    )
+    expect(green).toContain('All 3 runs passed')
+    expect(green).not.toContain('color:var(--c-danger)">All')
+  })
+})
+
+describe('the status strip', () => {
+  it('sits below the plot and is part of what the chart draws', () => {
+    expect(CHART_HEIGHT).toBe(PLOT_HEIGHT + STRIP_GAP + STRIP_HEIGHT)
+    expect(renderToStaticMarkup(createElement(RunTrend, { runs }))).toContain(
+      `viewBox="0 0 320 ${CHART_HEIGHT}"`,
+    )
+  })
+
+  it('has one square per charted run, the same height for all of them', () => {
+    const html = renderToStaticMarkup(createElement(RunTrend, { runs }))
+    const squares = html.match(new RegExp(`height="${STRIP_HEIGHT}"`, 'g')) ?? []
+    expect(squares).toHaveLength(runs.length)
+  })
+
+  it('colours a square by whether its run passed', () => {
+    const html = renderToStaticMarkup(createElement(RunTrend, { runs }))
+    const squares = html.match(new RegExp(`height="${STRIP_HEIGHT}"[^>]*fill="[^"]+"`, 'g')) ?? []
+    expect(squares.filter((s) => s.includes(sc.fail))).toHaveLength(1)
+    expect(squares.filter((s) => s.includes(sc.pass))).toHaveLength(runs.length - 1)
+  })
+
+  it('is taller than the plot used to be, so a failing bar is not a sliver', () => {
+    expect(PLOT_HEIGHT).toBeGreaterThanOrEqual(96)
   })
 })
 
