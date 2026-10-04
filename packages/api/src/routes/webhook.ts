@@ -3,6 +3,7 @@ import type { HonoEnv, WebhookPayload } from '../types'
 import { REPORTABLE_STATUSES, isReportableStatus } from '../types'
 import { verifyHmac } from '../crypto'
 import { DEV_WEBHOOK_SECRET } from '../config'
+import { sanitizeFailures } from '../details'
 
 export const webhookRoutes = new Hono<HonoEnv>()
 
@@ -76,7 +77,8 @@ webhookRoutes.post('/', async (c) => {
             report_path = COALESCE(?8, report_path),
             workflow_url = COALESCE(?9, workflow_url),
             suite_version = COALESCE(?10, suite_version),
-            suite_sha = COALESCE(?11, suite_sha)
+            suite_sha = COALESCE(?11, suite_sha),
+            details = COALESCE(?12, details)
       WHERE id = ?1`,
   )
     .bind(
@@ -94,6 +96,13 @@ webhookRoutes.post('/', async (c) => {
       // only record of what ran.
       payload.suiteVersion ?? null,
       payload.suiteSha ?? null,
+      // Bounded and typed here, never rejected: a callback whose detail is
+      // malformed still has to deliver its totals. COALESCEd like the rest, so a
+      // callback without it keeps what an earlier one said.
+      (() => {
+        const details = sanitizeFailures(payload.failures, payload.failuresOmitted)
+        return details ? JSON.stringify(details) : null
+      })(),
     )
     .run()
 

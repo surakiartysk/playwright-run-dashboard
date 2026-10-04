@@ -24,6 +24,7 @@ import {
   type RowState,
 } from '../run-rows'
 import { CopyButton } from './CopyButton'
+import { RunProblem } from './RunProblem'
 import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
@@ -542,6 +543,8 @@ export function RunHistory({
                               </Detail>
                             )}
                           </div>
+
+                          <RunProblem run={run} />
 
                           <RunActions
                             run={run}

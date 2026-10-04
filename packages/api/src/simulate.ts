@@ -1,5 +1,6 @@
 import type { Bindings, RunStatus, Suite } from './types'
 import { DEMO_REPORT_PREFIX } from './config'
+import { sampleFailures } from './details'
 
 /**
  * Walks a simulated run through the states a real one would pass through.
@@ -69,8 +70,9 @@ function outcome(suite: Suite, service: string): SimulatedOutcome {
  *
  * `POST /runs` hands this to `waitUntil` and returns, and a rejected
  * `waitUntil` promise is logged and forgotten — nothing else in this Worker
- * would ever touch the row again. There is no sweeper, no cron trigger and no
- * timeout: `running` is where it would stay. CLAUDE.md names that symptom as
+ * would ever touch the row again. The stale-run sweeper (stale.ts) would catch
+ * it eventually, but not for thirty minutes, and an error the simulator knows
+ * about should be recorded as one now. CLAUDE.md names that symptom as
  * what the worst deployment failure here looked like from outside, and the
  * real dispatch path already records its own failures as `error`, so this is
  * the simulator catching up with the rule rather than a new one.
@@ -151,7 +153,7 @@ async function walkStates(
   await env.DB.prepare(
     `UPDATE runs
         SET status = ?2, total = ?3, passed = ?4, failed = ?5,
-            finished_at = ?6, duration_ms = ?7, report_path = ?8
+            finished_at = ?6, duration_ms = ?7, report_path = ?8, details = ?9
       WHERE id = ?1
         AND status IN ('queued', 'running')`,
   )
@@ -164,6 +166,11 @@ async function walkStates(
       new Date().toISOString(),
       3000 + Math.floor(Math.random() * 3000),
       reportPath,
+      // A failed simulated run shows failures like a real one would, plainly
+      // invented (the run says `simulated`), so the detail panel is not empty.
+      ((d) => (d ? JSON.stringify(d) : null))(
+        result.failed > 0 ? sampleFailures(suite, result.failed) : null,
+      ),
     )
     .run()
 }

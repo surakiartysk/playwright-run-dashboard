@@ -84,6 +84,24 @@ export interface RunOptions {
   suites: Record<Suite, SuiteOptions>
 }
 
+/** One test that failed, as the workflow's callback described it. */
+export interface RunFailure {
+  title: string
+  file: string
+  line?: number
+  /** Which package ran it. The suites run each journey once per style. */
+  style: string
+  tags: string[]
+  /** The first line of what went wrong, already cut. */
+  message: string
+}
+
+export interface RunDetails {
+  failures: RunFailure[]
+  /** Failures the workflow left out because there were more than it sends. */
+  omitted: number
+}
+
 export interface RolePolicy {
   role: Role
   allowedRefs: string[]
@@ -150,6 +168,14 @@ export const api = {
     request<{ mode: 'full' | 'demo-only'; passwords: Partial<Record<Role, string>> }>(
       '/auth/dev-credentials',
     ),
+
+  /**
+   * One run, with what the list leaves out: the failures its callback named.
+   * Null `details` is a run that failed nothing, a result from a workflow that
+   * predates the field, or one the callback sent no detail for.
+   */
+  run: (id: string) =>
+    request<Run & { details: RunDetails | null }>(`/runs/${encodeURIComponent(id)}`),
 
   /** What the caller may ask for — see `RunOptions`. */
   options: () => request<RunOptions>('/runs/options'),

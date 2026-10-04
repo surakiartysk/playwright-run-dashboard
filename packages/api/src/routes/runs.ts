@@ -5,6 +5,7 @@ import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
 import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { recordRefSha } from '../branches'
+import { parseDetails } from '../details'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
@@ -457,7 +458,12 @@ runRoutes.get('/:id', async (c) => {
     ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
     : null
 
-  return c.json(redactForPreview(c.get('role'), viewAs, toView(row, reportUrl)))
+  // The failures travel with one run, not with the list: twenty messages a row
+  // across a page of rows is the payload the list should not become.
+  return c.json({
+    ...redactForPreview(c.get('role'), viewAs, toView(row, reportUrl)),
+    details: parseDetails(row.details),
+  })
 })
 
 // ── DELETE /runs/:id ────────────────────────────────────────────────────────

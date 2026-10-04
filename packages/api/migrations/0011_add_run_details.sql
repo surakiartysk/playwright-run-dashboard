@@ -1,0 +1,13 @@
+-- Which tests failed, and why — what the result callback now says beyond totals.
+--
+-- A run's row held three numbers: total, passed, failed. "2 failed" is the
+-- start of a question, and answering it meant opening the whole Allure report.
+-- The workflow now sends up to twenty failures, each a title, a file, tags and
+-- the first line of its message, and how many it left out.
+--
+-- JSON in one column rather than a table of failures: it is read only for one
+-- run at a time (GET /runs/:id, when a row is opened), never queried across
+-- runs, and the list endpoint deliberately does not carry it. A table would be
+-- a join nothing needs. Null for every run before this, for every run that
+-- passed, and for a callback from a workflow that predates the field.
+ALTER TABLE runs ADD COLUMN details TEXT;

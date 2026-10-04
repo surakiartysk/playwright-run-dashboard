@@ -42,6 +42,7 @@ interviewer should press on hardest.
 31. [A run that never reports is ended, not left running](#31-a-run-that-never-reports-is-ended-not-left-running)
 32. [The API says what can be asked for, and which branches exist](#32-the-api-says-what-can-be-asked-for-and-which-branches-exist)
 33. [A run says when it was and what it ran, and a preview keeps names back](#33-a-run-says-when-it-was-and-what-it-ran-and-a-preview-keeps-names-back)
+34. [A failed run names its tests, and an error is not a failure](#34-a-failed-run-names-its-tests-and-an-error-is-not-a-failure)
 
 ---
 
@@ -1836,6 +1837,68 @@ is not: the name a colleague typed when they signed in.
 - **The redaction is by field, not by run.** A previewer still sees that a `qa`
   run exists, on which branch, with what result. That was the point of
   decision 22 and is unchanged; only the one free-text field is withheld.
+
+---
+
+## 34. A failed run names its tests, and an error is not a failure
+
+**Context.** A row said "2 failed" and drew a bar. Which two was in the Allure
+report, a single HTML file opened in another tab, for a run the dashboard
+already knew had failed. The callback carried three numbers; the list of tests
+that made them was in the same `results.json` the numbers were read from and
+was thrown away.
+
+Separately, three different things sat behind a red row and were told apart by
+an icon alone: a test failed, the run errored (dispatch refused, workflow died
+before reporting), or nothing was reported in time. "Failed" for all three sends
+a reader looking for a failing test where there is none.
+
+**Decision.** The suites' callback carries up to twenty failures — title, file,
+line, the style that ran it, tags, the first line of the message — and how many
+it left out. The Worker stores them as JSON in one column (migration 0011),
+sanitised on the way in, and returns them with **one** run (`GET /runs/:id`), not
+with the list. Opening a failed row fetches that run and lists the failures;
+opening an `error` or `timeout` row says in a sentence what that status means
+and that there is no list to show.
+
+- **Bounded twice.** The workflow sends twenty and a count; the Worker keeps
+  twenty and counts anything beyond into `omitted`, cuts every text to a limit,
+  and keeps only tags that look like tags. A suite broken at the root fails
+  every test with one message, and a hundred copies is a worse answer than
+  twenty and a number.
+- **Untrusted in the one way that matters.** The callback is signed, so it is
+  not hostile; but the text is whatever an assertion said and it is shown to
+  whoever may read the run. It is escaped when drawn and never a reason to
+  refuse the totals that came with it: a malformed list stores nothing and the
+  result is recorded.
+- **One column, not a table.** It is read for one run at a time and never
+  queried across runs. The list does not carry it: a page of rows each holding
+  twenty messages is the payload the list should not become.
+- **A simulated failure shows failures too**, plainly invented and drawn from a
+  short list per suite, so the demo's panel is not empty where the real one is
+  not. The run says `simulated`.
+- **Order of deployment is not a constraint.** An older dashboard ignores the
+  new field; an older workflow sends none and the panel says the result did not
+  name the tests. The migration must still precede the Worker, as ever.
+
+**Trade-offs.**
+
+- **The list is the first line of a message.** A failure's real story — the
+  request, the response, the trace — is in the report, and this does not
+  replace opening it. It is the answer to "which", not to "why".
+- **Messages can carry data.** An assertion that prints a response body prints
+  it here. The API suite redacts credentials in what it attaches to Allure; this
+  is a first line of an error and has no such step. On the published suites the
+  targets are public, which is what makes that acceptable; a deployment whose
+  tests touched something private would need to redact before it sent.
+- **Counts do not always agree.** The API suite runs each journey in two
+  styles, so one broken behaviour is two failures, and the run's own count says
+  so. The list names both; where the two numbers differ the line says which is
+  which rather than showing a figure that conflicts with the row above.
+- **A flaky test is not a failure here.** One that failed and passed on retry is
+  `flaky` in Playwright's report and passes in the totals, and is absent from
+  the list. That matches the totals; it also hides flakiness, which wants a view
+  of its own.
 
 ---
 

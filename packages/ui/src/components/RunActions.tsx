@@ -61,6 +61,18 @@ export function RunActions({
         </a>
       )}
 
+      {run.workflowUrl && (
+        <a
+          href={run.workflowUrl}
+          target="_blank"
+          rel="noreferrer"
+          style={s.workflow}
+          onClick={(e) => e.stopPropagation()}
+        >
+          Workflow run ↗
+        </a>
+      )}
+
       {canDelete &&
         (confirming ? (
           <>
@@ -123,6 +135,15 @@ const s: Record<string, CSSProperties> = {
     padding: '5px 11px',
     background: c.primaryLight,
     border: `1px solid ${c.primaryBorder}`,
+    borderRadius: 7,
+  },
+  workflow: {
+    color: c.t3,
+    textDecoration: 'none',
+    fontSize: 13,
+    fontWeight: 500,
+    padding: '5px 11px',
+    border: `1px solid ${c.border}`,
     borderRadius: 7,
   },
   delete: { ...button, background: 'transparent', border: `1px solid ${c.border}`, color: c.t4 },

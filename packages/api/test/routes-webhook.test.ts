@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, postWebhook, request, seedRun, statusOf } from './helpers'
+import { as, migrate, postWebhook, request, seedRun, statusOf } from './helpers'
 import { hmacHex } from '../src/crypto'
 import { DEV_WEBHOOK_SECRET } from '../src/config'
 
@@ -279,5 +279,119 @@ describe('POST /webhook — what it accepts', () => {
       .first<{ suite_version: string | null; suite_sha: string | null }>()
 
     expect(row).toMatchObject({ suite_version: null, suite_sha: null })
+  })
+})
+
+/**
+ * The callback now says which tests failed. Stored with the run, returned with
+ * that one run, and never allowed to cost a run its totals.
+ */
+describe('POST /webhook — the failures it carries', () => {
+  const failure = {
+    title: 'should list items',
+    file: 'items/list.spec.ts',
+    line: 12,
+    style: 'class-style',
+    tags: ['items', 'smoke'],
+    message: 'expected 200, got 500',
+  }
+
+  const detailsOf = async (id: string) =>
+    (await (await as('admin', `/runs/${id}`)).json()) as {
+      details: { failures: { title: string }[]; omitted: number } | null
+      status: string
+      failed: number
+    }
+
+  it('stores them with the run and returns them for that run', async () => {
+    const id = await seedRun()
+    const response = await postWebhook({
+      runId: id,
+      status: 'failed',
+      total: 10,
+      passed: 9,
+      failed: 1,
+      failures: [failure],
+      failuresOmitted: 4,
+    })
+    expect(response.status).toBe(200)
+
+    const run = await detailsOf(id)
+    expect(run.details).toEqual({ failures: [failure], omitted: 4 })
+  })
+
+  /** A page of rows each carrying twenty messages is the payload the list must not become. */
+  it('does not put them in the list', async () => {
+    const id = await seedRun()
+    await postWebhook({
+      runId: id,
+      status: 'failed',
+      total: 2,
+      passed: 1,
+      failed: 1,
+      failures: [failure],
+    })
+
+    const list = (await (await as('admin', '/runs?limit=100')).json()) as {
+      runs: Record<string, unknown>[]
+    }
+    const row = list.runs.find((r) => r.id === id)
+    expect(row).toBeDefined()
+    expect(row).not.toHaveProperty('details')
+  })
+
+  it('is null for a run whose callback named none', async () => {
+    const id = await seedRun()
+    await postWebhook({ runId: id, status: 'passed', total: 3, passed: 3, failed: 0 })
+    expect((await detailsOf(id)).details).toBeNull()
+  })
+
+  /** The detail is a convenience: losing it must cost a list, never a result. */
+  it.each([
+    ['not a list', 'oops'],
+    ['entries that are not objects', [1, 'x', null]],
+    ['entries with no title', [{ message: 'x' }]],
+  ])('still records the totals when failures is %s', async (_label, bad) => {
+    const id = await seedRun()
+    const response = await postWebhook({
+      runId: id,
+      status: 'failed',
+      total: 5,
+      passed: 3,
+      failed: 2,
+      failures: bad,
+    })
+    expect(response.status).toBe(200)
+    const run = await detailsOf(id)
+    expect(run).toMatchObject({ status: 'failed', failed: 2, details: null })
+  })
+
+  it('bounds what it stores: twenty, the rest counted', async () => {
+    const id = await seedRun()
+    await postWebhook({
+      runId: id,
+      status: 'failed',
+      total: 99,
+      passed: 0,
+      failed: 99,
+      failures: Array.from({ length: 30 }, (_, i) => ({ ...failure, title: `t${i}` })),
+    })
+    const { details } = await detailsOf(id)
+    expect(details?.failures).toHaveLength(20)
+    expect(details?.omitted).toBe(10)
+  })
+
+  it('keeps what an earlier callback said when a later one carries none', async () => {
+    const id = await seedRun()
+    await postWebhook({
+      runId: id,
+      status: 'failed',
+      total: 2,
+      passed: 1,
+      failed: 1,
+      failures: [failure],
+    })
+    await postWebhook({ runId: id, status: 'failed', total: 2, passed: 1, failed: 1 })
+    expect((await detailsOf(id)).details?.failures).toHaveLength(1)
   })
 })

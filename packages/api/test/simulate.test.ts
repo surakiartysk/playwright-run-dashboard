@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeAll } from 'vitest'
+import { describe, expect, it, beforeAll, vi, afterEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, seedRun, statusOf, postWebhook, request } from './helpers'
+import { as, migrate, seedRun, statusOf, postWebhook, request } from './helpers'
 import { simulateRun } from '../src/simulate'
 import { signReportToken } from '../src/crypto'
 import { DEV_TOKEN_SECRET } from '../src/config'
@@ -32,8 +32,9 @@ describe('simulateRun', { timeout: 20_000 }, () => {
    * dispatch that fails is recorded — twenty lines above, the handler writes
    * `status = 'error'` — but a simulation that throws was recorded nowhere, so
    * the row kept whatever state it had reached and nothing would ever change
-   * it again. There is no sweeper, no cron trigger and no timeout anywhere in
-   * this Worker: `running` is where it stays, permanently.
+   * it again. The stale-run sweeper would end it after thirty minutes; until
+   * then `running` is where it stays, and a failure the simulator knows about
+   * should be recorded as one now.
    *
    * CLAUDE.md names that exact symptom — "runs that never leave `running`" —
    * as what the worst deployment failure here looked like from outside, which
@@ -218,5 +219,43 @@ describe('simulateRun', { timeout: 20_000 }, () => {
     await simulateRun(env, target, 'api', 'items')
 
     expect(await statusOf(bystander)).toBe('queued')
+  })
+})
+
+describe('what a simulated failure shows', { timeout: 20_000 }, () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const detailsOf = async (id: string) =>
+    (await (await as('admin', `/runs/${id}`)).json()) as {
+      status: string
+      failed: number
+      details: { failures: { title: string; style: string }[]; omitted: number } | null
+    }
+
+  /**
+   * A failed simulated run had a details panel with nothing in it — a different
+   * demo from the real run, whose callback names the tests. The failures are
+   * plainly invented (the run says it is simulated) but they are there.
+   */
+  it('names failures for a failed run, as many as it failed', async () => {
+    // Below 0.2, so the simulator's one-in-five failure is certain.
+    vi.spyOn(Math, 'random').mockReturnValue(0.1)
+    const id = await seedRun({ status: 'queued' })
+    await simulateRun(env, id, 'api', 'items')
+
+    const run = await detailsOf(id)
+    expect(run.status).toBe('failed')
+    expect(run.details?.failures).toHaveLength(run.failed)
+    expect(run.details?.failures[0]?.title).toBeTruthy()
+  })
+
+  it('names nothing for a run that passed', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.9)
+    const id = await seedRun({ status: 'queued' })
+    await simulateRun(env, id, 'ui', 'auth')
+
+    const run = await detailsOf(id)
+    expect(run.status).toBe('passed')
+    expect(run.details).toBeNull()
   })
 })

@@ -120,6 +120,8 @@ export interface RunRow {
   suite_sha: string | null
   /** 1 when no workflow ran — see migration 0010. */
   simulated: number
+  /** JSON of the failures the callback named — see migration 0011 and details.ts. */
+  details: string | null
 }
 
 /** A run as the UI sees it — camelCase, with the report link resolved. */
@@ -183,6 +185,12 @@ export interface WebhookPayload {
   /** Which suite ran. Optional: a workflow older than this field sends neither. */
   suiteVersion?: string
   suiteSha?: string
+  /**
+   * Which tests failed, when the workflow says. Untrusted text in a signed
+   * envelope: `sanitizeFailures` bounds it before it is stored.
+   */
+  failures?: unknown
+  failuresOmitted?: unknown
 }
 
 export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
