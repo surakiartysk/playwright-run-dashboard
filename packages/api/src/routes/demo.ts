@@ -10,6 +10,7 @@ import {
 import { DEV_TOKEN_SECRET } from '../config'
 import { POLICIES } from '../policy'
 import { simulates } from '../github'
+import { issueSandboxKey } from '../sandbox'
 
 export const demoRoutes = new Hono<HonoEnv>()
 
@@ -60,6 +61,25 @@ demoRoutes.post('/preview-role', async (c) => {
 
   c.header('Set-Cookie', previewRoleCookie(token, maxAge))
   return c.json({ previewing: previewed })
+})
+
+/**
+ * A key a visitor can mint for themselves, to try the API from a terminal.
+ *
+ * Only for the demo role, and only a real session: a key cannot mint a key
+ * (decision 25), and the other roles have the admin panel. What comes back is
+ * the demo role's own key, so it can only ever simulate; see sandbox.ts for the
+ * limits that keep it from costing anything. The plaintext is returned once.
+ */
+demoRoutes.post('/keys', async (c) => {
+  if (c.get('role') !== 'demo' || c.get('apiKey')) {
+    return c.json({ error: 'Only a demo session may mint a sandbox key' }, 403)
+  }
+
+  const issued = await issueSandboxKey(c.env)
+  if (!issued.ok) return c.json({ error: issued.error }, 429)
+
+  return c.json({ key: issued.plaintext, expiresAt: issued.expiresAt, limits: issued.limits }, 201)
 })
 
 demoRoutes.post('/stop-preview', (c) => {

@@ -180,7 +180,7 @@ declare module 'hono' {
      * dev-level keys would otherwise produce a history where every row says
      * 'dev'. See decision 15.
      */
-    apiKey?: { id: string; label: string; policy: RolePolicy }
+    apiKey?: { id: string; label: string; policy: RolePolicy; sandbox: boolean }
   }
 }
 
@@ -290,7 +290,12 @@ async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<
   // Non-null: verifyKey returns false for a null row.
   const key = row as ApiKeyRow
 
-  c.set('apiKey', { id: key.id, label: key.label, policy: effectivePolicy(key) })
+  c.set('apiKey', {
+    id: key.id,
+    label: key.label,
+    policy: effectivePolicy(key),
+    sandbox: key.sandbox === 1,
+  })
   c.executionCtx.waitUntil(
     c.env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
       .bind(key.id, new Date().toISOString())

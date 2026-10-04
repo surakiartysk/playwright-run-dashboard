@@ -44,6 +44,7 @@ interviewer should press on hardest.
 33. [A run says when it was and what it ran, and a preview keeps names back](#33-a-run-says-when-it-was-and-what-it-ran-and-a-preview-keeps-names-back)
 34. [A failed run names its tests, and an error is not a failure](#34-a-failed-run-names-its-tests-and-an-error-is-not-a-failure)
 35. [The history is narrowed by the server, and by what the caller could have run](#35-the-history-is-narrowed-by-the-server-and-by-what-the-caller-could-have-run)
+36. [A visitor can mint a key that can only pretend](#36-a-visitor-can-mint-a-key-that-can-only-pretend)
 
 ---
 
@@ -1956,6 +1957,63 @@ survives a reload.
   they are not (they live in one column per run, decision 34).
 - **Seven filters is a lot of controls.** They are behind one button with chips
   for what is on, because most visits use none.
+
+---
+
+## 36. A visitor can mint a key that can only pretend
+
+**Context.** The public demo shows the dashboard as a page, and the half of the
+product that is not a page — `POST /runs` from a script, with a key — was out of
+reach: a key needs an admin to issue it, so nobody trying the site could ever
+hold one. The form was the only way in, and a reader who wanted to see the API
+had to take the README's word.
+
+**Decision.** In the run form, a "Run this from a script" panel shows the
+request the form would send as a `curl` (and a second `curl` that asks
+`/runs/options` what there is to ask for), built from whatever the dropdowns
+currently hold. A demo session can press "Get a sandbox key" and receive a real
+key, once, with the commands rewritten to set it — one paste into a terminal.
+
+The key is **the demo role's own**:
+
+- **It can only ever simulate.** A request with the key reaches `POST /runs` as
+  the role it carries, and `simulates()` puts `role === 'demo'` ahead of every
+  deployment flag (decision 12). A test holds it on a deployment that is
+  otherwise real — token set, `SIMULATE_DISPATCH` off — with `fetch` stubbed to
+  fail the test if anything calls GitHub; removing the guard makes it fail.
+- **It is narrower than its role.** `main` only, two workers, no delete, no gate,
+  no keys (`refuseKeys` applies to every key, and a sandbox key may not mint
+  another).
+- **It expires.** After a day, enforced where revocation is, in `verifyKey`, so a
+  caller that loads the row some other way cannot forget it. A sweep removes keys
+  a day past expiry.
+- **It is rate limited, in three places, all shared.** One key may start ten runs
+  an hour; the dashboard mints at most twenty keys an hour and keeps at most two
+  hundred live; and the demo's existing thirty-runs-an-hour limit still applies
+  to everything it starts. Shared, not per visitor, for the reason decision 22
+  gives: a demo session carries no identity to key a bucket on, and an address
+  is spoofable and shared by every NAT.
+- **It stays out of the admin's way.** Sandbox keys are marked and left out of
+  `GET /keys`; visitors mint them by the hundred and they would bury the real
+  credentials. The demo's runs older than a week are swept with them.
+
+**Trade-offs.**
+
+- **What a stranger can still do is fill the table with simulated runs**, which
+  is what decision 22 already accepted and what these limits bound. The cost is
+  rows in D1, swept at a week.
+- **The limits are blunt.** Twenty keys an hour across all visitors means a busy
+  hour can turn a visitor away who did nothing wrong. The message says so and
+  says to clone the repo, where there is no limit; a per-visitor limit would need
+  an identity the demo deliberately does not have.
+- **The plaintext lives in the page.** Shown once and held in component state, so
+  a refresh loses it and a screenshot of the panel contains a working key until
+  it expires. A key with these limits is a small thing to leak, which is the
+  reason it is built this way.
+- **Not for the other roles.** They use a key an admin issued, which this does
+  not touch; the panel says so rather than offering a button that would not work.
+- **A real run is still only reachable with a real key.** Nothing here lets a
+  stranger start a real workflow, and a test is what says so.
 
 ---
 

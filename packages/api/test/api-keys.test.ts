@@ -23,6 +23,8 @@ const row = (over: Partial<ApiKeyRow> = {}): ApiKeyRow => ({
   created_at: '2026-01-01T00:00:00.000Z',
   last_used_at: null,
   revoked_at: null,
+  expires_at: null,
+  sandbox: 0,
   ...over,
 })
 

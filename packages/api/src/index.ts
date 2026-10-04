@@ -11,6 +11,7 @@ import { gateRoutes } from './routes/gate'
 import { keyRoutes } from './routes/keys'
 import { optionsRoutes } from './routes/options'
 import { sweepStaleRuns } from './stale'
+import { pruneSandbox } from './sandbox'
 import pkg from '../package.json'
 
 /**
@@ -146,9 +147,15 @@ export default {
   fetch: app.fetch,
   scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
     ctx.waitUntil(
-      sweepStaleRuns(env.DB).then((marked) => {
-        if (marked > 0) console.log(`[stale] marked ${marked} unfinished run(s) as timeout`)
-      }),
+      Promise.all([
+        sweepStaleRuns(env.DB).then((marked) => {
+          if (marked > 0) console.log(`[stale] marked ${marked} unfinished run(s) as timeout`)
+        }),
+        pruneSandbox(env.DB).then(({ keys, runs }) => {
+          if (keys + runs > 0)
+            console.log(`[prune] removed ${keys} sandbox key(s), ${runs} old demo run(s)`)
+        }),
+      ]),
     )
   },
 }

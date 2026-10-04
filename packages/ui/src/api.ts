@@ -177,6 +177,18 @@ export const api = {
   run: (id: string) =>
     request<Run & { details: RunDetails | null }>(`/runs/${encodeURIComponent(id)}`),
 
+  /**
+   * A key a demo session can mint for itself, to try the API from a terminal.
+   * The plaintext is returned once. It is the demo role's own, so it can only
+   * simulate, and it expires.
+   */
+  createSandboxKey: () =>
+    request<{
+      key: string
+      expiresAt: string
+      limits: { runsPerHour: number; maxWorkers: number; refs: string[]; simulated: true }
+    }>('/demo/keys', { method: 'POST' }),
+
   /** What the caller may ask for — see `RunOptions`. */
   options: () => request<RunOptions>('/runs/options'),
 

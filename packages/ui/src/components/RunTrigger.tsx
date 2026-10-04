@@ -20,6 +20,7 @@ import {
 } from '../run-form'
 import { useCompact } from '../use-compact'
 import { Icon, type IconName } from './Icon'
+import { ApiSnippet } from './ApiSnippet'
 
 /**
  * The form that starts a run.
@@ -232,6 +233,8 @@ export function RunTrigger({
           {started}
         </Banner>
       )}
+
+      <ApiSnippet form={form} role={role} />
     </section>
   )
 }

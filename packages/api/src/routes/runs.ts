@@ -6,6 +6,7 @@ import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
+import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent } from '../sandbox'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
@@ -227,6 +228,18 @@ runRoutes.post('/', async (c) => {
         429,
       )
     }
+  }
+
+  // A sandbox key has its own hourly allowance on top of the shared demo one:
+  // the shared limit stops a script from filling the table, and this stops one
+  // key from using all of it.
+  if (apiKey?.sandbox && (await sandboxKeyIsSpent(c.env.DB, apiKey.id))) {
+    return c.json(
+      {
+        error: `This sandbox key has started its ${SANDBOX_RUNS_PER_HOUR} runs for the hour. It resets within the hour.`,
+      },
+      429,
+    )
   }
 
   if (workers !== undefined) {

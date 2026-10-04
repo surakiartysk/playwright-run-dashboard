@@ -31,6 +31,10 @@ export interface ApiKeyRow {
   created_at: string
   last_used_at: string | null
   revoked_at: string | null
+  /** Null for a key that does not expire. See migration 0012. */
+  expires_at: string | null
+  /** 1 for a key the dashboard issued to a visitor, not one an admin issued. */
+  sandbox: number
 }
 
 /**
@@ -84,6 +88,8 @@ export async function mintKey(
       created_at: new Date().toISOString(),
       last_used_at: null,
       revoked_at: null,
+      expires_at: null,
+      sandbox: 0,
     },
   }
 }
@@ -125,8 +131,12 @@ export async function verifyKey(
   secret: string,
   row: ApiKeyRow | null,
   presentedSecret: string,
+  now: number = Date.now(),
 ): Promise<boolean> {
   if (!row || row.revoked_at !== null) return false
+  // Expiry is checked on the same path as revocation, for the same reason: a
+  // caller that loads the row some other way cannot forget it.
+  if (row.expires_at !== null && Date.parse(row.expires_at) <= now) return false
   return verifyHmac(secret, presentedSecret, row.hash)
 }
 

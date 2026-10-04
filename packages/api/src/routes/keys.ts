@@ -59,7 +59,10 @@ const toView = (row: ApiKeyRow) => ({
  */
 keyRoutes.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT * FROM api_keys ORDER BY created_at DESC`,
+    // Not the sandbox keys: those are minted by visitors, by the hundred, and
+    // are not credentials an admin issued or can sensibly review. They would
+    // bury the real ones.
+    `SELECT * FROM api_keys WHERE sandbox = 0 ORDER BY created_at DESC`,
   ).all<ApiKeyRow>()
 
   return c.json({ keys: results.map(toView) })

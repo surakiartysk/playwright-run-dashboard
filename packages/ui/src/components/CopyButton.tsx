@@ -31,7 +31,7 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
 
   return (
     <button type="button" onClick={(e) => void copy(e)} style={s.button}>
-      <span role="status">
+      <span aria-live="polite">
         {state === 'copied' ? 'Copied' : state === 'failed' ? 'Could not copy' : label}
       </span>
     </button>
