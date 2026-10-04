@@ -121,6 +121,33 @@ describe('POST /runs — policy enforcement', () => {
     expect(response.status).toBe(403)
   })
 
+  it('lets qa run a release branch, and not a lookalike', async () => {
+    const service = uniqueService()
+    const ok = await create('qa', { service, tags: 'all', ref: 'release/1.0.0' })
+    expect(ok.status).toBe(201)
+
+    for (const ref of ['release', 'releasefoo', 'release/../main', 'release/1.0/x']) {
+      const refused = await create('qa', { service, tags: 'all', ref })
+      expect(refused.status, ref).toBe(403)
+    }
+    expect(await runsForService(service)).toHaveLength(1)
+  })
+
+  /** `*` is not a character a git ref may carry here, so the pattern cannot be named as a ref. */
+  it('refuses the pattern itself as a branch name', async () => {
+    const response = await create('qa', { service: uniqueService(), tags: 'all', ref: 'release/*' })
+    expect(response.status).toBe(422)
+  })
+
+  it('does not let dev run a release branch', async () => {
+    const response = await create('dev', {
+      service: uniqueService(),
+      tags: 'all',
+      ref: 'release/1.0.0',
+    })
+    expect(response.status).toBe(403)
+  })
+
   it('records no run when the ref is refused', async () => {
     const service = uniqueService()
     await create('dev', { service, tags: 'all', ref: 'develop' })

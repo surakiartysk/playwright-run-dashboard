@@ -45,6 +45,7 @@ interviewer should press on hardest.
 34. [A failed run names its tests, and an error is not a failure](#34-a-failed-run-names-its-tests-and-an-error-is-not-a-failure)
 35. [The history is narrowed by the server, and by what the caller could have run](#35-the-history-is-narrowed-by-the-server-and-by-what-the-caller-could-have-run)
 36. [A visitor can mint a key that can only pretend](#36-a-visitor-can-mint-a-key-that-can-only-pretend)
+37. [QA's release branches are `release/<version>`, one per version](#37-qas-release-branches-are-releaseversion-one-per-version)
 
 ---
 
@@ -1759,8 +1760,9 @@ disagree about what is accepted.
   the form is offered the intersection. If the branches cannot be read — no
   token, GitHub refusing, a simulated deployment — the policy's own list stands,
   and the answer says so (`refsFrom: policy`) rather than presenting a guess as
-  a fact. A role that may use any branch falls back to `main`, `develop`,
-  `release`, which a list cannot enumerate.
+  a fact. A role that may use any branch falls back to `main` and `develop`,
+  which a list cannot enumerate; a pattern such as `release/*` cannot be listed
+  either and adds nothing (decision 37).
 - **A simulated run never asks GitHub.** `demo` always simulates, so a demo
   session costs no request, and cannot be used to make the Worker spend its API
   quota.
@@ -2014,6 +2016,86 @@ The key is **the demo role's own**:
   not touch; the panel says so rather than offering a button that would not work.
 - **A real run is still only reachable with a real key.** Nothing here lets a
   stranger start a real workflow, and a test is what says so.
+
+---
+
+## 37. QA's release branches are `release/<version>`, one per version
+
+**Context.** `ref` is a branch of the _test suite_, not of the product (see
+`policy.ts`). QA could run `main` and `develop`, and the policy listed a third
+name, `release`, that no repository had. The question that forced a choice was
+what a release branch is _for_ — and with it what to call it.
+
+**Decision.** A suite's release branch is the suite as it stood when a version
+of the product shipped, named for that version: `release/1.0.0`. One branch per
+version, cut from `main` when the version is released, and left alone after
+that except for fixes to the tests themselves. QA's policy is
+`['main', 'develop', 'release/*']`.
+
+- **Why per version, not one `release`.** One moving branch forgets which
+  version it is for, which is exactly what makes it useful: re-testing 1.0.0
+  after 1.1.0 shipped needs the tests as they were for 1.0.0. The name also
+  answers "which version of the product is this run for" without a new input on
+  the suites — the row reads `release/1.0.0 · v<suite version>`.
+- **Use the product's own version scheme.** The same number as the product's
+  tag, so there is no table to translate between the two. If the product tags
+  `1.0` rather than `1.0.0`, name the branch `release/1.0`; the pattern does not
+  care.
+- **What `release/*` means, exactly.** `matchesRef` in `policy.ts`: one path
+  segment under the prefix, of ordinary branch-name characters, starting with a
+  letter or digit. It does not cover `release`, `releasefoo`, `release/1.0/x`,
+  `release/../main` or `release/-x`, and a star anywhere but `/*` at the end is
+  an ordinary character. A key may be narrowed to a single release branch or to
+  the pattern itself, and never to more than its role has. Every one of those is
+  a test, and each was shown to fail when the implementation was broken.
+- **What the form offers.** The branches that exist, from GitHub (decision 32):
+  `main`, then the other named ones, then release branches newest first by
+  version number — `1.10.0` above `1.9.0` — **at most ten**. The list grows by a
+  branch per release for as long as the project lives. The cap is for the form
+  only: the policy still lets a caller start a run on an older release by naming
+  it to the API. When GitHub cannot be read the pattern contributes nothing,
+  since a pattern is not a branch, and the form says its list comes from policy.
+- **Who gets it.** QA and admin. A developer stays on `main`: they are asking
+  whether their change broke anything, and that has to be answered by tests that
+  are themselves stable.
+  What a release branch re-tests is also worth saying plainly: a suite's target
+  is not versioned with it (the UI suite runs against a public demo storefront),
+  and nothing here rebuilds an old version of the product to point it at.
+  `release/1.0.0` is the old tests run against the target as it is today — a
+  check that what the suite asserted at 1.0.0 still holds, not a way back to
+  1.0.0's behaviour. That is a further reason a developer, who wants today's
+  answer from today's tests, stays on `main`.
+
+**Cutting one.** In each suite repository, when a version ships:
+
+```bash
+git switch main && git pull
+git switch -c release/1.0.0 && git push -u origin release/1.0.0
+```
+
+A release branch needs no change in the dashboard — it appears in QA's form
+within five minutes, the branch cache's lifetime. Retiring one is deleting the
+branch. Nothing here protects the branch from being pushed to; turn on branch
+protection in GitHub for `release/*` if the history is meant to be fixed.
+
+**Changing the scheme.** The pattern is one entry in `POLICIES.qa` in
+`policy.ts`. A different convention — `rel-*`, or `v*` — is a different entry;
+a pattern deeper than one segment (`release/1.x/hotfix`) needs `matchesRef`
+changed, on purpose, with the tests that name what it must still refuse.
+
+**Trade-offs.**
+
+- **Old releases are not in the dropdown.** Ten are shown. Someone re-testing
+  an eleventh-oldest version has to call the API with the branch name, which the
+  panel's `curl` makes a one-line change. A search box in the form would fix it
+  and is not worth building until a project has that many releases.
+- **The sort is by the name.** Versions are compared by number, and a branch
+  named something else under `release/` sorts as text beside them. Name them as
+  versions.
+- **A placeholder in the key form was wrong for a while.** The admin panel's API
+  key field has long suggested `main, release/*`; until now that pattern matched
+  nothing, because the policy compared names exactly. It works now, which is
+  also a reminder that a hint is a claim.
 
 ---
 

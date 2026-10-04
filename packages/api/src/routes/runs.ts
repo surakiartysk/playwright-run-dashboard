@@ -10,7 +10,7 @@ import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent } from '../sandbox'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
-import { mayUseRef, policyFor, redactForPreview, visibilityClause } from '../policy'
+import { matchesRef, policyFor, redactForPreview, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
 
 export const runRoutes = new Hono<HonoEnv>()
@@ -164,9 +164,7 @@ runRoutes.post('/', async (c) => {
 
   // 403, not 422: the request is well-formed, the caller simply may not make
   // it. A client can tell "fix your input" from "ask for access" by the status.
-  const refAllowed = apiKey
-    ? policy.allowedRefs.includes('*') || policy.allowedRefs.includes(ref)
-    : mayUseRef(role, ref)
+  const refAllowed = matchesRef(policy.allowedRefs, ref)
 
   if (!refAllowed) {
     return c.json(

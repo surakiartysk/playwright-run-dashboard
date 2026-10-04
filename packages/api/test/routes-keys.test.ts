@@ -193,7 +193,7 @@ describe('what a key may do', () => {
   })
 
   it('is held to its own narrower ref list', async () => {
-    // qa may use main, develop and release; this key may only use develop.
+    // qa may use main, develop and release/*; this key may only use develop.
     const { plaintext } = await issue({ role: 'qa', allowedRefs: ['develop'] })
 
     const refused = await request('/runs', {
@@ -209,6 +209,24 @@ describe('what a key may do', () => {
       body: JSON.stringify({ service: 'items', tags: 'all', ref: 'develop' }),
     })
     expect(allowed.status).toBe(201)
+  })
+
+  it('lets a qa key run a release branch, and holds a narrower key to its own branch', async () => {
+    const wide = await issue({ role: 'qa' })
+    const ok = await request('/runs', {
+      method: 'POST',
+      headers: withKey(wide.plaintext),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'release/1.0.0' }),
+    })
+    expect(ok.status).toBe(201)
+
+    const narrow = await issue({ role: 'qa', allowedRefs: ['release/1.0.0'] })
+    const other = await request('/runs', {
+      method: 'POST',
+      headers: withKey(narrow.plaintext),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'release/2.0.0' }),
+    })
+    expect(other.status).toBe(403)
   })
 
   it('cannot raise the worker ceiling above its role', async () => {

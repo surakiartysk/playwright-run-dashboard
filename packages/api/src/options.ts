@@ -1,3 +1,4 @@
+import { matchesRef } from './policy'
 import type { Suite } from './types'
 
 /**
@@ -31,7 +32,21 @@ export const SUITE_OPTIONS: Record<Suite, { services: string[]; tags: string[] }
 }
 
 /** What a suite's branches are offered as when the real list cannot be read. */
-const FALLBACK_REFS = ['main', 'develop', 'release']
+const FALLBACK_REFS = ['main', 'develop']
+
+/**
+ * How many branches a pattern may put in the form.
+ *
+ * `release/*` grows by one branch a release for as long as the project lives,
+ * and a dropdown of forty old versions is a dropdown nobody can use. This is
+ * what the form offers, newest first, and nothing more: the policy still lets a
+ * caller start a run on any branch the pattern covers, so an older release is
+ * reached by naming it to the API, not by scrolling.
+ */
+export const MAX_PATTERN_REFS = 10
+
+/** Version-aware, so `release/1.10.0` sorts above `release/1.9.0`. */
+const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true })
 
 /**
  * The branches a caller may pick for a suite: what their role allows, and what
@@ -45,12 +60,27 @@ const FALLBACK_REFS = ['main', 'develop', 'release']
  * `existing` is null when the branches could not be read (no token, GitHub
  * unreachable, a simulated deployment). Then the policy's own list stands — and
  * for a role that may use any branch, which a list cannot enumerate, the common
- * ones. `main` always comes first.
+ * ones. A pattern cannot be enumerated either, so with nothing to read it
+ * contributes nothing rather than offering `release/*` as if it were a branch.
+ *
+ * Order: `main`, then the other named branches, then the ones a pattern
+ * admitted, newest first and at most `MAX_PATTERN_REFS`.
  */
 export function refsFor(allowed: readonly string[], existing: readonly string[] | null): string[] {
   const any = allowed.includes('*')
-  const candidates = existing === null ? (any ? FALLBACK_REFS : [...allowed]) : [...existing]
-  const permitted = any ? candidates : candidates.filter((ref) => allowed.includes(ref))
-  const unique = [...new Set(permitted)]
-  return unique.sort((a, b) => (a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)))
+  const named = allowed.filter((entry) => entry !== '*' && !entry.endsWith('/*'))
+  const candidates = existing === null ? (any ? FALLBACK_REFS : named) : [...existing]
+  const unique = [
+    ...new Set(any ? candidates : candidates.filter((ref) => matchesRef(allowed, ref))),
+  ]
+
+  const byName = (a: string, b: string) =>
+    a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b)
+  if (any) return unique.sort(byName)
+
+  const fromPattern = unique.filter((ref) => !named.includes(ref)).sort(newestFirst)
+  return [
+    ...unique.filter((ref) => named.includes(ref)).sort(byName),
+    ...fromPattern.slice(0, MAX_PATTERN_REFS),
+  ]
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { POLICIES, mayUseRef, policyFor, visibilityClause } from '../src/policy'
+import { POLICIES, matchesRef, mayUseRef, policyFor, visibilityClause } from '../src/policy'
 import { ROLES } from '../src/auth'
 import type { Role } from '../src/types'
 
@@ -13,7 +13,7 @@ import type { Role } from '../src/types'
 const EXPECTED: Record<Role, { refs: string[]; maxWorkers: number; canDelete: boolean }> = {
   demo: { refs: ['main'], maxWorkers: 2, canDelete: false },
   dev: { refs: ['main'], maxWorkers: 4, canDelete: false },
-  qa: { refs: ['main', 'develop', 'release'], maxWorkers: 8, canDelete: false },
+  qa: { refs: ['main', 'develop', 'release/*'], maxWorkers: 8, canDelete: false },
   admin: { refs: ['*'], maxWorkers: 16, canDelete: true },
 }
 
@@ -43,8 +43,14 @@ describe('mayUseRef', () => {
 
   it('gives qa the release branches but not arbitrary ones', () => {
     expect(mayUseRef('qa', 'develop')).toBe(true)
-    expect(mayUseRef('qa', 'release')).toBe(true)
+    expect(mayUseRef('qa', 'release/1.0.0')).toBe(true)
+    expect(mayUseRef('qa', 'release/2.1')).toBe(true)
     expect(mayUseRef('qa', 'feature/anything')).toBe(false)
+  })
+
+  it('does not give dev or demo a release branch', () => {
+    expect(mayUseRef('dev', 'release/1.0.0')).toBe(false)
+    expect(mayUseRef('demo', 'release/1.0.0')).toBe(false)
   })
 
   it('lets admin use any ref, via the wildcard', () => {
@@ -58,7 +64,62 @@ describe('mayUseRef', () => {
 
   it('does not match a ref by prefix', () => {
     expect(mayUseRef('dev', 'main-experiment')).toBe(false)
-    expect(mayUseRef('qa', 'release/1.0')).toBe(false)
+    expect(mayUseRef('qa', 'releasefoo')).toBe(false)
+  })
+})
+
+describe('matchesRef', () => {
+  const qa = ['main', 'develop', 'release/*']
+
+  it('matches a name exactly, and a pattern by one segment under its prefix', () => {
+    expect(matchesRef(qa, 'main')).toBe(true)
+    expect(matchesRef(qa, 'release/1.0.0')).toBe(true)
+    expect(matchesRef(qa, 'release/v2_rc-1')).toBe(true)
+  })
+
+  /**
+   * Each of these is a branch nobody listed. A pattern that was a loose prefix
+   * test would let all of them through.
+   */
+  it.each([
+    'release',
+    'release/',
+    'releasefoo',
+    'release-1.0',
+    'release/1.0.0/hotfix',
+    'release/../main',
+    'release/./x',
+    'release//x',
+    'release/ 1',
+    'release/.hidden',
+    'release/-flag',
+    'Release/1.0.0',
+    'prerelease/1.0.0',
+    'x/release/1.0.0',
+  ])('does not match %j', (ref) => {
+    expect(matchesRef(qa, ref)).toBe(false)
+  })
+
+  it('treats a pattern in the list as text when the ref is that text', () => {
+    // A key narrowed to `release/*` is compared as written against its role's list.
+    expect(matchesRef(['release/*'], 'release/*')).toBe(true)
+  })
+
+  /** Only `prefix/*` is a pattern; a star anywhere else is just a character in a name. */
+  it('does not read a star without a slash as a pattern', () => {
+    expect(matchesRef(['release*'], 'releasefoo')).toBe(false)
+    expect(matchesRef(['release*'], 'release/1.0.0')).toBe(false)
+    expect(matchesRef(['*release'], 'prerelease')).toBe(false)
+  })
+
+  it('matches any ref for *, and nothing for an empty list', () => {
+    expect(matchesRef(['*'], 'anything/at/all')).toBe(true)
+    expect(matchesRef([], 'main')).toBe(false)
+  })
+
+  it('works with the pattern anywhere in the list, and with several', () => {
+    expect(matchesRef(['release/*', 'hotfix/*'], 'hotfix/9')).toBe(true)
+    expect(matchesRef(['release/*', 'hotfix/*'], 'feature/9')).toBe(false)
   })
 })
 

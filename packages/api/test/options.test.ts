@@ -3,7 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { as, migrate, request, sessionFor } from './helpers'
 import worker from '../src/index'
 import { createToken } from '../src/auth'
-import { SUITE_OPTIONS, refsFor } from '../src/options'
+import { MAX_PATTERN_REFS, SUITE_OPTIONS, refsFor } from '../src/options'
 import { clearBranchCache, suiteBranches } from '../src/branches'
 
 beforeAll(migrate)
@@ -75,7 +75,8 @@ describe('GET /runs/options', () => {
 
     const qa = await get('qa')
     expect(qa).toMatchObject({ role: 'qa', maxWorkers: 8 })
-    expect(qa.suites.api!.refs).toEqual(['main', 'develop', 'release'])
+    // A pattern cannot be listed without the repository, so `release/*` adds nothing here.
+    expect(qa.suites.api!.refs).toEqual(['main', 'develop'])
   })
 
   it('keeps a developer on main', async () => {
@@ -135,7 +136,7 @@ describe('a key', () => {
 
     const open = await withKey(await issue({}))
     expect(open.maxWorkers).toBe(8)
-    expect(open.suites.api!.refs).toEqual(['main', 'develop', 'release'])
+    expect(open.suites.api!.refs).toEqual(['main', 'develop'])
   })
 })
 
@@ -195,8 +196,8 @@ describe('the branches that exist', () => {
 
 describe('refsFor', () => {
   it('offers what the role allows and the repository has', () => {
-    expect(refsFor(['main', 'develop', 'release'], ['main', 'feature/x'])).toEqual(['main'])
-    expect(refsFor(['main', 'develop', 'release'], ['main', 'develop'])).toEqual([
+    expect(refsFor(['main', 'develop', 'release/*'], ['main', 'feature/x'])).toEqual(['main'])
+    expect(refsFor(['main', 'develop', 'release/*'], ['main', 'develop'])).toEqual([
       'main',
       'develop',
     ])
@@ -204,7 +205,7 @@ describe('refsFor', () => {
 
   /** The reason this exists: `develop` offered to QA where no such branch exists. */
   it('does not offer a branch the repository does not have', () => {
-    expect(refsFor(['main', 'develop', 'release'], ['main'])).toEqual(['main'])
+    expect(refsFor(['main', 'develop', 'release/*'], ['main'])).toEqual(['main'])
   })
 
   it('offers every existing branch to a role that may use any', () => {
@@ -221,7 +222,58 @@ describe('refsFor', () => {
   })
 
   it('falls back to the common branches for an any-branch role, which a list cannot enumerate', () => {
-    expect(refsFor(['*'], null)).toEqual(['main', 'develop', 'release'])
+    expect(refsFor(['*'], null)).toEqual(['main', 'develop'])
+  })
+
+  describe('with a pattern', () => {
+    const qa = ['main', 'develop', 'release/*']
+    const releases = (...versions: string[]) => versions.map((v) => `release/${v}`)
+
+    it('offers the release branches that exist, after main and develop', () => {
+      expect(refsFor(qa, ['develop', ...releases('1.0.0', '1.1.0'), 'main'])).toEqual([
+        'main',
+        'develop',
+        'release/1.1.0',
+        'release/1.0.0',
+      ])
+    })
+
+    it('puts the newest version first, by number and not by letter', () => {
+      expect(refsFor(qa, ['main', ...releases('1.9.0', '1.10.0', '1.2.0', '2.0.0')])).toEqual([
+        'main',
+        ...releases('2.0.0', '1.10.0', '1.9.0', '1.2.0'),
+      ])
+    })
+
+    it('offers at most MAX_PATTERN_REFS of them, the newest', () => {
+      const many = Array.from({ length: 14 }, (_, n) => `release/1.${n}.0`)
+      const offered = refsFor(qa, ['main', ...many])
+      expect(offered).toHaveLength(1 + MAX_PATTERN_REFS)
+      expect(offered[1]).toBe('release/1.13.0')
+      expect(offered.at(-1)).toBe('release/1.4.0')
+      expect(offered).not.toContain('release/1.3.0')
+    })
+
+    it('does not count main or develop against the cap', () => {
+      const many = Array.from({ length: MAX_PATTERN_REFS }, (_, n) => `release/2.${n}.0`)
+      expect(refsFor(qa, ['main', 'develop', ...many])).toHaveLength(2 + MAX_PATTERN_REFS)
+    })
+
+    it('does not offer a branch the pattern does not cover', () => {
+      expect(
+        refsFor(qa, ['main', 'release', 'releasefoo', 'release/1.0/x', 'release/../x', 'wip/x']),
+      ).toEqual(['main'])
+    })
+
+    it('never offers the pattern itself as a branch', () => {
+      expect(refsFor(qa, null)).toEqual(['main', 'develop'])
+      expect(refsFor(['release/*'], null)).toEqual([])
+    })
+
+    it('leaves an any-branch role uncapped and unreordered', () => {
+      const many = Array.from({ length: 14 }, (_, n) => `release/1.${n}.0`)
+      expect(refsFor(['*'], ['main', ...many])).toHaveLength(15)
+    })
   })
 
   it('offers nothing, not a made-up branch, when none of the allowed ones exist', () => {
@@ -279,11 +331,27 @@ describe('GET /runs/options on a real deployment', () => {
     expect((await asReal('admin')).suites.api!.refs).toEqual(['main', 'wip/x'])
   })
 
+  it('offers qa the release branches the repository has, newest first', async () => {
+    vi.stubGlobal(
+      'fetch',
+      githubBranches({
+        'o/api': ['main', 'develop', 'release/1.0.0', 'release/1.1.0', 'wip/x'],
+        'o/ui': ['main'],
+      }),
+    )
+    const qa = await asReal('qa')
+    expect(qa.suites.api).toMatchObject({
+      refs: ['main', 'develop', 'release/1.1.0', 'release/1.0.0'],
+      refsFrom: 'github',
+    })
+    expect(qa.suites.ui!.refs).toEqual(['main'])
+  })
+
   it('says where the branches came from, and falls back to the policy when GitHub says no', async () => {
     vi.stubGlobal('fetch', githubBranches({}))
     const qa = await asReal('qa')
     expect(qa.suites.api).toMatchObject({
-      refs: ['main', 'develop', 'release'],
+      refs: ['main', 'develop'],
       refsFrom: 'policy',
     })
   })

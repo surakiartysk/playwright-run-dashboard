@@ -1,6 +1,6 @@
 import type { Role } from './types'
 import { hmacHex, verifyHmac } from './crypto'
-import { policyFor, type RolePolicy } from './policy'
+import { matchesRef, policyFor, type RolePolicy } from './policy'
 
 /**
  * Credentials for machines — see decision 15 for why they are issued here
@@ -171,7 +171,7 @@ export function effectivePolicy(row: ApiKeyRow): RolePolicy {
       ? // The role may use any ref, so the key's list is already the narrower
         // of the two and stands on its own.
         keyRefs
-      : keyRefs.filter((ref) => base.allowedRefs.includes(ref))
+      : keyRefs.filter((ref) => matchesRef(base.allowedRefs, ref))
 
   return {
     allowedRefs,

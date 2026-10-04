@@ -175,6 +175,32 @@ describe('the policy a key actually gets', () => {
     expect(policy.allowedRefs).not.toContain('develop')
   })
 
+  it('lets a key narrow a pattern to one branch, and keeps the pattern’s limits', () => {
+    const one = effectivePolicy(row({ role: 'qa', allowed_refs: 'release/1.0.0' }))
+    expect(one.allowedRefs).toEqual(['release/1.0.0'])
+    // A key cannot step outside the pattern by naming something like it.
+    const stray = effectivePolicy(
+      row({ role: 'qa', allowed_refs: 'release/1.0.0,release,release/../main,feature/x' }),
+    )
+    expect(stray.allowedRefs).toEqual(['release/1.0.0'])
+  })
+
+  it('keeps a pattern the key names when its role has the same one', () => {
+    expect(effectivePolicy(row({ role: 'qa', allowed_refs: 'release/*' })).allowedRefs).toEqual([
+      'release/*',
+    ])
+  })
+
+  it('does not hand a pattern to a role that lacks it', () => {
+    expect(effectivePolicy(row({ role: 'dev', allowed_refs: 'release/*' })).allowedRefs).toEqual([])
+  })
+
+  it('lets a key narrow admin’s wildcard to a pattern', () => {
+    expect(effectivePolicy(row({ role: 'admin', allowed_refs: 'release/*' })).allowedRefs).toEqual([
+      'release/*',
+    ])
+  })
+
   it('returns nothing when the key and its role share no ref', () => {
     // Deliberately empty rather than falling back to the role's list: a key
     // configured to reach nothing should reach nothing.

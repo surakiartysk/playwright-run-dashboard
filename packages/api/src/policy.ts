@@ -52,16 +52,46 @@ export const POLICIES: Record<Role, RolePolicy> = {
   // QA also runs the suite they are writing, which is what `develop` is — the
   // branch where a new spec lives until it is trusted enough to merge. Running
   // it against a real environment is how it gets that trust.
-  qa: { allowedRefs: ['main', 'develop', 'release'], maxWorkers: 8, canDelete: false },
+  //
+  // And the suite as it stood at a release: `release/1.0.0` freezes the tests
+  // that went with that version of the product, so an old version can be
+  // re-tested without today's `main` in the way. One branch per version, which
+  // is why this is a pattern — see `matchesRef`, and decision 37 for why the
+  // name carries the version rather than being a single moving `release`.
+  qa: { allowedRefs: ['main', 'develop', 'release/*'], maxWorkers: 8, canDelete: false },
 
   admin: { allowedRefs: ['*'], maxWorkers: 16, canDelete: true },
 }
 
 export const policyFor = (role: Role): RolePolicy => POLICIES[role]
 
+/**
+ * Whether a ref is covered by a list of allowed refs.
+ *
+ * An entry is a branch name, `*` for any, or `prefix/*` for the branches one
+ * level under a prefix: `release/*` covers `release/1.0.0`.
+ *
+ * A pattern is deliberately narrow. It covers exactly one path segment, of
+ * ordinary branch-name characters, so `release/*` does not cover `release`,
+ * `releasefoo`, `release/1.0/x` or `release/../main`: a pattern that is also a
+ * loose prefix match is a way of allowing a branch nobody listed. A list that
+ * contains the pattern itself as text — a key narrowed to `release/*` — matches
+ * it by the exact comparison, never by treating the ref as a pattern.
+ */
+export function matchesRef(allowed: readonly string[], ref: string): boolean {
+  if (allowed.includes('*') || allowed.includes(ref)) return true
+  return allowed.some((entry) => {
+    if (!entry.endsWith('/*')) return false
+    const prefix = entry.slice(0, -1)
+    if (!ref.startsWith(prefix)) return false
+    return PATTERN_SEGMENT.test(ref.slice(prefix.length))
+  })
+}
+
+const PATTERN_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
 export function mayUseRef(role: Role, ref: string): boolean {
-  const { allowedRefs } = policyFor(role)
-  return allowedRefs.includes('*') || allowedRefs.includes(ref)
+  return matchesRef(policyFor(role).allowedRefs, ref)
 }
 
 /**
