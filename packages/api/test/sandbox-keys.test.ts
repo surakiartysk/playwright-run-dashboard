@@ -108,6 +108,34 @@ describe('what a sandbox key can do', () => {
     expect(((await response.json()) as { simulated: boolean }).simulated).toBe(true)
   })
 
+  it('marks the run as a key’s, so the page can say a script started it', async () => {
+    const { body } = await mint()
+    const started = await request(
+      '/runs',
+      withKey(body.key, {
+        method: 'POST',
+        body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main', workers: 2 }),
+      }),
+    )
+    const { runId } = (await started.json()) as { runId: string }
+    const fromPage = await as('demo', '/runs', {
+      method: 'POST',
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main', workers: 1 }),
+    })
+    const { runId: pageRunId } = (await fromPage.json()) as { runId: string }
+
+    const list = (await (await as('demo', '/runs?limit=50')).json()) as {
+      runs: { id: string; viaKey: boolean; startedBy: string | null }[]
+    }
+    expect(list.runs.find((r) => r.id === runId)?.viaKey).toBe(true)
+    expect(list.runs.find((r) => r.id === pageRunId)?.viaKey).toBe(false)
+
+    const one = (await (await as('demo', `/runs/${runId}`)).json()) as { viaKey: boolean }
+    expect(one.viaKey).toBe(true)
+    // A flag only: nothing on the row names the key.
+    expect(JSON.stringify(list)).not.toContain(parseKey(body.key)!.id)
+  })
+
   it('is refused another branch, and more than two workers', async () => {
     const { body } = await mint()
     const post = (extra: object) =>

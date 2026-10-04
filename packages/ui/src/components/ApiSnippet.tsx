@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
-import { exportKey, optionsCurl, runCurl } from '../curl'
+import { optionsCurl, runCurl } from '../curl'
 import type { RunForm } from '../run-form'
 import { c, mono } from '../theme'
 import { CopyButton } from './CopyButton'
@@ -9,10 +9,11 @@ import { CopyButton } from './CopyButton'
  * The form's request as a command, for anyone who would rather script it.
  *
  * What it shows is what pressing Run would send, so changing a dropdown above
- * changes the command. A demo visitor can mint a sandbox key here and paste the
- * lot into a terminal — the one part of the product that is not a page, which
- * until now nobody trying the site could reach. The key is the demo role's own:
- * it can only simulate, it expires after a day, and it is rate limited.
+ * changes the command. A demo visitor can mint a sandbox key here, copy it from
+ * its own field, and paste a command into a terminal — the one part of the
+ * product that is not a page. The key is the demo role's own: it can only
+ * simulate, it expires after a day, and it is rate limited. Once it exists it is
+ * written into the commands, so a copy of either runs as it is.
  *
  * Everyone else uses a key an admin issued, which this does not touch.
  */
@@ -75,10 +76,8 @@ export function SnippetView({
   error: string | null
   onMint: () => void
 }) {
-  const run = runCurl(form, origin)
-  const options = optionsCurl(origin)
-  // With a key in hand the block starts by setting it, so the whole thing is one paste.
-  const withKey = (command: string) => (sandbox ? `${exportKey(sandbox.key)}\n${command}` : command)
+  const run = runCurl(form, origin, sandbox?.key)
+  const options = optionsCurl(origin, sandbox?.key)
 
   return (
     <details style={s.box}>
@@ -87,10 +86,13 @@ export function SnippetView({
       <div style={s.body}>
         {role === 'demo' ? (
           sandbox ? (
-            <p style={s.note}>
-              <strong style={{ color: c.t2 }}>Copy it now: the key is shown once.</strong>{' '}
-              {limitsLine(sandbox)}
-            </p>
+            <>
+              <KeyField value={sandbox.key} />
+              <p style={s.note}>
+                <strong style={{ color: c.t2 }}>It is shown once.</strong> {limitsLine(sandbox)}{' '}
+                Runs started with it appear below, marked “via key”.
+              </p>
+            </>
           ) : (
             <p style={s.note}>
               The key is yours to try: simulated runs only, never a real workflow.{' '}
@@ -111,8 +113,8 @@ export function SnippetView({
           </p>
         )}
 
-        <Command title="Start this run" text={withKey(run)} />
-        <Command title="See what you can ask for" text={withKey(options)} />
+        <Command title="Start this run" text={run} />
+        <Command title="See what you can ask for" text={options} />
       </div>
     </details>
   )
@@ -127,6 +129,25 @@ export function limitsLine(key: {
   return (
     `Simulated only · ${runsPerHour} runs an hour · up to ${maxWorkers} workers · ` +
     `${refs.join(', ')} only · expires ${key.expiresAt.slice(0, 16).replace('T', ' ')} UTC.`
+  )
+}
+
+/** The key on its own, selectable, with a button: copy it into whatever will use it. */
+function KeyField({ value }: { value: string }) {
+  return (
+    <div style={s.keyRow}>
+      <label style={s.keyLabel} htmlFor="sandbox-key">
+        Sandbox key
+      </label>
+      <input
+        id="sandbox-key"
+        readOnly
+        value={value}
+        onFocus={(e) => e.currentTarget.select()}
+        style={s.keyInput}
+      />
+      <CopyButton text={value} label="Copy key" />
+    </div>
   )
 }
 
@@ -159,6 +180,20 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   error: { margin: 0, fontSize: 12.5, color: c.danger },
+  keyRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  keyLabel: { fontSize: 12, color: c.t4, flexShrink: 0 },
+  keyInput: {
+    ...mono,
+    flex: 1,
+    minWidth: 0,
+    padding: '6px 10px',
+    background: c.input,
+    border: `1px solid ${c.border}`,
+    borderRadius: 8,
+    color: c.t2,
+    fontSize: 12,
+    textOverflow: 'ellipsis',
+  },
   command: {
     background: c.input,
     border: `1px solid ${c.border}`,

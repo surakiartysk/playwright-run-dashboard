@@ -46,6 +46,7 @@ export function run(overrides: Partial<Run> = {}): Run {
     suiteVersion: null,
     suiteSha: null,
     simulated: false,
+    viaKey: false,
     ...overrides,
   }
 }

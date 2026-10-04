@@ -1,5 +1,9 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
+  RunHistory,
+  triggeredLabel,
   relative,
   duration,
   resultShares,
@@ -11,6 +15,8 @@ import {
 } from '../src/components/RunHistory'
 import { COMPACT_BELOW, COMPACT_QUERY } from '../src/use-compact'
 import type { Run } from '../src/api'
+import { fromSearch } from '../src/run-query'
+import { run as runRow } from './fixtures'
 
 /**
  * The pure logic behind the run list.
@@ -257,5 +263,69 @@ describe('refLabel', () => {
     expect(refLabel({ ...run({ suiteSha: 'abcdef1234' }), ref: 'release' })).toBe(
       'release · abcdef1',
     )
+  })
+})
+
+describe('triggeredLabel', () => {
+  it('names a key, so a script’s run does not read as a person’s', () => {
+    expect(triggeredLabel({ triggeredBy: 'demo', startedBy: null, viaKey: true })).toBe(
+      'demo · API key',
+    )
+  })
+
+  it('gives a person’s name before their role', () => {
+    expect(triggeredLabel({ triggeredBy: 'qa', startedBy: 'Ploy', viaKey: false })).toBe(
+      'Ploy · qa',
+    )
+  })
+
+  it('is just the role when nobody gave a name', () => {
+    expect(triggeredLabel({ triggeredBy: 'dev', startedBy: null, viaKey: false })).toBe('dev')
+  })
+})
+
+describe('the list marks a run a key started', () => {
+  const html = (runs: Run[]) =>
+    renderToStaticMarkup(
+      createElement(RunHistory, {
+        runs,
+        role: 'demo',
+        canDelete: false,
+        onChanged: () => undefined,
+        total: runs.length,
+        hasMore: false,
+        loadingMore: false,
+        onLoadMore: () => undefined,
+        options: null,
+        filters: fromSearch(''),
+        onFilters: () => undefined,
+      }),
+    )
+
+  it('puts “via key” on that run and no other', () => {
+    const out = html([
+      runRow({ id: 'a', viaKey: true }),
+      runRow({ id: 'b', viaKey: false }),
+      runRow({ id: 'c', viaKey: false }),
+    ])
+    expect(out.match(/via key/g)).toHaveLength(1)
+  })
+
+  /** The open row is where the sentence is; the hash is how a row is opened on load. */
+  it('says so in the open row too, as “demo · API key”', () => {
+    vi.stubGlobal('window', {
+      location: { hash: '#run=a', origin: 'https://x.test', pathname: '/' },
+    })
+    try {
+      const out = html([runRow({ id: 'a', viaKey: true, triggeredBy: 'demo' })])
+      expect(out).toContain('Triggered by')
+      expect(out).toContain('demo · API key')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('says nothing when no run came from a key', () => {
+    expect(html([runRow({ id: 'a' })])).not.toContain('via key')
   })
 })

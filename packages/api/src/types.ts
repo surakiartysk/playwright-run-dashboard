@@ -105,6 +105,8 @@ export interface RunRow {
   triggered_by: string
   /** What the person said their name was. Null for a key, and for older runs. */
   started_by: string | null
+  /** The key that started it, or null for a signed-in session — see 0006. */
+  api_key_id: string | null
   status: RunStatus
   total: number | null
   passed: number | null
@@ -139,6 +141,12 @@ export interface RunView {
    * anyone who signed in without giving one.
    */
   startedBy: string | null
+  /**
+   * True when an API key started it rather than someone using the page. A flag,
+   * not the key: which key is the admin's business, that a script did it is
+   * everyone's, and it is why `startedBy` is empty on the same row.
+   */
+  viaKey: boolean
   status: RunStatus
   total: number | null
   passed: number | null
@@ -201,6 +209,7 @@ export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   workers: row.workers,
   triggeredBy: row.triggered_by,
   startedBy: row.started_by,
+  viaKey: row.api_key_id !== null,
   status: row.status,
   ref: row.ref,
   total: row.total,

@@ -46,6 +46,7 @@ interviewer should press on hardest.
 35. [The history is narrowed by the server, and by what the caller could have run](#35-the-history-is-narrowed-by-the-server-and-by-what-the-caller-could-have-run)
 36. [A visitor can mint a key that can only pretend](#36-a-visitor-can-mint-a-key-that-can-only-pretend)
 37. [QA's release branches are `release/<version>`, one per version](#37-qas-release-branches-are-releaseversion-one-per-version)
+38. [A run says when a key started it, and the list notices runs it did not start](#38-a-run-says-when-a-key-started-it-and-the-list-notices-runs-it-did-not-start)
 
 ---
 
@@ -1974,7 +1975,9 @@ had to take the README's word.
 request the form would send as a `curl` (and a second `curl` that asks
 `/runs/options` what there is to ask for), built from whatever the dropdowns
 currently hold. A demo session can press "Get a sandbox key" and receive a real
-key, once, with the commands rewritten to set it — one paste into a terminal.
+key, once, shown in a field of its own with a Copy button and written into the
+commands — a copy of either runs as it is. (It first came as an `export` line at
+the head of each command; trying it, a visitor wanted the key apart from the `curl`.)
 
 The key is **the demo role's own**:
 
@@ -2096,6 +2099,43 @@ changed, on purpose, with the tests that name what it must still refuse.
   key field has long suggested `main, release/*`; until now that pattern matched
   nothing, because the policy compared names exactly. It works now, which is
   also a reminder that a hint is a claim.
+
+---
+
+## 38. A run says when a key started it, and the list notices runs it did not start
+
+**Context.** A visitor used the sandbox key from a terminal, and the page did
+not show the run until it was reloaded. Reading the row, there was also nothing
+to say a script had started it: the row named the role and, with no name, that
+was all.
+
+**Decision.**
+
+- **`viaKey` on every run.** A boolean derived from `api_key_id`, never the id:
+  which key is the admin's business, that a script started the run is
+  everyone's. The row carries a "via key" mark and the open row says
+  `demo · API key`. A key's runs have no `startedBy`, because nobody signed in.
+- **The list asks for itself when idle.** It used to poll only while a run it
+  knew about was in flight, so a run begun anywhere else — a script, a colleague
+  — was invisible until a reload. Now: every 2 seconds while something is in
+  flight, as before; every 15 seconds otherwise; and at once when the tab is
+  focused or becomes visible again, which is the terminal-then-back case. A
+  hidden tab does not poll.
+- **Not while someone has scrolled.** Asking replaces the list with its first
+  page. That is right for a run in flight and wrong for a reader who has loaded
+  more, so an idle list stops asking once more than the first page is on screen.
+  Returning to the tab still reloads it.
+
+**Trade-offs.**
+
+- **Fifteen seconds is a request cost.** A tab left open and visible for a work
+  day is about two thousand reads, and none while it is hidden. The Worker and D1
+  allowances are large against that; it is the price of a list that is not stale.
+- **A reader who scrolled sees new runs late.** Until they return to the tab or
+  press a filter, a run started elsewhere does not arrive. Nudging the rows
+  under their eyes was judged worse.
+- **The key's runs are a flag, not a name.** Two keys' runs look the same in the
+  list. The admin panel is where a key has a label.
 
 ---
 

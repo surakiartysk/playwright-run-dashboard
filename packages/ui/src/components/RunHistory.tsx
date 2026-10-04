@@ -149,6 +149,19 @@ export function refLabel(run: Pick<Run, 'ref' | 'suiteVersion' | 'suiteSha'>): s
 export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 1000).toFixed(1)}s`)
 
 /**
+ * Who started a run, in words.
+ *
+ * A key's run has no name — nobody signed in to start it — so without this the
+ * line would read as a bare role and a script's run would look like a person's.
+ */
+export const triggeredLabel = (run: Pick<Run, 'triggeredBy' | 'startedBy' | 'viaKey'>) =>
+  run.viaKey
+    ? `${run.triggeredBy} · API key`
+    : run.startedBy
+      ? `${run.startedBy} · ${run.triggeredBy}`
+      : run.triggeredBy
+
+/**
  * "Started" and "Took" as one line, for the narrow layout where they are no
  * longer columns. A run still in flight has no duration to give, so it gives
  * only when it started rather than a trailing separator.
@@ -465,6 +478,14 @@ export function RunHistory({
                               simulated
                             </span>
                           )}
+                          {run.viaKey && (
+                            <span
+                              style={s.runSimulated}
+                              title="Started with an API key, not from this page."
+                            >
+                              via key
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -541,11 +562,7 @@ export function RunHistory({
                               every row saying the same thing — which is the
                               whole reason the name exists.
                             */}
-                            <Detail label="Triggered by">
-                              {run.startedBy
-                                ? `${run.startedBy} · ${run.triggeredBy}`
-                                : run.triggeredBy}
-                            </Detail>
+                            <Detail label="Triggered by">{triggeredLabel(run)}</Detail>
 
                             {run.workers !== null && run.workers !== undefined && (
                               <Detail label="Workers">

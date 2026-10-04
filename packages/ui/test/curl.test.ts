@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { KEY_VARIABLE, exportKey, optionsCurl, quote, runCurl } from '../src/curl'
+import { KEY_VARIABLE, optionsCurl, quote, runCurl } from '../src/curl'
 import { ApiSnippet, SnippetView, limitsLine } from '../src/components/ApiSnippet'
 import { initialForm } from '../src/run-form'
 import { runOptions } from './fixtures'
@@ -99,9 +99,28 @@ describe('optionsCurl', () => {
   })
 })
 
-describe('exportKey', () => {
-  it('sets the variable the commands read, quoted', () => {
-    expect(exportKey('rdk_abc_def')).toBe(`export ${KEY_VARIABLE}='rdk_abc_def'`)
+describe('with a key to show', () => {
+  const key = 'rdk_abcdef123456_zyxwvu9876543210zyxwvu9876'
+
+  it('writes the key into the header, so a copy runs as it is', () => {
+    expect(runCurl(form, ORIGIN, key)).toContain(`-H 'Authorization: Bearer ${key}'`)
+    expect(optionsCurl(ORIGIN, key)).toContain(`-H 'Authorization: Bearer ${key}'`)
+  })
+
+  it('no longer reads the variable', () => {
+    expect(runCurl(form, ORIGIN, key)).not.toContain(`$${KEY_VARIABLE}`)
+    expect(optionsCurl(ORIGIN, key)).not.toContain(`$${KEY_VARIABLE}`)
+  })
+
+  it('keeps the command the same shape, one header changed', () => {
+    const withKey = runCurl(form, ORIGIN, key).split('\n')
+    const without = runCurl(form, ORIGIN).split('\n')
+    expect(withKey).toHaveLength(without.length)
+    expect(withKey.filter((line, n) => line !== without[n])).toHaveLength(1)
+  })
+
+  it('quotes the key like any other value', () => {
+    expect(runCurl(form, ORIGIN, "a'b")).toContain(`'Authorization: Bearer a'\\''b'`)
   })
 })
 
@@ -185,16 +204,26 @@ describe('SnippetView once a key has been made', () => {
       }),
     )
 
-  it('puts the key at the head of each command, so one paste does it', () => {
+  it('gives the key its own field, read only, with a button to copy it', () => {
     const out = html()
-    expect(
-      out.match(new RegExp(`export ${KEY_VARIABLE}=&#x27;${sandbox.key}&#x27;`, 'g')),
-    ).toHaveLength(2)
+    expect(out).toMatch(/<input[^>]*readonly=""[^>]*value="rdk_abcdef123456_/)
+    expect(out).toContain('Sandbox key')
+    expect(out).toContain('>Copy key<')
+  })
+
+  it('writes the key into both commands rather than a line of its own', () => {
+    const out = html()
+    expect(out).not.toContain('export ')
+    expect(out.match(new RegExp(`Bearer ${sandbox.key}`, 'g'))).toHaveLength(2)
+  })
+
+  it('says where its runs will show', () => {
+    expect(html()).toContain('marked “via key”')
   })
 
   it('says the key is shown once, and what it may do', () => {
     const out = html()
-    expect(out).toContain('Copy it now: the key is shown once.')
+    expect(out).toContain('It is shown once.')
     expect(out).toContain('Simulated only')
     expect(out).not.toContain('Get a sandbox key')
   })

@@ -41,6 +41,8 @@ export interface Run {
   triggeredBy: string
   /** Who said they started it — a claim, not an identity. Null for a key. */
   startedBy: string | null
+  /** True when an API key started it rather than someone on this page. */
+  viaKey: boolean
   status: RunStatus
   ref: string
   total: number | null

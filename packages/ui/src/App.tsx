@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   ApiError,
   api,
@@ -19,6 +19,7 @@ import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
 import { useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
+import { pollDelay, refreshOnReturn } from './poll'
 import { c } from './theme'
 
 export function App() {
@@ -35,6 +36,9 @@ export function App() {
   const [total, setTotal] = useState(0)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
+  // More than the first page is on screen: a reload would swap it for page one.
+  const [loadedMore, setLoadedMore] = useState(false)
+  const lastRefreshAt = useRef(0)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
   const [canPreview, setCanPreview] = useState(false)
   // Which runs the list is narrowed to. Kept in the address bar so a filtered
@@ -120,8 +124,10 @@ export function App() {
    */
   const refresh = useCallback(async () => {
     if (!role) return
+    lastRefreshAt.current = Date.now()
     try {
       const page = await api.listRuns(toQuery(filters))
+      setLoadedMore(false)
       setRuns(page.runs)
       setTotal(page.total)
       setNextCursor(page.nextCursor)
@@ -153,6 +159,7 @@ export function App() {
       })
       setTotal(page.total)
       setNextCursor(page.nextCursor)
+      setLoadedMore(true)
       setError(null)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -177,17 +184,36 @@ export function App() {
   }, [filters])
 
   /**
-   * Polls only while something is in flight.
+   * Asks again on a timer, fast while a run is in flight and slowly otherwise;
+   * see poll.ts for why an idle list asks at all and when it stops.
    *
-   * A fixed interval would keep hitting the API on an idle dashboard left open
-   * all afternoon. Watching for pending rows means the polling stops on its own
-   * when the last run finishes.
+   * A hidden tab does not ask: nobody is looking, and returning to it reloads
+   * the list (below).
    */
+  const inFlight = runs.some((run) => isPending(run.status))
   useEffect(() => {
-    if (!role || !runs.some((run) => isPending(run.status))) return
-    const timer = setInterval(() => void refresh(), 2000)
+    if (!role) return
+    const delay = pollDelay({ pending: inFlight, loadedMore })
+    if (delay === null) return
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh()
+    }, delay)
     return () => clearInterval(timer)
-  }, [role, runs, refresh])
+  }, [role, inFlight, loadedMore, refresh])
+
+  useEffect(() => {
+    if (!role) return
+    const onReturn = () => {
+      if (document.visibilityState !== 'visible') return
+      if (refreshOnReturn(Date.now(), lastRefreshAt.current)) void refresh()
+    }
+    window.addEventListener('focus', onReturn)
+    document.addEventListener('visibilitychange', onReturn)
+    return () => {
+      window.removeEventListener('focus', onReturn)
+      document.removeEventListener('visibilitychange', onReturn)
+    }
+  }, [role, refresh])
 
   if (checking) return <div style={s.loading}>Loading…</div>
   if (!role) return <Login onSignedIn={setRole} />

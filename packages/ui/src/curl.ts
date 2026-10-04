@@ -4,10 +4,11 @@ import type { RunForm } from './run-form'
  * The commands that do from a terminal what the form does with a button.
  *
  * Built from what the form currently holds, so the snippet is the request that
- * pressing Run would send — copy it, paste it, get the same run. The key is
- * `$RUN_KEY` until there is one to show, and the command reads it from the
- * environment either way, so a pasted command is never the thing that leaks it
- * into a shell history on its own line.
+ * pressing Run would send — copy it, paste it, get the same run. With no key to
+ * show, the header reads `$RUN_KEY` from the environment. With one — a visitor's
+ * sandbox key — the key is written into the command, so a copy runs as it is.
+ * That puts it in a shell history, which is acceptable for this key alone: it
+ * can only simulate, it expires within a day and it is rate limited.
  */
 
 export const KEY_VARIABLE = 'RUN_KEY'
@@ -15,8 +16,12 @@ export const KEY_VARIABLE = 'RUN_KEY'
 /** A value as one shell word, safe whatever is in it. */
 export const quote = (value: string): string => `'${value.replace(/'/g, `'\\''`)}'`
 
+/** The Authorization header: the key itself if there is one, else the variable. */
+const authHeader = (key?: string): string =>
+  key ? quote(`Authorization: Bearer ${key}`) : `"Authorization: Bearer $${KEY_VARIABLE}"`
+
 /** `POST /runs` for the form's current selection. */
-export function runCurl(form: RunForm, origin: string): string {
+export function runCurl(form: RunForm, origin: string, key?: string): string {
   const body = JSON.stringify({
     suite: form.suite,
     service: form.service,
@@ -26,19 +31,13 @@ export function runCurl(form: RunForm, origin: string): string {
   })
   return [
     `curl -X POST ${quote(`${origin}/runs`)} \\`,
-    `  -H "Authorization: Bearer $${KEY_VARIABLE}" \\`,
+    `  -H ${authHeader(key)} \\`,
     `  -H 'Content-Type: application/json' \\`,
     `  -d ${quote(body)}`,
   ].join('\n')
 }
 
 /** What is there to ask for: the services, tags and branches this key may use. */
-export function optionsCurl(origin: string): string {
-  return [
-    `curl ${quote(`${origin}/runs/options`)} \\`,
-    `  -H "Authorization: Bearer $${KEY_VARIABLE}"`,
-  ].join('\n')
+export function optionsCurl(origin: string, key?: string): string {
+  return [`curl ${quote(`${origin}/runs/options`)} \\`, `  -H ${authHeader(key)}`].join('\n')
 }
-
-/** The line that gives the commands their key. */
-export const exportKey = (key: string): string => `export ${KEY_VARIABLE}=${quote(key)}`
