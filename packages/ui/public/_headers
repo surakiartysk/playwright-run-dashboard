@@ -1,0 +1,13 @@
+# Headers Pages adds to every page of the UI. The API's paths are answered by
+# the Worker, which sets its own; see packages/api/src/index.ts.
+#
+# Cross-Origin-Opener-Policy: a report is served from this origin, and a
+# script inside one could otherwise open this page in a new window and read
+# what it shows. Reports deliberately do not carry it — see decision 40.
+#
+# frame-ancestors: no other site may frame the dashboard. SameSite=Lax already
+# means a framed copy is signed out; this means it does not render at all.
+
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: frame-ancestors 'none'

@@ -197,12 +197,46 @@ function readCookie(header: string | undefined, name: string): string | null {
 
 export const readSessionCookie = (header: string | undefined) => readCookie(header, COOKIE_NAME)
 
-export const sessionCookie = (token: string, maxAgeSeconds: number) =>
-  // SameSite=Lax rather than Strict: the report opens in a new tab from a link,
-  // and Strict would drop the cookie on that navigation.
-  `${COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}`
+/** Whether a request reached the Worker over HTTPS — see `cookie` for why it matters. */
+export const isHttps = (url: string) => new URL(url).protocol === 'https:'
 
-export const clearCookie = () => `${COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
+/**
+ * Every cookie this Worker sets, in one shape.
+ *
+ * `HttpOnly` because no page script has a reason to read any of them.
+ * `SameSite=Lax` rather than Strict: the report opens in a new tab from a link,
+ * and Strict would drop the cookie on that navigation.
+ *
+ * `Secure` when the request itself came over HTTPS, and only then. Always
+ * setting it would cost local development nothing in Chrome or Firefox, which
+ * treat `http://localhost` as secure, and would break it in any browser that
+ * does not. Never setting it was the state before: a cookie issued over HTTPS
+ * that a browser would then also send over plain HTTP, to anyone on the path.
+ * On this deployment that cannot happen — `.dev` is HSTS-preloaded, so no
+ * browser makes a plain request to it — which is exactly why it went unnoticed,
+ * and why it is fixed here rather than left to the domain: a clone deployed
+ * anywhere else does not inherit the preload. See decision 41.
+ */
+export function cookie(
+  name: string,
+  value: string,
+  options: { path: string; maxAge: number; secure: boolean },
+): string {
+  const attributes = [
+    'HttpOnly',
+    `Path=${options.path}`,
+    'SameSite=Lax',
+    `Max-Age=${options.maxAge}`,
+  ]
+  if (options.secure) attributes.push('Secure')
+  return [`${name}=${value}`, ...attributes].join('; ')
+}
+
+export const sessionCookie = (token: string, maxAgeSeconds: number, secure: boolean) =>
+  cookie(COOKIE_NAME, token, { path: '/', maxAge: maxAgeSeconds, secure })
+
+export const clearCookie = (secure: boolean) =>
+  cookie(COOKIE_NAME, '', { path: '/', maxAge: 0, secure })
 
 // ── Preview role ────────────────────────────────────────────────────────────
 
@@ -257,11 +291,11 @@ export async function verifyPreviewRole(
   return roleRaw
 }
 
-export const previewRoleCookie = (token: string, maxAgeSeconds: number) =>
-  `${PREVIEW_COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${maxAgeSeconds}`
+export const previewRoleCookie = (token: string, maxAgeSeconds: number, secure: boolean) =>
+  cookie(PREVIEW_COOKIE_NAME, token, { path: '/', maxAge: maxAgeSeconds, secure })
 
-export const clearPreviewRoleCookie = () =>
-  `${PREVIEW_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`
+export const clearPreviewRoleCookie = (secure: boolean) =>
+  cookie(PREVIEW_COOKIE_NAME, '', { path: '/', maxAge: 0, secure })
 
 export const LAST_USED_GRANULARITY_MS = 60 * 60 * 1000
 

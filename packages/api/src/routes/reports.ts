@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
 import { verifyReportToken, reportTokenExpiry } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
+import { cookie, isHttps } from '../auth'
 
 export const reportRoutes = new Hono<HonoEnv>()
 
@@ -39,10 +40,58 @@ export const reportRoutes = new Hono<HonoEnv>()
  * report that renders empty — which reads as a run that produced nothing
  * rather than as a dashboard that broke.
  *
+ * It is no longer enough on its own. `REPORT_CSP` below admits nothing from
+ * `'self'`, so a multi-file report's assets are refused by the browser even
+ * with the cookie in place; a suite moving back would need the policy widened
+ * as well, and the comment on it says what that would cost.
+ *
  * `integration-contract.test.ts` pins the single-file shape as the fourth
  * point the repositories meet at, so a suite moving to multi-file has to
  * change a test on purpose rather than quietly land a blank page here.
  */
+/**
+ * What a report may load and reach: nothing off its own page.
+ *
+ * A report is served from the dashboard's own origin, so its scripts run with
+ * the viewer's session — and a report is a third party's program. Allure 3
+ * writes a Google Analytics tag into every report it builds, with no option to
+ * leave it out (`analyticsEnable: true` in its generator), so before this
+ * every report opened here loaded a script from Google on to the dashboard's
+ * origin and handed it a URL carrying the report's token.
+ *
+ * Every source below is the page itself — inline, `data:` or `blob:` — because
+ * a `--single-file` report is exactly that, and each was checked by opening a
+ * real Allure 3.20 report under this policy in Chromium: the list, a failed
+ * test, a JSON, HTML, PNG and WebM attachment all render; the analytics tag and
+ * a `fetch('/runs')` from the page are both refused. `media-src` is there
+ * because the first attempt without it blocked the video.
+ *
+ * What it does not do is isolate. `'unsafe-inline'` is the price of a
+ * single-file report, so a script that got into one would still run — and a
+ * script on this origin can open the API in a new window and read it. That is
+ * closed separately, by `Cross-Origin-Opener-Policy` on everything else the
+ * origin serves (index.ts), and only for the ways in that are known. Decision
+ * 40 has the reasoning and what full isolation would take.
+ *
+ * A multi-file report would load from `'self'` and is refused here. Nothing
+ * stores one today (`integration-contract.test.ts` pins the single-file shape);
+ * a suite that moved back would need this widened on purpose, and `connect-src
+ * 'self'` is the line that would hand a report the API again.
+ */
+export const REPORT_CSP = [
+  "default-src 'none'",
+  "script-src 'unsafe-inline' data:",
+  "style-src 'unsafe-inline' data:",
+  'img-src data: blob:',
+  'media-src data: blob:',
+  'font-src data:',
+  'connect-src data: blob:',
+  'frame-src data: blob:',
+  "base-uri 'self'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ')
+
 const assetCookieName = (runId: string) => `report_${runId.replace(/[^a-zA-Z0-9]/g, '_')}`
 
 reportRoutes.get('/:runId/*', async (c) => {
@@ -122,7 +171,11 @@ reportRoutes.get('/:runId/*', async (c) => {
     const remaining = Math.max(0, expiry - Math.floor(Date.now() / 1000))
     headers.append(
       'Set-Cookie',
-      `${cookieName}=${token}; HttpOnly; Path=/reports/${runId}/; SameSite=Lax; Max-Age=${remaining}`,
+      cookie(cookieName, token, {
+        path: `/reports/${runId}/`,
+        maxAge: remaining,
+        secure: isHttps(c.req.url),
+      }),
     )
   }
 
@@ -137,6 +190,10 @@ reportRoutes.get('/:runId/*', async (c) => {
    * reused.
    */
   headers.set('cache-control', isEntryPoint ? 'private, no-store' : 'private, max-age=3600')
+
+  headers.set('content-security-policy', REPORT_CSP)
+  // The token rides in this page's URL, so the page names no one where it came from.
+  headers.set('referrer-policy', 'no-referrer')
 
   return new Response(object.body, { headers })
 })

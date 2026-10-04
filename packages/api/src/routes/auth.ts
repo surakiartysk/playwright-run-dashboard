@@ -1,6 +1,13 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
-import { clearCookie, createToken, requireSession, roleForPassword, sessionCookie } from '../auth'
+import {
+  clearCookie,
+  createToken,
+  isHttps,
+  requireSession,
+  roleForPassword,
+  sessionCookie,
+} from '../auth'
 import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from '../config'
 import { LOGIN_WINDOW_MINUTES, chargeAttempt, clientAddress, refundAttempt } from '../loginLimit'
 
@@ -58,12 +65,12 @@ authRoutes.post('/login', async (c) => {
   const session = await createToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, role, name)
   const maxAge = session.expiresAt - Math.floor(Date.now() / 1000)
 
-  c.header('Set-Cookie', sessionCookie(session.token, maxAge))
+  c.header('Set-Cookie', sessionCookie(session.token, maxAge, isHttps(c.req.url)))
   return c.json({ role: session.role, expiresAt: session.expiresAt, name: session.name })
 })
 
 authRoutes.post('/logout', (c) => {
-  c.header('Set-Cookie', clearCookie())
+  c.header('Set-Cookie', clearCookie(isHttps(c.req.url)))
   return c.json({ ok: true })
 })
 

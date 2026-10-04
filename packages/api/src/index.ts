@@ -45,6 +45,31 @@ const VERSION = pkg.version
  */
 const app = new Hono<HonoEnv>()
 
+/**
+ * Everything this origin serves, except a report, opens in a browsing-context
+ * group of its own.
+ *
+ * Reports are served from this origin (routes/reports.ts), so a script inside
+ * one is a same-origin script. Its CSP stops it fetching the API; it does not
+ * stop `window.open('/runs')` followed by reading the new window's document,
+ * which the browser allows between same-origin windows — tried against a real
+ * Allure report, and it read the response with the viewer's cookie. With
+ * `same-origin` here and nothing on the report, the two land in different
+ * groups and the handle the report gets back cannot see into the window.
+ *
+ * Reports are left out on purpose, not by oversight: a report carrying the
+ * same value would share a group with the API again, and the read works — also
+ * tried. The UI's pages need the same header, and get it from
+ * `packages/ui/public/_headers`, because Pages serves them rather than this
+ * Worker. Decision 40.
+ */
+app.use('*', async (c, next) => {
+  await next()
+  if (!c.req.path.startsWith('/reports/')) {
+    c.res.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+  }
+})
+
 let configLogged = false
 
 app.use('*', async (c, next) => {
