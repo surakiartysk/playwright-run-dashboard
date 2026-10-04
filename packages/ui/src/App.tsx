@@ -164,14 +164,11 @@ export function App() {
 
   const asideContent = (
     <>
-      <RunStats runs={runs} total={total} />
-
-      <RunTrend runs={runs} collapsible={!wide} />
-
       {canPreview && policies.length > 0 && (
         <RoleSwitcher
           collapsible={!wide}
           role={viewingRole}
+          realRole={role}
           policies={policies}
           onSwitched={async (next) => {
             // Handled like every other request here. It used to be the one
@@ -195,6 +192,10 @@ export function App() {
           }}
         />
       )}
+
+      <RunStats runs={runs} total={total} />
+
+      <RunTrend runs={runs} collapsible={!wide} />
     </>
   )
 

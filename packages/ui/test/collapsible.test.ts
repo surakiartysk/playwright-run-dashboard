@@ -2,7 +2,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Collapsible } from '../src/components/Collapsible'
-import { RoleSwitcher } from '../src/components/RoleSwitcher'
+import { RoleSwitcher, policyLines, previewNote } from '../src/components/RoleSwitcher'
 import { RunTrend, trendHint, trendPoints } from '../src/components/RunTrend'
 import type { RolePolicy } from '../src/api'
 import { run } from './fixtures'
@@ -79,6 +79,7 @@ describe('the folded role switcher', () => {
     renderToStaticMarkup(
       createElement(RoleSwitcher, {
         role: 'qa',
+        realRole: 'qa',
         policies,
         onSwitched: () => undefined,
         collapsible,
@@ -96,5 +97,74 @@ describe('the folded role switcher', () => {
     const html = render(false)
     expect(html).not.toContain('<details')
     expect(html).toContain('>admin</button>')
+  })
+})
+
+describe('policyLines', () => {
+  const [demo, , , admin] = policies
+
+  it('has the same four lines in the same order for every role', () => {
+    for (const policy of policies) {
+      expect(policyLines(policy).map((l) => l.label)).toEqual([
+        'Sees',
+        'Suite branches',
+        'Workers',
+        'Delete runs',
+      ])
+    }
+  })
+
+  it('states the role’s own limits', () => {
+    expect(policyLines({ ...demo!, maxWorkers: 16, canDelete: true })).toEqual([
+      { label: 'Sees', value: 'every run' },
+      { label: 'Suite branches', value: 'main' },
+      { label: 'Workers', value: 'up to 16' },
+      { label: 'Delete runs', value: 'yes' },
+    ])
+    expect(policyLines(admin!).find((l) => l.label === 'Delete runs')?.value).toBe('yes')
+    expect(policyLines(demo!).find((l) => l.label === 'Delete runs')?.value).toBe('no')
+  })
+
+  it('says "any" for a role that may use any branch, and lists the rest', () => {
+    expect(policyLines({ ...demo!, allowedRefs: ['*'] })[1]?.value).toBe('any')
+    expect(policyLines({ ...demo!, allowedRefs: ['main', 'develop'] })[1]?.value).toBe(
+      'main, develop',
+    )
+  })
+})
+
+describe('previewNote', () => {
+  it('names both roles when what is viewed is not what is signed in', () => {
+    const note = previewNote('admin', 'demo')
+    expect(note).toContain('signed in as demo')
+    expect(note).toContain('Viewing as admin')
+    expect(note).toContain('still uses demo')
+  })
+
+  it('is the general reminder when they are the same', () => {
+    expect(previewNote('demo', 'demo')).not.toContain('signed in as')
+    expect(previewNote('demo', 'demo')).toContain('not what you may do')
+  })
+
+  it('shows on the open panel and in the folded row when viewing another role', () => {
+    const html = renderToStaticMarkup(
+      createElement(RoleSwitcher, {
+        role: 'admin',
+        realRole: 'demo',
+        policies,
+        onSwitched: () => undefined,
+      }),
+    )
+    expect(html).toContain('You are signed in as demo')
+    const folded = renderToStaticMarkup(
+      createElement(RoleSwitcher, {
+        role: 'admin',
+        realRole: 'demo',
+        policies,
+        onSwitched: () => undefined,
+        collapsible: true,
+      }),
+    )
+    expect(folded).toContain('Now: admin · you are demo')
   })
 })

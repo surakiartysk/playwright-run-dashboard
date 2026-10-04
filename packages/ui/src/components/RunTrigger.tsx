@@ -137,11 +137,10 @@ export function RunTrigger({
           onChange={(next) => setForm((f) => withSuite(f, next))}
         />
 
-        {!compact && <span aria-hidden style={s.sep} />}
-
         <PillSelect
           icon="box"
           label="Service"
+          basis={132}
           fill={compact}
           value={service}
           options={SUITE_SERVICES[suite]}
@@ -151,6 +150,7 @@ export function RunTrigger({
         <PillSelect
           icon="tag"
           label="Scope"
+          basis={116}
           fill={compact}
           mono
           // Shows the tag that will be sent, not the one last picked: a
@@ -166,6 +166,7 @@ export function RunTrigger({
         <PillSelect
           icon="branch"
           label="Suite branch"
+          basis={112}
           fill={compact}
           mono
           value={ref}
@@ -324,6 +325,7 @@ function PillSelect({
   lockedReason,
   mono: useMono = false,
   fill = false,
+  basis,
 }: {
   icon: IconName
   label: string
@@ -334,10 +336,18 @@ function PillSelect({
   lockedReason?: string
   mono?: boolean
   fill?: boolean
+  /** The width the option asks for before the row has to wrap, in px. */
+  basis: number
 }) {
   return (
     <span
-      style={{ ...s.pill, ...(locked ? s.pillLocked : null), ...(fill ? s.fillHalf : null) }}
+      style={{
+        ...s.pill,
+        flex: `1 1 ${basis}px`,
+        maxWidth: 220,
+        ...(locked ? s.pillLocked : null),
+        ...(fill ? s.fillHalf : null),
+      }}
       title={locked ? lockedReason : label}
     >
       <Icon name={icon} size={17} style={s.pillIcon} />
@@ -465,7 +475,6 @@ const s: Record<string, CSSProperties> = {
   title: { fontSize: 15, fontWeight: 650, margin: 0 },
   hint: { fontSize: 12, color: c.t5 },
   row: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  sep: { width: 1, height: 24, background: c.border, margin: '0 2px' },
 
   suite: {
     ...control,
@@ -479,7 +488,7 @@ const s: Record<string, CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 7,
-    padding: '0 14px',
+    padding: '0 12px',
     border: 'none',
     borderRadius: 7,
     background: 'transparent',
@@ -505,7 +514,10 @@ const s: Record<string, CSSProperties> = {
     appearance: 'none',
     WebkitAppearance: 'none',
     height: '100%',
-    padding: '0 34px 0 38px',
+    width: '100%',
+    minWidth: 0,
+    textOverflow: 'ellipsis',
+    padding: '0 30px 0 36px',
     background: 'transparent',
     border: 'none',
     borderRadius: 10,
