@@ -9,7 +9,12 @@ import {
   initialForm,
   refLocked,
   runRequest,
+  scopeChoices,
+  scopeLabel,
   scopeLocked,
+  serviceChoices,
+  serviceFieldLabel,
+  serviceLabel,
   startedMessage,
   stepWorkers,
   submitRun,
@@ -211,5 +216,46 @@ describe('submitRun', () => {
       throw new Error('runs are paused')
     }
     await expect(submitRun(initialForm(4), refuse)).rejects.toThrow('runs are paused')
+  })
+})
+
+describe('what the form calls things', () => {
+  it('rewrites a machine name as a sentence', () => {
+    expect(serviceLabel('api', 'maintenance-logs')).toBe('Maintenance logs')
+    expect(serviceLabel('api', 'items')).toBe('Items')
+    expect(serviceLabel('ui', 'checkout')).toBe('Checkout')
+  })
+
+  it('says "all" in the suite’s own terms: services in one, journeys in the other', () => {
+    expect(serviceLabel('api', 'all')).toBe('All services')
+    expect(serviceLabel('ui', 'all')).toBe('All journeys')
+  })
+
+  it('calls the field a journey where the suite has journeys', () => {
+    expect(serviceFieldLabel('api')).toBe('Service')
+    expect(serviceFieldLabel('ui')).toBe('Journey')
+  })
+
+  it('writes a tag as it is written in a spec, and "all" as every test', () => {
+    expect(scopeLabel('smoke')).toBe('@smoke')
+    expect(scopeLabel('cross-service')).toBe('@cross-service')
+    expect(scopeLabel('all')).toBe('All tests')
+  })
+
+  /** Only the words change: what is sent has to be the suite's own name. */
+  it('keeps every value exactly as the suite names it, in the same order', () => {
+    for (const suite of ['api', 'ui'] as const) {
+      expect(serviceChoices(suite).map((c) => c.value)).toEqual(SUITE_SERVICES[suite])
+      expect(scopeChoices(suite).map((c) => c.value)).toEqual(SUITE_TAGS[suite])
+    }
+  })
+
+  it('gives every choice a label that is not the raw identifier', () => {
+    for (const suite of ['api', 'ui'] as const) {
+      for (const choice of [...serviceChoices(suite), ...scopeChoices(suite)]) {
+        expect(choice.label.length, choice.value).toBeGreaterThan(0)
+        expect(choice.label, choice.value).not.toBe(choice.value)
+      }
+    }
   })
 })

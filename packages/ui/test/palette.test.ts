@@ -164,6 +164,21 @@ describe('the generated stylesheet', () => {
     for (const line of expected) expect(base).toContain(line)
   })
 
+  /*
+   * The page's choice has to reach the browser's own controls: a select's open
+   * list is drawn by the browser, in whichever scheme `color-scheme` names.
+   */
+  it('names the scheme for the browser’s own controls, in every way a mode is reached', () => {
+    expect(declarationsOf(css, ':root')).toContain('color-scheme: light')
+    expect(declarationsOf(css, "[data-theme='dark']")).toContain('color-scheme: dark')
+    expect(declarationsOf(css, ":root:not([data-theme='light'])")).toContain('color-scheme: dark')
+  })
+
+  it('never names dark for light, or light for dark', () => {
+    expect(declarationsOf(css, ':root')).not.toContain('color-scheme: dark')
+    expect(declarationsOf(css, "[data-theme='dark']")).not.toContain('color-scheme: light')
+  })
+
   it('declares the three durations and the one easing curve', () => {
     expect(css).toContain(`--motion-fast: ${MOTION.fast};`)
     expect(css).toContain(`--motion-base: ${MOTION.base};`)

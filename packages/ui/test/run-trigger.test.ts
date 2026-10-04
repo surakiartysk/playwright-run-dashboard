@@ -42,7 +42,7 @@ describe('the first render of the command bar', () => {
 
   it('locks the scope while a service is picked, and says why in words on the page', () => {
     const html = render(policy())
-    expect(html).toMatch(/aria-label="Scope: all \(locked\)[^"]*"[^>]*disabled/)
+    expect(html).toMatch(/aria-label="Scope: All tests \(locked\)[^"]*"[^>]*disabled/)
     expect(html).toContain('Scope is <span')
   })
 
@@ -54,7 +54,7 @@ describe('the first render of the command bar', () => {
   it('leaves the branch open for a role with a choice', () => {
     const html = render(policy({ role: 'qa', allowedRefs: ['*'] }))
     expect(html).not.toContain('Suite branch: main (locked)')
-    expect(html).toContain('<option>develop</option>')
+    expect(html).toContain('<option value="develop">develop</option>')
   })
 
   it('shows the worker count against the role’s ceiling, never above it', () => {
@@ -97,6 +97,27 @@ describe('the first render of the command bar', () => {
       service: 'cart',
     })
     expect(html).toMatch(/aria-checked="true"[^>]*>(?:<svg.*?<\/svg>)UI/)
-    expect(html).toMatch(/<option selected="">cart<\/option>/)
+    expect(html).toMatch(/<option value="cart" selected="">Cart<\/option>/)
+  })
+
+  it('shows readable names while the options carry the suites’ own', () => {
+    const html = render(policy({ role: 'qa', allowedRefs: ['*'] }))
+    expect(html).toContain('<option value="maintenance-logs">Maintenance logs</option>')
+    expect(html).toContain('<option value="all">All services</option>')
+    expect(html).not.toContain('>maintenance-logs<')
+  })
+
+  it('calls the second field Journey on the UI suite, where nothing is a service', () => {
+    const ui = render(policy(), true, { suite: 'ui', service: 'all' })
+    expect(ui).toContain('aria-label="Journey"')
+    expect(ui).toMatch(/<option value="all"[^>]*>All journeys<\/option>/)
+    expect(ui).not.toContain('aria-label="Service"')
+    expect(render(policy())).toContain('aria-label="Service"')
+  })
+
+  it('writes a tag the way the specs do', () => {
+    const html = render(policy({ role: 'qa', allowedRefs: ['*'] }), true, { service: 'all' })
+    expect(html).toContain('<option value="cross-service">@cross-service</option>')
+    expect(html).toMatch(/<option value="all"[^>]*>All tests<\/option>/)
   })
 })

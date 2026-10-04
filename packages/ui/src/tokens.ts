@@ -247,6 +247,11 @@ export function tokensCss(): string {
     block(
       ':root',
       [
+        // Tells the browser which scheme its own controls should be drawn in.
+        // Without it a select's open list, a scrollbar and a number field follow
+        // the operating system, so a dark dashboard on a light OS opened a white
+        // menu: the page's choice never reached the parts the page does not draw.
+        '  color-scheme: light;',
         declarations(NEUTRALS.light),
         declarations(accentTokens(DEFAULT_ACCENT, 'light')),
         fonts,
@@ -255,7 +260,11 @@ export function tokensCss(): string {
   )
 
   const dark = (accent: Accent) =>
-    [declarations(NEUTRALS.dark), declarations(accentTokens(accent, 'dark'))].join('\n')
+    [
+      '  color-scheme: dark;',
+      declarations(NEUTRALS.dark),
+      declarations(accentTokens(accent, 'dark')),
+    ].join('\n')
 
   parts.push(
     `@media (prefers-color-scheme: dark) {\n${block("  :root:not([data-theme='light'])", indent(dark(DEFAULT_ACCENT)))}\n}`,

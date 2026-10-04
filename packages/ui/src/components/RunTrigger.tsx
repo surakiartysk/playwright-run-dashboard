@@ -4,16 +4,18 @@ import { c, mono, status } from '../theme'
 import { pausedReason } from '../gate-form'
 import { stepOption } from '../appearance'
 import {
-  SUITE_SERVICES,
-  SUITE_TAGS,
   clampWorkers,
   effectiveTags,
   initialForm,
   refLocked,
+  scopeChoices,
   scopeLocked,
+  serviceChoices,
+  serviceFieldLabel,
   stepWorkers,
   submitRun,
   withSuite,
+  type Choice,
   type RunForm,
 } from '../run-form'
 import { useCompact } from '../use-compact'
@@ -139,25 +141,25 @@ export function RunTrigger({
 
         <PillSelect
           icon="box"
-          label="Service"
-          basis={132}
+          label={serviceFieldLabel(suite)}
+          basis={124}
           fill={compact}
           value={service}
-          options={SUITE_SERVICES[suite]}
+          options={serviceChoices(suite)}
           onChange={(service) => set({ service })}
         />
 
         <PillSelect
           icon="tag"
           label="Scope"
-          basis={116}
+          basis={136}
           fill={compact}
           mono
           // Shows the tag that will be sent, not the one last picked: a
           // locked control reading `smoke` above a note saying "all" is the
           // form contradicting itself.
           value={effectiveTags(service, tags)}
-          options={SUITE_TAGS[suite]}
+          options={scopeChoices(suite)}
           onChange={(tags) => set({ tags })}
           locked={scopeIsLocked}
           lockedReason="Scope is all while one service is picked — the suite filters by service or by tag, not both."
@@ -166,11 +168,11 @@ export function RunTrigger({
         <PillSelect
           icon="branch"
           label="Suite branch"
-          basis={112}
+          basis={104}
           fill={compact}
           mono
           value={ref}
-          options={refs}
+          options={refs.map((value) => ({ value, label: value }))}
           onChange={(ref) => set({ ref })}
           locked={refIsLocked}
           lockedReason={`Suite branch: the branch of the test code, not of the app under test. ${role} may only use ${refs[0] ?? 'main'}.`}
@@ -330,7 +332,7 @@ function PillSelect({
   icon: IconName
   label: string
   value: string
-  options: readonly string[]
+  options: readonly Choice[]
   onChange: (next: string) => void
   locked?: boolean
   lockedReason?: string
@@ -339,6 +341,8 @@ function PillSelect({
   /** The width the option asks for before the row has to wrap, in px. */
   basis: number
 }) {
+  const shown = options.find((o) => o.value === value)?.label ?? value
+
   return (
     <span
       style={{
@@ -352,14 +356,16 @@ function PillSelect({
     >
       <Icon name={icon} size={17} style={s.pillIcon} />
       <select
-        aria-label={locked && lockedReason ? `${label}: ${value} (locked). ${lockedReason}` : label}
+        aria-label={locked && lockedReason ? `${label}: ${shown} (locked). ${lockedReason}` : label}
         value={value}
         disabled={locked}
         onChange={(e) => onChange(e.target.value)}
         style={{ ...s.select, ...(useMono ? mono : null), ...(fill ? s.selectFill : null) }}
       >
-        {options.map((v) => (
-          <option key={v}>{v}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
         ))}
       </select>
       <Icon name={locked ? 'lock' : 'down'} size={locked ? 14 : 15} style={s.pillEnd} />
@@ -508,8 +514,8 @@ const s: Record<string, CSSProperties> = {
     background: c.input,
   },
   pillLocked: { background: c.surface },
-  pillIcon: { position: 'absolute', left: 12, color: c.t4, pointerEvents: 'none' },
-  pillEnd: { position: 'absolute', right: 11, color: c.t5, pointerEvents: 'none' },
+  pillIcon: { position: 'absolute', left: 10, color: c.t4, pointerEvents: 'none' },
+  pillEnd: { position: 'absolute', right: 9, color: c.t5, pointerEvents: 'none' },
   select: {
     appearance: 'none',
     WebkitAppearance: 'none',
@@ -517,7 +523,7 @@ const s: Record<string, CSSProperties> = {
     width: '100%',
     minWidth: 0,
     textOverflow: 'ellipsis',
-    padding: '0 30px 0 36px',
+    padding: '0 26px 0 33px',
     background: 'transparent',
     border: 'none',
     borderRadius: 10,

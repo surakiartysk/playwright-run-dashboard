@@ -162,3 +162,41 @@ export async function submitRun(
   const run = await post(runRequest(form))
   return startedMessage(run.simulated)
 }
+
+/**
+ * What the form calls each choice, apart from what it sends.
+ *
+ * The values are the suites' own names (`maintenance-logs`, `smoke`) and go to
+ * the API unchanged; only the words on screen are rewritten. A hyphenated
+ * identifier is how a machine names a thing, and showing it as the label
+ * makes the form read like a config file.
+ */
+export interface Choice {
+  value: string
+  label: string
+}
+
+/** "maintenance-logs" as "Maintenance logs". */
+const sentence = (id: string): string => {
+  const words = id.replace(/[-_]+/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/**
+ * The API suite is sliced by service and the UI suite by journey, so "all" is
+ * every service in one and every journey in the other. Saying "services" of a
+ * suite that has none is how the form would mislead before anyone picked.
+ */
+export const serviceFieldLabel = (suite: Suite): string => (suite === 'ui' ? 'Journey' : 'Service')
+
+export const serviceLabel = (suite: Suite, id: string): string =>
+  id === 'all' ? (suite === 'ui' ? 'All journeys' : 'All services') : sentence(id)
+
+/** A tag is shown the way it is written in the specs, `@smoke`, which is also how it is searched. */
+export const scopeLabel = (id: string): string => (id === 'all' ? 'All tests' : `@${id}`)
+
+export const serviceChoices = (suite: Suite): Choice[] =>
+  SUITE_SERVICES[suite].map((value) => ({ value, label: serviceLabel(suite, value) }))
+
+export const scopeChoices = (suite: Suite): Choice[] =>
+  SUITE_TAGS[suite].map((value) => ({ value, label: scopeLabel(value) }))
