@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { SUITE_LABELS, isPending, type Run, type Suite } from '../api'
 import { c, mono, status as sc } from '../theme'
 import { relative } from './RunHistory'
+import { Collapsible } from './Collapsible'
 
 /**
  * Pass rate over the recent runs, oldest to newest — one bar per run.
@@ -222,7 +223,21 @@ export interface Bar {
  * survive where dots did not: a stretched rectangle only changes width.
  */
 export const PLOT_WIDTH = 320
-export const PLOT_HEIGHT = 72
+export const PLOT_HEIGHT = 104
+
+/**
+ * A row of squares under the bars, one per run, all the same height: green for
+ * a run that passed, red for one that did not.
+ *
+ * The bars say how much passed and the strip says whether the run did. They are
+ * different questions: a run that failed one test of forty is a nearly full bar
+ * with a sliver of red, and "which of these runs went red" should not depend on
+ * reading a bar's height or seeing a pale wash behind it.
+ */
+export const STRIP_HEIGHT = 7
+export const STRIP_GAP = 6
+/** The drawn height of the whole chart: the plot, the gap, and the strip. */
+export const CHART_HEIGHT = PLOT_HEIGHT + STRIP_GAP + STRIP_HEIGHT
 
 /** Gap between bars, as a share of the space each one is allotted. */
 const BAR_GAP_RATIO = 0.26
@@ -262,7 +277,30 @@ export function bars(points: TrendPoint[]): Bar[] {
   })
 }
 
-export function RunTrend({ runs }: { runs: Run[] }) {
+/**
+ * How many of the charted runs did not pass, in words.
+ *
+ * The one thing someone looking at a run history wants, said outright rather
+ * than left to be counted off the bars: "which way is it going" is the chart's
+ * job, "is anything red" is this line's. A run counts as failed when its status
+ * was not `passed` — a run that errored or timed out is not a run that passed.
+ */
+export function failureSummary(points: TrendPoint[]): { failed: number; text: string } {
+  const failed = points.filter((p) => !p.passed).length
+  const n = points.length
+  if (n === 0) return { failed: 0, text: '' }
+  if (failed === 0) return { failed, text: n === 1 ? 'The run passed' : `All ${n} runs passed` }
+  return { failed, text: `${failed} of the last ${n} runs did not pass` }
+}
+
+/** What the collapsed chart says about itself: how much it covers, and what went wrong. */
+export function trendHint(points: TrendPoint[]): string {
+  const { failed } = failureSummary(points)
+  if (points.length === 0) return ''
+  return `Last ${points.length} · ${failed === 0 ? 'all passed' : `${failed} failed`}`
+}
+
+export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsible?: boolean }) {
   const points = trendPoints(runs)
 
   /**
@@ -282,11 +320,11 @@ export function RunTrend({ runs }: { runs: Run[] }) {
   const change = Math.round(latest.rate - first.rate)
   const failing = points.filter((p) => !p.passed).length
 
-  return (
+  const card = (
     <section style={s.wrap}>
       <header style={s.head}>
         <div>
-          <h2 style={s.title}>Pass rate</h2>
+          {!collapsible && <h2 style={s.title}>Run by run</h2>}
           <p style={s.sub}>
             Last {points.length} finished runs, oldest first
             {change !== 0 && (
@@ -313,8 +351,12 @@ export function RunTrend({ runs }: { runs: Run[] }) {
         </div>
       </header>
 
+      <p style={{ ...s.failureLine, color: failing > 0 ? c.danger : c.t3 }}>
+        {failureSummary(points).text}
+      </p>
+
       <svg
-        viewBox={`0 0 ${PLOT_WIDTH} ${PLOT_HEIGHT}`}
+        viewBox={`0 0 ${PLOT_WIDTH} ${CHART_HEIGHT}`}
         /*
           `none` again, but for a shape that survives it. The old chart stretched
           a polyline and its dots, which is why a failed run rendered as a
@@ -402,6 +444,21 @@ export function RunTrend({ runs }: { runs: Run[] }) {
           opacity="0.22"
           pointerEvents="none"
         />
+        {/* The strip: one square per run under its bar, the same height for all. */}
+        {boxes.map((box, i) => {
+          const point = points[i]!
+          return (
+            <rect
+              key={`${point.id}-status`}
+              x={box.x}
+              y={PLOT_HEIGHT + STRIP_GAP}
+              width={box.width}
+              height={STRIP_HEIGHT}
+              fill={point.passed ? sc.pass : sc.fail}
+              opacity={point.passed ? 0.85 : 1}
+            />
+          )
+        })}
       </svg>
 
       {/* The range is stated because it is not 0–100. A chart whose axis
@@ -428,6 +485,14 @@ export function RunTrend({ runs }: { runs: Run[] }) {
       </p>
     </section>
   )
+
+  return collapsible ? (
+    <Collapsible title="Run by run" hint={trendHint(points)}>
+      {card}
+    </Collapsible>
+  ) : (
+    card
+  )
 }
 
 const s: Record<string, CSSProperties> = {
@@ -447,6 +512,7 @@ const s: Record<string, CSSProperties> = {
   },
   title: { fontSize: 15, fontWeight: 600, color: c.t1, margin: 0 },
   sub: { margin: '3px 0 0', fontSize: 12.5, color: c.t5 },
+  failureLine: { margin: '0 0 10px', fontSize: 13, fontWeight: 600 },
   latestWrap: { textAlign: 'right' },
   latestLabel: {
     fontSize: 10.5,
@@ -464,12 +530,12 @@ const s: Record<string, CSSProperties> = {
   },
 
   /*
-   * Fixed height, equal to PLOT_HEIGHT, so the stretch is horizontal only.
+   * Fixed height, equal to CHART_HEIGHT (the viewBox), so the stretch is horizontal only.
    * Nothing is drawn outside the box any more — bars sit on
    * the floor instead of dots straddling the edges — so the old
    * `overflow: visible` and its padding are gone with the hack they served.
    */
-  chart: { width: '100%', height: 72, display: 'block' },
+  chart: { width: '100%', height: CHART_HEIGHT, display: 'block' },
 
   axis: {
     display: 'flex',

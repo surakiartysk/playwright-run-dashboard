@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { relative, duration, resultShares, suiteCommitUrl } from '../src/components/RunHistory'
+import {
+  relative,
+  duration,
+  resultShares,
+  rowMeta,
+  suiteCommitUrl,
+} from '../src/components/RunHistory'
+import { COMPACT_BELOW, COMPACT_QUERY } from '../src/use-compact'
 import type { Run } from '../src/api'
 
 /**
@@ -138,5 +145,34 @@ describe('suiteCommitUrl', () => {
     ['ui', 'https://github.com/surakiartysk/playwright-ui-automation-patterns/commit/abc1234'],
   ] as const)('links a %s run to its own repository', (suite, expected) => {
     expect(suiteCommitUrl(suite, 'abc1234')).toBe(expected)
+  })
+})
+
+describe('rowMeta', () => {
+  it('joins when it started and how long it took', () => {
+    at('2026-01-01T12:00:30Z')
+    expect(rowMeta({ startedAt: '2026-01-01T12:00:00Z', durationMs: 5700 })).toBe('30s ago · 5.7s')
+  })
+
+  /** A run in flight has no duration, and must not end on a dangling separator. */
+  it('gives only the start for a run that has not finished', () => {
+    at('2026-01-01T12:00:30Z')
+    expect(rowMeta({ startedAt: '2026-01-01T12:00:00Z', durationMs: null })).toBe('30s ago')
+  })
+
+  it('keeps a zero-length run: 0.0s is a duration, not a missing one', () => {
+    at('2026-01-01T12:00:30Z')
+    expect(rowMeta({ startedAt: '2026-01-01T12:00:00Z', durationMs: 0 })).toBe('30s ago · 0.0s')
+  })
+})
+
+describe('the narrow layout', () => {
+  /**
+   * The table needs 620px (`minWidth` in the styles) and the list switches to
+   * rows below 640, so the two cannot leave a band of widths that is neither.
+   */
+  it('starts just under the width the table needs', () => {
+    expect(COMPACT_BELOW).toBeGreaterThanOrEqual(620)
+    expect(COMPACT_QUERY).toBe(`(max-width: ${COMPACT_BELOW - 1}px)`)
   })
 })

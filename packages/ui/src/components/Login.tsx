@@ -1,13 +1,21 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
-import { brandPanelBackground, c } from '../theme'
+import { c } from '../theme'
 
 /**
- * Sign in — a split panel: identity on the left, the form on the right.
+ * Sign in — one column, centred, nothing beside it.
  *
- * The left panel does no work beyond saying what this is, which is the point:
- * a login screen that is only a centred box gives no sense of what you are
- * signing into.
+ * This was a split panel: identity on the left, the form on the right. The
+ * left half did no work beyond saying what this is, and the design that
+ * replaced it says that in a line under the title instead. A plain card also
+ * collapses to a phone with no special case, where the split needed a media
+ * query and four `!important` overrides to stop the password field falling off
+ * the screen.
+ *
+ * The table of what each role may do is not here either. It is served only to a
+ * signed-in session (`/demo/roles` requires one), so a table on this screen
+ * would have to be a hard-coded copy that can drift from `policy.ts`. After
+ * sign-in, "View as" shows the real one.
  *
  * `demo` is one click rather than a password to type: a demo whose first
  * screen is a password you have to go hunting for is a demo nobody sees. The
@@ -61,184 +69,143 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const demoPassword = hints?.passwords.demo ?? null
 
   return (
-    <div style={s.outer} className="login-split">
-      <aside style={s.left} className="login-panel">
-        <div
-          className="login-orb"
-          style={{ ...s.circle, width: 420, height: 420, top: -120, right: -120 }}
-        />
-        <div
-          className="login-orb"
-          style={{ ...s.circle, width: 300, height: 300, bottom: -80, left: -80 }}
-        />
-        <div
-          className="login-orb"
-          style={{ ...s.circle, width: 160, height: 160, bottom: 120, right: 40 }}
-        />
-
-        <div style={s.leftInner}>
-          <div style={s.brandIcon} className="login-brand-icon">
-            <FlaskIcon size={34} />
-          </div>
-
-          <h1 style={s.brandTitle}>Test Run Dashboard</h1>
-          <p style={s.brandSub}>Self-service test running</p>
-
-          {/*
-            Hidden in the collapsed band: stacked above the form on a phone,
-            the note and pill push the password field below the fold, and the
-            panel's job there is to say what this is, not to sell it.
-          */}
-          <div style={s.divider} className="login-panel-detail" />
-
-          <p style={s.brandNote} className="login-panel-detail">
-            Trigger the API or UI suite on the branches your role allows and read the report —
-            without digging through CI artifacts.
-          </p>
-
-          <div style={s.pill} className="login-panel-detail">
-            <span style={s.pulseDot} />
-            Live run monitoring
-          </div>
+    <main style={s.page}>
+      <form style={s.form} onSubmit={submit}>
+        <div style={s.mark}>
+          <FlaskIcon size={28} colour="var(--c-on-primary)" />
         </div>
-      </aside>
 
-      <main style={s.right} className="login-form-col">
-        <div style={s.rightInner}>
-          <form style={s.form} onSubmit={submit}>
-            <div style={s.formIcon} className="login-form-icon">
-              <FlaskIcon size={22} colour="var(--c-primary)" />
-            </div>
+        <h1 style={s.title}>Test Run Dashboard</h1>
+        <p style={s.sub}>Pick a slice, press Run, read the report.</p>
 
-            <h2 style={s.formTitle}>Run the suite</h2>
-            <p style={s.formSub}>
-              Pick a slice, press Run, read the report. Four roles may do different amounts of that.
-            </p>
-
-            {demoPassword && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void signIn(demoPassword)}
-                  disabled={busy}
-                  style={s.demo}
-                >
-                  Look around as demo →
-                </button>
-                <div style={s.or}>
-                  <span style={s.orLine} />
-                  <span style={s.orText}>or sign in</span>
-                  <span style={s.orLine} />
-                </div>
-              </>
-            )}
-
-            {/*
-              Optional, and above the password because it is answered first.
-
-              The password decides what someone may do; this only says who was
-              at the keyboard, so a shared role password stops producing a
-              history where every run says the same role and nothing else.
-
-              It is a claim, not an identity — anyone with the password can
-              type anything — so it is never required and never blocks a
-              sign-in. The hint says as much rather than implying a check that
-              does not happen.
-            */}
-            <label htmlFor="who" style={s.label}>
-              Your name <span style={s.optional}>optional</span>
-            </label>
-
-            <input
-              id="who"
-              value={name}
-              placeholder="shown on the runs you start"
-              onChange={(e) => setName(e.target.value)}
-              maxLength={40}
-              style={{ ...s.input, paddingLeft: 13, marginBottom: 16 }}
-            />
-
-            <label htmlFor="password" style={s.label}>
-              Password
-            </label>
-
-            <div style={s.inputWrap}>
-              <span style={s.lockIcon}>
-                <LockIcon />
-              </span>
-              <input
-                id="password"
-                type={reveal ? 'text' : 'password'}
-                value={password}
-                autoFocus
-                /*
-                  Names who the field is for, rather than hinting `demo`.
-
-                  A placeholder reading "type demo" would point at the button
-                  directly above it — the same duplication the password table
-                  was removed for, reintroduced in smaller type. Anyone who
-                  wants demo has a one-click way in; this field exists for the
-                  people who were given a different password, and saying so is
-                  more useful than repeating the button.
-                */
-                placeholder={demoPassword ? 'dev, qa or admin password' : 'Dashboard password'}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  ...s.input,
-                  borderColor: error ? c.dangerBorder : c.border,
-                  background: error ? c.dangerBg : c.input,
-                }}
-              />
+        <div style={s.card}>
+          {demoPassword && (
+            <>
               <button
                 type="button"
-                onClick={() => setReveal((v) => !v)}
-                style={s.reveal}
-                aria-label={reveal ? 'Hide password' : 'Show password'}
+                onClick={() => void signIn(demoPassword)}
+                disabled={busy}
+                style={s.demo}
               >
-                <EyeIcon off={reveal} />
+                Look around as demo →
               </button>
-            </div>
+              <div style={s.or}>
+                <span style={s.orLine} />
+                <span style={s.orText}>or sign in</span>
+                <span style={s.orLine} />
+              </div>
+            </>
+          )}
 
-            {error && <p style={s.error}>{error}</p>}
+          {/*
+            Optional, and above the password because it is answered first.
 
-            {/*
-              Quieter when demo is offered above it, because then this is the
-              path for the few people who hold a password, not the many who came
-              to look. Where there is no demo to offer, it is the only way in and
-              takes the emphasis back.
-            */}
+            The password decides what someone may do; this only says who was
+            at the keyboard, so a shared role password stops producing a
+            history where every run says the same role and nothing else.
+
+            It is a claim, not an identity — anyone with the password can
+            type anything — so it is never required and never blocks a
+            sign-in. The hint says as much rather than implying a check that
+            does not happen.
+          */}
+          <label htmlFor="who" style={s.label}>
+            Your name <span style={s.optional}>optional</span>
+          </label>
+
+          <input
+            id="who"
+            value={name}
+            placeholder="shown on the runs you start"
+            onChange={(e) => setName(e.target.value)}
+            maxLength={40}
+            style={{ ...s.input, paddingLeft: 13, marginBottom: 16 }}
+          />
+
+          <label htmlFor="password" style={s.label}>
+            Password
+          </label>
+
+          <div style={s.inputWrap}>
+            <span style={s.lockIcon}>
+              <LockIcon />
+            </span>
+            <input
+              id="password"
+              type={reveal ? 'text' : 'password'}
+              value={password}
+              autoFocus
+              /*
+                Names who the field is for, rather than hinting `demo`.
+
+                A placeholder reading "type demo" would point at the button
+                directly above it — the same duplication the password table
+                was removed for, reintroduced in smaller type. Anyone who
+                wants demo has a one-click way in; this field exists for the
+                people who were given a different password, and saying so is
+                more useful than repeating the button.
+              */
+              placeholder={demoPassword ? 'dev, qa or admin password' : 'Dashboard password'}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{
+                ...s.input,
+                borderColor: error ? c.dangerBorder : c.border,
+                background: error ? c.dangerBg : c.input,
+              }}
+            />
             <button
-              type="submit"
-              disabled={busy || !password}
-              style={demoPassword ? { ...s.submit, ...s.submitQuiet } : s.submit}
+              type="button"
+              onClick={() => setReveal((v) => !v)}
+              style={s.reveal}
+              aria-label={reveal ? 'Hide password' : 'Show password'}
             >
-              {busy ? (
-                <>
-                  <span style={s.spinner} /> Signing in…
-                </>
-              ) : (
-                <>Sign in →</>
-              )}
+              <EyeIcon off={reveal} />
             </button>
+          </div>
 
-            {/*
-              Nothing below the button unless there is nothing above it.
+          {error && (
+            <p style={s.error} role="alert">
+              {error}
+            </p>
+          )}
 
-              This carried a password table, then a sentence about which
-              deployment the visitor had landed on and what demo could reach.
-              Both were answers to questions nobody asks at a sign-in screen:
-              the button says what to press, and the limits explain themselves
-              at the moment they apply — the run cap names itself in the error
-              it returns, and the role's scope is on the dashboard behind it.
-
-              The one case that still needs a line is a screen offering no way
-              in at all, where silence would read as broken rather than closed.
-            */}
-            {!hints && <p style={s.restricted}>Sign-in is not available on this deployment</p>}
-          </form>
+          {/*
+            Quieter when demo is offered above it, because then this is the
+            path for the few people who hold a password, not the many who came
+            to look. Where there is no demo to offer, it is the only way in and
+            takes the emphasis back.
+          */}
+          <button
+            type="submit"
+            disabled={busy || !password}
+            style={demoPassword ? { ...s.submit, ...s.submitQuiet } : s.submit}
+          >
+            {busy ? (
+              <>
+                <span style={s.spinner} /> Signing in…
+              </>
+            ) : (
+              <>Sign in →</>
+            )}
+          </button>
         </div>
-      </main>
-    </div>
+
+        {/*
+          Nothing below the card unless there is nothing in it to press.
+
+          This carried a password table, then a sentence about which
+          deployment the visitor had landed on and what demo could reach.
+          Both were answers to questions nobody asks at a sign-in screen:
+          the button says what to press, and the limits explain themselves
+          at the moment they apply — the run cap names itself in the error
+          it returns, and the role's scope is on the dashboard behind it.
+
+          The one case that still needs a line is a screen offering no way
+          in at all, where silence would read as broken rather than closed.
+        */}
+        {!hints && <p style={s.restricted}>Sign-in is not available on this deployment</p>}
+      </form>
+    </main>
   )
 }
 
@@ -279,225 +246,70 @@ const EyeIcon = ({ off }: { off: boolean }) => (
 )
 
 const s: Record<string, CSSProperties> = {
-  /*
-   * Full-bleed, deliberately.
-   *
-   * Capping the split and centring it looked balanced in the measurements and
-   * wrong on screen: the right half shares the page background, so the only
-   * thing with a distinct surface was the blue panel, and the whole page read
-   * as a narrow coloured stripe with text floating beside it rather than as a
-   * login screen.
-   *
-   * So the split fills the window, and the drift that started all of this is
-   * solved where it belongs — on the content inside the right half, not by
-   * shrinking the page around it. See `right`.
-   */
-  outer: { minHeight: '100vh', display: 'flex' },
-
-  left: {
-    /*
-     * Unequal on purpose — 55/45, not an even split.
-     *
-     * A 50/50 split gives the two halves the same visual weight and reads as
-     * two panes rather than one screen with a subject. The panel is the page's
-     * identity and carries the gradient; the form is a short column of controls
-     * that needs about 340px whatever the window does. Giving the panel the
-     * larger share says which one leads, and the ratio stays close enough to
-     * even that neither half looks starved.
-     *
-     * Deliberately uncapped. A 560px cap once held the panel at 30% of a wide
-     * window against a 70% right half, which read as a coloured stripe beside
-     * a lot of dark nothing; the empty blue that cap was guarding against is
-     * handled by centring the panel's own content instead.
-     */
-    width: '55%',
-    minWidth: 320,
-    background: brandPanelBackground,
-    display: 'flex',
-    alignItems: 'center',
-    /* Centres the content block in the panel, the way the form is centred in
-     * its own column — one alignment rule across the split rather than two. */
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  // Oversized, low-opacity circles bleeding off the edges. Barely visible on
-  // their own; they stop the panel reading as a flat block.
-  circle: {
-    position: 'absolute',
-    borderRadius: '50%',
-    background: 'rgba(255,255,255,0.025)',
-    pointerEvents: 'none',
-  },
-  /*
-   * The panel's text column, matched to the form's.
-   *
-   * Both halves were already symmetric inside themselves — 133px either side
-   * of this block, 254px either side of the form — and that was the problem:
-   * two different insets. The left content started much nearer its edge than
-   * the right did, so the panel read as pushed left against a form that looked
-   * comfortably placed, even though neither was misaligned on its own.
-   *
-   * Widening this column to the same 340px measure the form uses puts the two
-   * text blocks at a comparable distance from their edges, which is what makes
-   * the split read as one layout rather than two.
-   */
-  leftInner: {
-    /*
-     * Sized so the prose actually reaches the right edge.
-     *
-     * At 360px every line started on the left margin and stopped somewhere
-     * different — the title 82px short of the edge, the subtitle 200px, the
-     * pill 215px. Left-aligned text in a box wider than the text is a ragged
-     * right edge and a column of white space down one side, which is what
-     * reads as "the text is pushed left" no matter where the box itself sits.
-     *
-     * The form opposite is left-aligned too and does not look it, because its
-     * button, input and panel are full width and all end on the same line. The
-     * panel has no such element, so the measure has to do that work: at 320px
-     * the note wraps to fill it and the block gains a right edge for the
-     * shorter lines to be read against.
-     */
-    padding: '40px 0',
-    position: 'relative',
-    zIndex: 1,
-    width: 'min(100% - 56px, 320px)',
-  },
-
-  brandIcon: {
-    width: 68,
-    height: 68,
-    background: 'rgba(255,255,255,0.14)',
-    borderRadius: 20,
+  page: {
+    minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 28,
-  },
-  brandTitle: {
-    /* Clearly larger than the form's 28px heading, not a hair's breadth from
-     * it: two headings a couple of pixels apart read as a tie rather than a
-     * hierarchy, and this one names the product while that one labels a task. */
-    fontSize: 34,
-    fontWeight: 700,
-    color: '#fff',
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-  },
-  brandSub: { margin: '10px 0 0', color: 'rgba(255,255,255,0.6)', fontSize: 15, fontWeight: 300 },
-  /*
-   * Full width, not a 48px stub.
-   *
-   * The panel's lines all begin on the left margin and end wherever the words
-   * happen to stop, which is what makes left-aligned text read as "pushed
-   * left" — there is no right edge to measure them against. The form opposite
-   * has one for free: its button, input and its own `or sign in` rule are all
-   * full width. This rule is the panel's equivalent, and it costs nothing
-   * because the element was already there.
-   */
-  divider: {
-    width: '100%',
-    height: 1,
-    background: 'rgba(255,255,255,0.16)',
-    margin: '26px 0',
-  },
-  brandNote: {
-    color: 'rgba(255,255,255,0.62)',
-    fontSize: 14,
-    lineHeight: 1.75,
-    fontWeight: 300,
-  },
-  /*
-   * Spans the column rather than hugging its label.
-   *
-   * As an `inline-flex` chip it ended 175px short of the column's right edge,
-   * which — with the subtitle also stopping early — left the block's right
-   * side ragged even after the rule above gave it an edge. Full width, it
-   * closes the block at the bottom the way the rule opens it, and the status
-   * dot stays left where the eye already is.
-   *
-   * `space-between` rather than centred: the dot and its label belong
-   * together on the left, and centring them in a wide bar would separate the
-   * pair from everything above it.
-   */
-  pill: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 9,
-    marginTop: 30,
-    padding: '11px 18px',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    borderRadius: 10,
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-  },
-  pulseDot: {
-    width: 7,
-    height: 7,
-    borderRadius: '50%',
-    background: '#4ade80',
-    animation: 'pulse-dot 1.6s ease-in-out infinite',
-  },
-
-  right: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-    /*
-     * Centred within a bounded content column, not within the whole half.
-     *
-     * On a wide monitor the right half is enormous, and centring the form in
-     * all of it pushed it far from the panel. `rightInner` caps the space the
-     * form is centred in, so it sits a short, even distance from the split at
-     * any width while the surface behind it still fills the window.
-     */
-    justifyContent: 'center',
-    padding: '32px 40px',
+    padding: '32px 20px',
     background: c.bg,
   },
-  rightInner: { width: '100%', maxWidth: 440, display: 'flex', justifyContent: 'center' },
-  form: { width: '100%', maxWidth: 340, animation: 'fade-in 0.35s ease' },
-
-  formIcon: {
-    width: 46,
-    height: 46,
-    background: c.primaryLight,
-    border: `1px solid ${c.primaryBorder}`,
-    borderRadius: 12,
+  form: {
+    width: '100%',
+    maxWidth: 380,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    // Entering, so the longest of the three durations (src/tokens.ts).
+    animation: 'fade-in var(--motion-enter) var(--ease)',
+  },
+  mark: {
+    width: 52,
+    height: 52,
+    background: c.primary,
+    borderRadius: 14,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 22,
+    marginBottom: 20,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: 800,
+    color: c.t1,
+    letterSpacing: '-0.02em',
+    textAlign: 'center',
+  },
+  sub: { margin: '8px 0 24px', color: c.t3, fontSize: 15, textAlign: 'center' },
+  card: {
+    width: '100%',
+    background: c.card,
+    border: `1px solid ${c.divider}`,
+    borderRadius: 14,
+    padding: 20,
+  },
+
   /* The way in for anyone who came to look rather than to work. */
   demo: {
     width: '100%',
+    minHeight: 48,
     padding: '11px 16px',
     background: c.primary,
     border: 'none',
     borderRadius: 10,
     color: c.onPrimary,
     font: 'inherit',
-    fontSize: 14.5,
-    fontWeight: 600,
+    fontSize: 15,
+    fontWeight: 700,
     cursor: 'pointer',
-    marginBottom: 18,
+    marginBottom: 16,
   },
-  submitQuiet: {
-    background: 'transparent',
-    border: `1px solid ${c.border}`,
-    color: c.t2,
-  },
-  or: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 },
+  or: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
   orLine: { flex: 1, height: 1, background: c.border },
-  orText: { fontSize: 12, color: c.t5 },
+  orText: { fontSize: 13, color: c.t4, fontWeight: 600 },
 
-  formTitle: { fontSize: 28, fontWeight: 700, color: c.t1, letterSpacing: '-0.02em' },
-  formSub: { margin: '6px 0 30px', color: c.t4, fontSize: 15, fontWeight: 300 },
-
-  label: { display: 'block', fontSize: 13, fontWeight: 500, color: c.t2, marginBottom: 8 },
-  optional: { color: c.t5, fontWeight: 400, fontSize: 12 },
+  label: { display: 'block', fontSize: 14, fontWeight: 700, color: c.t2, marginBottom: 6 },
+  optional: { color: c.t4, fontWeight: 500, fontSize: 13 },
   inputWrap: { position: 'relative' },
   lockIcon: {
     position: 'absolute',
@@ -510,8 +322,9 @@ const s: Record<string, CSSProperties> = {
   },
   input: {
     width: '100%',
-    padding: '13px 42px 13px 38px',
-    border: `1.5px solid ${c.border}`,
+    minHeight: 44,
+    padding: '10px 44px 10px 38px',
+    border: `1px solid ${c.border}`,
     borderRadius: 10,
     // Set here, not only on the password field: the name field had no
     // background of its own and stayed browser-white in the dark theme, where
@@ -519,41 +332,48 @@ const s: Record<string, CSSProperties> = {
     background: c.input,
     color: c.t1,
     font: 'inherit',
-    fontSize: 14.5,
-    outline: 'none',
-    transition: 'border-color 0.15s',
+    // 16px: below that, iOS zooms the page when a field takes focus.
+    fontSize: 16,
+    transition: 'border-color var(--motion-fast) var(--ease)',
   },
   reveal: {
     position: 'absolute',
-    right: 10,
-    top: '50%',
-    transform: 'translateY(-50%)',
+    right: 0,
+    top: 0,
+    width: 44,
+    height: 44,
     background: 'none',
     border: 'none',
     color: c.t5,
     cursor: 'pointer',
     display: 'flex',
-    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   error: { color: c.danger, fontSize: 13, marginTop: 10 },
 
   submit: {
     width: '100%',
-    marginTop: 22,
-    padding: '13px 16px',
+    minHeight: 44,
+    marginTop: 18,
+    padding: '11px 16px',
     background: c.primary,
     border: 'none',
     borderRadius: 10,
     color: c.onPrimary,
     font: 'inherit',
     fontSize: 15,
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 9,
-    boxShadow: '0 2px 8px rgba(79,107,237,0.28)',
+  },
+  submitQuiet: {
+    background: 'transparent',
+    border: `1px solid ${c.border}`,
+    color: c.t2,
   },
   spinner: {
     width: 15,
@@ -566,5 +386,5 @@ const s: Record<string, CSSProperties> = {
     display: 'inline-block',
   },
 
-  restricted: { marginTop: 22, fontSize: 13, color: c.t5, textAlign: 'center' },
+  restricted: { marginTop: 22, fontSize: 13, color: c.t4, textAlign: 'center' },
 }

@@ -7,10 +7,14 @@ import {
   isPending,
   type Role,
   type Run,
-  type RunStatus,
   type Suite,
 } from '../api'
 import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
+import { RunActions } from './RunActions'
+import { StatusIcon } from './StatusIcon'
+import { useCompact } from '../use-compact'
+import { CLOSED, askDelete, cancelDelete, toggleRow, type RowState } from '../run-rows'
+import { STATUS_LOOK, pendingNote } from '../run-status'
 import { c, mono, status as sc } from '../theme'
 
 /**
@@ -57,6 +61,14 @@ export const relative = (iso: string) => {
 export const duration = (ms: number | null) => (ms === null ? null : `${(ms / 1000).toFixed(1)}s`)
 
 /**
+ * "Started" and "Took" as one line, for the narrow layout where they are no
+ * longer columns. A run still in flight has no duration to give, so it gives
+ * only when it started rather than a trailing separator.
+ */
+export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
+  [relative(run.startedAt), duration(run.durationMs)].filter(Boolean).join(' · ')
+
+/**
  * What the visibility scoping actually means for the signed-in role, in
  * words. Table-driven rather than a `role === 'dev' ? … : …` — that ternary
  * was silently wrong for `demo`, whose scope is neither "main only" nor
@@ -69,15 +81,6 @@ const SCOPE_LABEL: Record<Role, string> = {
   dev: 'main branch only — your role’s scope',
   qa: 'every branch',
   admin: 'every branch',
-}
-
-const STATUS: Record<RunStatus, { fg: string; bg: string; label: string }> = {
-  passed: { fg: sc.pass, bg: sc.passBg, label: 'passed' },
-  failed: { fg: sc.fail, bg: sc.failBg, label: 'failed' },
-  error: { fg: sc.fail, bg: sc.failBg, label: 'error' },
-  timeout: { fg: sc.fail, bg: sc.failBg, label: 'timeout' },
-  queued: { fg: sc.pending, bg: sc.pendingBg, label: 'queued' },
-  running: { fg: sc.pending, bg: sc.pendingBg, label: 'running' },
 }
 
 /**
@@ -154,7 +157,21 @@ function SuiteChip({ suite, version, sha }: { suite: Suite; version: string; sha
 }
 
 function ResultBar({ run }: { run: Run }) {
-  if (isPending(run.status) || run.total === null) {
+  if (isPending(run.status)) {
+    // No counts exist yet, so no counts are drawn: the API reports nothing
+    // about progress until the callback, and a filling bar would be invented.
+    // The moving bar says "in flight"; the words say for how long.
+    return (
+      <div style={{ minWidth: 130 }}>
+        <div style={{ ...s.resultNumbers, color: c.t4, fontSize: 12.5 }}>{pendingNote(run)}</div>
+        <div style={s.bar} role="progressbar" aria-label={`${run.status}, no progress figure yet`}>
+          {run.status === 'running' && <div style={s.indeterminate} />}
+        </div>
+      </div>
+    )
+  }
+
+  if (run.total === null) {
     return <span style={{ color: c.t5, fontSize: 13 }}>—</span>
   }
 
@@ -206,7 +223,9 @@ export function RunHistory({
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
-  const [open, setOpen] = useState<string | null>(null)
+  const [rows, setRows] = useState<RowState>(CLOSED)
+  const compact = useCompact()
+  const { open, confirmingDelete } = rows
 
   /**
    * The button is shown whenever the *previewed* role may delete, so a demo
@@ -256,39 +275,53 @@ export function RunHistory({
         </div>
       ) : (
         <div style={s.tableWrap}>
-          <table style={s.table}>
-            <thead>
-              <tr>
-                <th style={{ ...s.th, ...s.thStatus }}>Status</th>
-                <th style={s.th}>Run</th>
-                <th style={s.th}>Result</th>
-                <th style={{ ...s.th, ...s.thRight }}>Started</th>
-                <th style={{ ...s.th, ...s.thRight }}>Took</th>
-                <th style={s.th} aria-label="Details" />
-              </tr>
-            </thead>
-            <tbody>
+          <table style={compact ? s.tableCompact : s.table}>
+            {!compact && (
+              <thead>
+                <tr>
+                  <th style={{ ...s.th, ...s.thStatus }} aria-label="Status" />
+                  <th style={s.th}>Run</th>
+                  <th style={s.th}>Result</th>
+                  <th style={{ ...s.th, ...s.thRight }}>Started</th>
+                  <th style={{ ...s.th, ...s.thRight }}>Took</th>
+                  <th style={s.th} aria-label="Details" />
+                </tr>
+              </thead>
+            )}
+            <tbody style={compact ? s.block : undefined}>
               {shown.map((run) => {
-                const st = STATUS[run.status]
+                const look = STATUS_LOOK[run.status]
                 const expanded = open === run.id
 
                 return (
                   <Fragment key={run.id}>
                     <tr
-                      onClick={() => setOpen(expanded ? null : run.id)}
-                      style={{ ...s.tr, ...(expanded ? s.trOpen : null) }}
+                      onClick={() => setRows((r) => toggleRow(r, run.id))}
+                      style={{
+                        ...s.tr,
+                        ...(expanded ? s.trOpen : null),
+                        ...(compact ? s.trCompact : null),
+                      }}
                     >
-                      <td style={{ ...s.td, ...s.tdStatus }}>
-                        <span style={{ ...s.badge, color: st.fg, background: st.bg }}>
-                          {isPending(run.status) && (
-                            <span style={{ ...s.dot, background: st.fg }} />
-                          )}
-                          {st.label}
-                        </span>
+                      {/*
+                        The edge is the status colour drawn down the row's left
+                        side, so a column of rows reads as a column of results
+                        before any of it is read. An inset shadow rather than a
+                        border: a border would shift the cell by its width.
+                      */}
+                      <td
+                        style={{
+                          ...s.td,
+                          ...s.tdStatus,
+                          ...(compact ? cellSpan(1) : null),
+                          boxShadow: `inset 4px 0 0 ${look.color}`,
+                        }}
+                      >
+                        <StatusIcon status={run.status} />
                       </td>
 
-                      <td style={s.td}>
-                        <div style={s.runCell}>
+                      <td style={{ ...s.td, ...(compact ? cellTop(2) : null) }}>
+                        <div style={{ ...s.runCell, ...(compact ? s.runCellCompact : null) }}>
                           {/*
                             In the existing cell rather than a column of its
                             own: the table already carries six, and a seventh
@@ -310,17 +343,24 @@ export function RunHistory({
                         </div>
                       </td>
 
-                      <td style={s.td}>
+                      <td style={{ ...s.td, ...(compact ? cellBottom(2) : null) }}>
                         <ResultBar run={run} />
+                        {compact && <div style={s.meta}>{rowMeta(run)}</div>}
                       </td>
 
-                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>{relative(run.startedAt)}</td>
+                      {!compact && (
+                        <>
+                          <td style={{ ...s.td, ...s.tdRight, ...mono }}>
+                            {relative(run.startedAt)}
+                          </td>
 
-                      <td style={{ ...s.td, ...s.tdRight, ...mono }}>
-                        {duration(run.durationMs) ?? '—'}
-                      </td>
+                          <td style={{ ...s.td, ...s.tdRight, ...mono }}>
+                            {duration(run.durationMs) ?? '—'}
+                          </td>
+                        </>
+                      )}
 
-                      <td style={{ ...s.td, ...s.tdRight }}>
+                      <td style={{ ...s.td, ...s.tdRight, ...(compact ? cellSpan(3) : null) }}>
                         {/*
                           A button, because the row is not one. The row takes
                           a click, but a <tr> cannot take focus, so with only
@@ -336,7 +376,7 @@ export function RunHistory({
                           onClick={(e) => {
                             // The row would toggle it straight back.
                             e.stopPropagation()
-                            setOpen(expanded ? null : run.id)
+                            setRows((r) => toggleRow(r, run.id))
                           }}
                           style={s.caretButton}
                         >
@@ -354,8 +394,8 @@ export function RunHistory({
                     </tr>
 
                     {expanded && (
-                      <tr style={s.detailRow}>
-                        <td colSpan={6} style={s.detailCell}>
+                      <tr style={{ ...s.detailRow, ...(compact ? s.block : null) }}>
+                        <td colSpan={6} style={{ ...s.detailCell, ...(compact ? s.block : null) }}>
                           <div style={s.detailGrid}>
                             <Detail label="Run id">
                               <span style={{ ...mono, color: c.t2 }}>{run.id}</span>
@@ -395,30 +435,17 @@ export function RunHistory({
                             )}
                           </div>
 
-                          <div style={s.detailActions}>
-                            {run.reportUrl && (
-                              <a
-                                href={run.reportUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={s.report}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {run.simulated ? 'Sample report ↗' : 'Report ↗'}
-                              </a>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  void remove(run.id)
-                                }}
-                                style={s.delete}
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </div>
+                          <RunActions
+                            run={run}
+                            canDelete={canDelete}
+                            confirming={confirmingDelete === run.id}
+                            onAskDelete={() => setRows((r) => askDelete(r, run.id))}
+                            onCancel={() => setRows(cancelDelete)}
+                            onConfirm={() => {
+                              setRows(cancelDelete)
+                              void remove(run.id)
+                            }}
+                          />
                         </td>
                       </tr>
                     )}
@@ -463,6 +490,30 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
     </div>
   )
 }
+
+// Both lines of a row are pinned to a column and a grid line, because the cells
+// are not in source order: Started and Took are gone in the narrow layout.
+const cellSpan = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: '1 / 3',
+  // Stretched, so the status edge runs the full height of the two-line row,
+  // and centred by hand: a grid item is not a table cell, so vertical-align
+  // no longer centres what is in it.
+  alignSelf: 'stretch',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+})
+const cellTop = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: 1,
+  paddingBottom: 2,
+})
+const cellBottom = (column: number): CSSProperties => ({
+  gridColumn: column,
+  gridRow: 2,
+  paddingTop: 0,
+})
 
 const s: Record<string, CSSProperties> = {
   head: {
@@ -520,6 +571,17 @@ const s: Record<string, CSSProperties> = {
     // is harder to scan than one you push sideways.
     minWidth: 620,
   },
+  // The narrow layout. A row is a grid: the status takes the first column over
+  // both lines, the caret the last, and what ran sits above its result.
+  tableCompact: { width: '100%', display: 'block' },
+  block: { display: 'block' },
+  trCompact: {
+    display: 'grid',
+    gridTemplateColumns: '52px minmax(0, 1fr) 44px',
+    alignItems: 'center',
+  },
+  runCellCompact: { flexWrap: 'wrap', rowGap: 4 },
+  meta: { ...mono, fontSize: 12, color: c.t5, marginTop: 5 },
   th: {
     textAlign: 'left',
     fontSize: 11,
@@ -531,7 +593,7 @@ const s: Record<string, CSSProperties> = {
     borderBottom: `1px solid ${c.border}`,
     whiteSpace: 'nowrap',
   },
-  thStatus: { width: 108 },
+  thStatus: { width: 56, paddingLeft: 18, paddingRight: 4 },
   thRight: { textAlign: 'right' },
   tr: {
     cursor: 'pointer',
@@ -544,7 +606,7 @@ const s: Record<string, CSSProperties> = {
     color: c.t2,
     verticalAlign: 'middle',
   },
-  tdStatus: { width: 108 },
+  tdStatus: { width: 56, paddingLeft: 18, paddingRight: 4 },
   tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
@@ -605,12 +667,6 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 4,
   },
   detailValue: { fontSize: 13, color: c.t2 },
-  detailActions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-  },
 
   more: {
     display: 'flex',
@@ -655,23 +711,6 @@ const s: Record<string, CSSProperties> = {
     whiteSpace: 'nowrap',
   },
 
-  badge: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '4px 11px',
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 600,
-    flexShrink: 0,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    animation: 'pulse-dot 1.4s ease-in-out infinite',
-  },
-
   resultNumbers: {
     ...mono,
     display: 'flex',
@@ -692,26 +731,15 @@ const s: Record<string, CSSProperties> = {
     // label on it.
     gap: 2,
   },
+  // A segment that travels the length of the bar. Colour is the pending amber;
+  // reduced motion cuts the animation to one frame (index.html) and leaves it
+  // as a short bar at the start, still distinct from an empty one.
+  indeterminate: {
+    height: '100%',
+    width: '38%',
+    borderRadius: 3,
+    background: sc.pending,
+    animation: 'indeterminate 1.4s ease-in-out infinite',
+  },
   barPart: { height: '100%', flexShrink: 0, transition: 'width 0.5s ease' },
-
-  report: {
-    color: c.primary,
-    textDecoration: 'none',
-    fontSize: 13,
-    fontWeight: 500,
-    padding: '5px 11px',
-    background: c.primaryLight,
-    border: `1px solid ${c.primaryBorder}`,
-    borderRadius: 7,
-  },
-  delete: {
-    padding: '5px 11px',
-    background: 'transparent',
-    border: `1px solid ${c.border}`,
-    borderRadius: 7,
-    color: c.t4,
-    font: 'inherit',
-    fontSize: 12.5,
-    cursor: 'pointer',
-  },
 }

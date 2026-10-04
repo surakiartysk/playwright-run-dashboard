@@ -55,51 +55,87 @@ export function summarise(runs: Run[], available: number = runs.length): RunSumm
 }
 
 /**
+ * What the footnote under the figures says when they do not cover every run.
+ *
+ * The list pages and the figures are computed from what is loaded, so after
+ * "Showing 25 of 140" a reader would otherwise take "Failing 3" for a fact
+ * about 140. Said only when it is not true of all of them: a footnote on every
+ * dashboard would be one nobody read on the day it mattered.
+ */
+export function coverage(summary: Pick<RunSummary, 'available' | 'total'>): string | null {
+  return summary.available > summary.total
+    ? `Figures cover the newest ${summary.total} of ${summary.available} runs.`
+    : null
+}
+
+/**
+ * The ring's fill, as a CSS background.
+ *
+ * Share passed in green, the rest in red, starting at twelve o'clock. With
+ * nothing finished there is no share to draw, so it is an empty track rather
+ * than a ring at 0%, which would read as "everything failed". The percentage is
+ * in the middle as text, so the ring is never the only way to read it.
+ */
+export function ringBackground(rate: number | null): string {
+  if (rate === null) return c.divider
+  const share = Math.min(100, Math.max(0, rate))
+  return `conic-gradient(${sc.pass} 0 ${share}%, ${sc.fail} ${share}% 100%)`
+}
+
+/**
  * `total` is every run the caller may see. "Runs" shows it, because the list
- * beneath says "Showing 25 of 140" and a tile reading 25 above it contradicts
- * that; the other figures are computed from the loaded runs, and the note says
+ * beside it says "Showing 25 of 140" and a tile reading 25 contradicts that;
+ * the other figures are computed from the loaded runs, and the footnote says
  * so whenever that is fewer.
  */
 export function RunStats({ runs, total: available }: { runs: Run[]; total: number }) {
-  // Nothing to summarise, and an empty bar of zeroes reads as a broken widget.
+  // Nothing to summarise, and a panel of zeroes reads as a broken widget.
   if (runs.length === 0) return null
 
-  const {
-    available: all,
-    total,
-    finished,
-    inFlight,
-    failing,
-    rate,
-    median,
-  } = summarise(runs, available)
-  const partial = all > total ? `figures cover the newest ${total}` : null
+  const summary = summarise(runs, available)
+  const { available: all, finished, inFlight, failing, rate, median } = summary
+  const footnote = coverage(summary)
 
   return (
-    <div style={s.wrap}>
-      <Stat
-        label="Runs"
-        value={String(all)}
-        note={inFlight > 0 ? `${inFlight} in flight` : partial}
-      />
-      <Stat
-        label="Pass rate"
-        value={rate === null ? '—' : `${rate}%`}
-        tone={rate === null ? undefined : rate === 100 ? sc.pass : rate >= 80 ? undefined : sc.fail}
-        note={finished > 0 ? `of ${finished} finished` : 'none finished yet'}
-      />
-      <Stat
-        label="Failing"
-        value={String(failing)}
-        tone={failing > 0 ? sc.fail : undefined}
-        note={failing === 0 && finished > 0 ? 'all green' : null}
-      />
-      <Stat
-        label="Median run"
-        value={median === null ? '—' : `${(median / 1000).toFixed(1)}s`}
-        note={median === null ? 'no timings yet' : null}
-      />
-    </div>
+    <section style={s.wrap} aria-label="Summary">
+      <div style={s.ringRow}>
+        <div
+          style={{ ...s.ring, background: ringBackground(rate) }}
+          role="img"
+          aria-label={
+            rate === null ? 'No finished runs yet' : `${rate} percent of finished runs passed`
+          }
+        >
+          <div style={s.ringInner}>{rate === null ? '—' : `${rate}%`}</div>
+        </div>
+        <div>
+          <div style={s.ringTitle}>Pass rate</div>
+          <div style={s.note}>
+            {finished > 0
+              ? `of ${finished} finished run${finished > 1 ? 's' : ''}. Counts runs, not tests.`
+              : 'none finished yet'}
+          </div>
+        </div>
+      </div>
+
+      <div style={s.tiles}>
+        <Stat label="Runs" value={String(all)} />
+        <Stat
+          label="Failing"
+          value={String(failing)}
+          tone={failing > 0 ? sc.fail : undefined}
+          note={failing === 0 && finished > 0 ? 'all green' : null}
+        />
+        <Stat
+          label="Median run"
+          value={median === null ? '—' : `${(median / 1000).toFixed(1)}s`}
+          note={median === null ? 'no timings yet' : null}
+        />
+        <Stat label="In flight" value={String(inFlight)} tone={inFlight > 0 ? c.warn : undefined} />
+      </div>
+
+      {footnote && <p style={s.footnote}>{footnote}</p>}
+    </section>
   )
 }
 
@@ -134,27 +170,42 @@ function Stat({
 }
 
 const s: Record<string, CSSProperties> = {
-  /*
-   * The summary reads as the page's masthead, not as another widget.
-   *
-   * It used to be a bordered, rounded card — the same treatment as the trigger
-   * form, the gate and every run below it. When each block is boxed identically
-   * nothing is louder than anything else, and the figures that answer "is
-   * everything all right?" had to compete with a form. Border, radius and fill
-   * each say "separate object"; spending them on all five blocks spends them on
-   * none. Here they are dropped entirely and a single rule separates the
-   * summary from the detail.
-   */
   wrap: {
-    display: 'grid',
-    // Wraps to two columns on a narrow screen rather than scrolling sideways.
-    gridTemplateColumns: 'repeat(auto-fit, minmax(8rem, 1fr))',
-    gap: '4px 32px',
-    padding: '0 2px 20px',
-    borderBottom: `1px solid ${c.border}`,
-    marginBottom: 22,
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 18,
   },
-  stat: {},
+  ringRow: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 },
+  ring: {
+    width: 96,
+    height: 96,
+    borderRadius: '50%',
+    display: 'grid',
+    placeItems: 'center',
+    flex: 'none',
+  },
+  ringInner: {
+    ...mono,
+    width: 72,
+    height: 72,
+    borderRadius: '50%',
+    background: c.card,
+    display: 'grid',
+    placeItems: 'center',
+    fontSize: 20,
+    fontWeight: 700,
+    color: c.t1,
+  },
+  ringTitle: { fontSize: 15, fontWeight: 600, color: c.t1, marginBottom: 4 },
+  tiles: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  stat: {
+    padding: '10px 12px',
+    borderRadius: 10,
+    background: c.bg,
+    border: `1px solid ${c.divider}`,
+  },
   label: {
     fontSize: 10.5,
     color: c.t5,
@@ -164,12 +215,13 @@ const s: Record<string, CSSProperties> = {
   },
   value: {
     ...mono,
-    fontSize: 27,
+    fontSize: 22,
     fontWeight: 600,
     color: c.t1,
     letterSpacing: '-0.03em',
-    margin: '4px 0 0',
-    lineHeight: 1.05,
+    margin: '3px 0 0',
+    lineHeight: 1.1,
   },
-  note: { fontSize: 11.5, color: c.t5, marginTop: 4 },
+  note: { fontSize: 12, color: c.t5, marginTop: 3, lineHeight: 1.45 },
+  footnote: { fontSize: 12, color: c.t5, margin: '12px 0 0', lineHeight: 1.45 },
 }

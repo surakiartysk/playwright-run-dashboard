@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                    |
 | ------------------- | ------------------------------------------------------- |
-| `pnpm test`         | Both packages — 390 Worker tests, then 124 UI tests     |
+| `pnpm test`         | Both packages — 390 Worker tests, then 271 UI tests     |
 | `pnpm verify`       | Everything CI runs: format, lint, types, tests, claims  |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale |
 
@@ -228,7 +228,7 @@ Four things, each of which has gone stale before:
   [`docs/decisions.md`](docs/decisions.md) — same number, same title, and an
   anchor GitHub resolves.
 - **The dropdown against the contract test.** `SUITE_SERVICES` and `SUITE_TAGS`
-  in [`RunTrigger.tsx`](packages/ui/src/components/RunTrigger.tsx) are what a
+  in [`run-form.ts`](packages/ui/src/run-form.ts) are what a
   user can actually pick; `DASHBOARD_OFFERS` in
   [`integration-contract.test.ts`](packages/api/test/integration-contract.test.ts)
   is the hand-copied list that gets checked against both workflows. A slice

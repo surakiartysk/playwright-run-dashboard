@@ -254,7 +254,6 @@ const s: Record<string, CSSProperties> = {
     color: c.t1,
     font: 'inherit',
     fontSize: 14,
-    outline: 'none',
   },
 
   actions: { display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 },
