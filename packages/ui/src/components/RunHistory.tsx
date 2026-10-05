@@ -19,6 +19,7 @@ import {
   askDelete,
   cancelDelete,
   initialRows,
+  linkNotice,
   runFromHash,
   runHash,
   toggleRow,
@@ -314,6 +315,7 @@ export function RunHistory({
   options,
   filters,
   onFilters,
+  listed = true,
 }: {
   runs: Run[]
   role: Role
@@ -328,6 +330,8 @@ export function RunHistory({
   options: RunOptions | null
   filters: HistoryFilters
   onFilters: (next: HistoryFilters) => void
+  /** Whether the list has answered at least once this session. */
+  listed?: boolean
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -366,6 +370,43 @@ export function RunHistory({
     document.getElementById(`run-${id}`)?.scrollIntoView({ block: 'center' })
   }, [shown])
 
+  /*
+   * A link pasted into this tab changes only the fragment, so the page does not
+   * load again and the hash above is never re-read; the row stayed shut until a
+   * reload. Followed here as the first load would have.
+   */
+  const [linkedId, setLinkedId] = useState(linked.current)
+  useEffect(() => {
+    const follow = () => {
+      const id = runFromHash(window.location.hash)
+      if (!id) return
+      linked.current = id
+      setLinkedId(id)
+      setRows({ open: id, confirmingDelete: null })
+    }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
+
+  // Looked up once the list has answered, and only if it does not hold the run.
+  const missing = listed && linkedId !== null && !runs.some((r) => r.id === linkedId)
+  // `found` decides the way out: Load more cannot reach a run the role cannot see.
+  const [notice, setNotice] = useState<{ text: string; found: boolean } | null>(null)
+  useEffect(() => {
+    if (!missing || !linkedId) return setNotice(null)
+    let live = true
+    api
+      .run(linkedId)
+      .then(
+        (run) =>
+          live && setNotice({ text: linkNotice(run, activeCount(filters) > 0), found: true }),
+      )
+      .catch(() => live && setNotice({ text: linkNotice(null, false), found: false }))
+    return () => {
+      live = false
+    }
+  }, [missing, linkedId, filters])
+
   return (
     <section>
       <header style={s.head}>
@@ -385,6 +426,23 @@ export function RunHistory({
       )}
 
       {error && <div style={s.deleteError}>{error}</div>}
+
+      {missing && notice && (
+        <div role="status" style={s.linkNotice}>
+          {notice.text}{' '}
+          {!notice.found ? null : activeCount(filters) > 0 ? (
+            <button onClick={() => onFilters({})} style={s.clearFilter}>
+              Clear filters
+            </button>
+          ) : (
+            hasMore && (
+              <button onClick={onLoadMore} disabled={loadingMore} style={s.clearFilter}>
+                Load more
+              </button>
+            )
+          )}
+        </div>
+      )}
 
       {runs.length === 0 ? (
         activeCount(filters) > 0 ? (
@@ -707,6 +765,17 @@ const s: Record<string, CSSProperties> = {
     padding: '10px 14px',
     marginBottom: 10,
     color: c.danger,
+    fontSize: 13,
+  },
+
+  // Neutral, not red: a link to a run outside the view is not a failure.
+  linkNotice: {
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderRadius: 10,
+    padding: '10px 14px',
+    marginBottom: 10,
+    color: c.t2,
     fontSize: 13,
   },
 

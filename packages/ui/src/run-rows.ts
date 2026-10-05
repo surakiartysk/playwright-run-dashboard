@@ -60,3 +60,26 @@ export const initialRows = (hash: string): RowState => ({
   open: runFromHash(hash),
   confirmingDelete: null,
 })
+
+/**
+ * What to say about a run link whose run is not among the rows shown.
+ *
+ * It said nothing: the row did not open, the page did not move, and a link
+ * that named the twenty-sixth run, or one the reader's role may not see,
+ * looked the same as a link that worked and a page that did not. The run is
+ * looked up on its own (`GET /runs/:id`, scoped by role like the list), and
+ * the answer decides the sentence.
+ *
+ * @param found - the run, if the lookup returned it; null if it did not
+ * @param filtered - whether any history filter is narrowing the list
+ */
+export function linkNotice(
+  found: { service: string; ref: string } | null,
+  filtered: boolean,
+): string {
+  if (!found) return 'That run link names a run this role cannot see, or one that no longer exists.'
+  const which = `The linked run (${found.service} on ${found.ref})`
+  return filtered
+    ? `${which} is not in the list: the filters hide it.`
+    : `${which} is further down the list than has been loaded.`
+}

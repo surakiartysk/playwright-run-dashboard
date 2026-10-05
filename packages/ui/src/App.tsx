@@ -57,6 +57,9 @@ export function App() {
   const [gateTick, setGateTick] = useState(0)
   // When the reader last came back to the tab; RunTrigger reads the gate again.
   const [returnedAt, setReturnedAt] = useState(0)
+  // Whether this session's list has answered yet; until it has, a run link
+  // cannot be said to be missing from it.
+  const [listed, setListed] = useState(false)
   // Every read of the run list goes through this, so only the newest is applied.
   const [lists] = useState(() => latestOnly(api.listRuns))
 
@@ -74,6 +77,7 @@ export function App() {
    */
   const endSession = useCallback(() => {
     lists.forget()
+    setListed(false)
     setRole(null)
     setViewAs(null)
     setRuns([])
@@ -138,6 +142,7 @@ export function App() {
       const page = await lists.ask(toQuery(filters))
       if (!page) return
       setLoadedMore(false)
+      setListed(true)
       setRuns(page.runs)
       setTotal(page.total)
       setNextCursor(page.nextCursor)
@@ -323,6 +328,7 @@ export function App() {
         options={options}
         filters={filters}
         onFilters={setFilters}
+        listed={listed}
       />
     </>
   )
