@@ -33,11 +33,11 @@ const VERSION = pkg.version
  *
  * The main surfaces, each with a different caller:
  *
- *   POST /auth      signing in — a password maps to a role
- *   POST /runs      a developer asking for a run     (session + policy)
- *   GET  /runs      the dashboard polling for status (scoped by role)
- *   POST /webhook   the workflow reporting a result   (HMAC-signed)
- *   GET  /reports   a browser opening a report        (token-scoped)
+ *   POST /auth/login  signing in — a password maps to a role
+ *   POST /runs        a developer asking for a run     (session + policy)
+ *   GET  /runs        the dashboard polling for status (scoped by role)
+ *   POST /webhook     the workflow reporting a result   (HMAC-signed)
+ *   GET  /reports     a browser opening a report        (token-scoped)
  *
  * They authenticate differently because they are trusted differently — the
  * webhook is the only one that can change a result, so it is the only one that

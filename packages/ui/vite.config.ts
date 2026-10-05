@@ -50,6 +50,8 @@ export default defineConfig({
       '/gate': 'http://127.0.0.1:8787',
       '/keys': 'http://127.0.0.1:8787',
       '/reports': 'http://127.0.0.1:8787',
+      '/webhook': 'http://127.0.0.1:8787',
+      '/health': 'http://127.0.0.1:8787',
     },
   },
 })

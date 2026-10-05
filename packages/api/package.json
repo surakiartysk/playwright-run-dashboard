@@ -8,7 +8,7 @@
     "dev": "wrangler dev --port 8787",
     "db:migrate": "wrangler d1 migrations apply run-dashboard --local",
     "db:reset": "node -e \"require('fs').rmSync('.wrangler',{recursive:true,force:true})\" && pnpm db:migrate",
-    "deploy": "wrangler deploy",
+    "deploy": "node -e \"console.error('Not this way: a bare wrangler deploy silently reverts to simulating. Use the command in README.md, Deploying it for real, with every --var.'); process.exit(1)\"",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },

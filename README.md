@@ -48,8 +48,11 @@ The other three roles sign in with their own name as the password: `dev`,
 change the run gate or issue an API key — a `demo` session previewing admin
 _sees_ both, read-only, but never what admin may _do_.
 
-Press Run. The dashboard simulates a dispatch, walks the run through
-queued → running → result, and the report link opens a real Allure report.
+Press Run. The dashboard simulates a dispatch and walks the run through
+queued → running → result. Locally the report link answers 404: the report is
+an object in R2, and a fresh clone's local bucket is empty. On the deployed
+site every simulated run opens one real, shared Allure report
+([decision 14](docs/decisions.md#14-one-real-allure-report-shared-by-every-simulated-run)).
 Sign in as `demo` and use the **Viewing as** bar to watch what each role is
 allowed to see — without gaining what it is allowed to do.
 
@@ -115,10 +118,21 @@ This is a demo, and it says so in code rather than in a comment:
 
 ## Deploying it for real
 
-Set every secret first. The Worker **refuses to serve** without them — a 503 on
-every route, and `/health` says which are missing — because the development
-defaults are published in this repo, and a deployment that silently used them
-would sign report links with a value anyone can read.
+Set every secret first. Once `SIMULATE_DISPATCH` is `false`, the Worker
+**refuses to serve** without them — a 503 on every route, and `/health` says
+which are missing — because the development defaults are published in this
+repo, and a deployment that silently used them would sign report links with a
+value anyone can read.
+
+While it simulates, it does not check: simulation is how a clone runs on its
+defaults. So a deployment that simulates and has no secrets serves the
+published passwords, and anyone can sign in to it as `admin` with `admin` —
+delete runs, issue keys, close the gate — and forge its report links. Nothing
+it starts is real, but set the secrets on anything public whatever the flag
+says.
+
+Every `wrangler` command below runs from `packages/api`, where `wrangler.toml`
+is (`pnpm exec wrangler …` if it is not on your PATH).
 
 ```bash
 wrangler secret put WEBHOOK_SECRET   # signs the result callback
@@ -196,7 +210,7 @@ wrangler deploy --var GITHUB_REPO:<owner/api-repo> \
                 --var GITHUB_UI_WORKFLOW:on-demand.yml \
                 --var SIMULATE_DISPATCH:false        # 2. the Worker
 pnpm --filter @run-dashboard/ui build                 # 3. the UI
-wrangler pages deploy dist --project-name <project>
+wrangler pages deploy ../ui/dist --project-name <project>
 ```
 
 `GITHUB_UI_REPO` and `GITHUB_UI_WORKFLOW` are the only optional pair. A
