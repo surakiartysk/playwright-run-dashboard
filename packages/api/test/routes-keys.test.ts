@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { migrate, request, settle } from './helpers'
 import { createToken } from '../src/auth'
+import { mintKey } from '../src/apiKeys'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import type { Role } from '../src/types'
 
@@ -23,6 +24,39 @@ async function issue(body: Record<string, unknown>): Promise<{ plaintext: string
 
   const json = (await response.json()) as { plaintext: string; key: { id: string } }
   return { plaintext: json.plaintext, id: json.key.id }
+}
+
+/**
+ * A key stored as if issued before its role was narrowed — wider than the role
+ * now allows, which `POST /keys` no longer accepts. Such keys can still exist,
+ * and `effectivePolicy` is what holds them to the role.
+ */
+async function issuedBeforeTheRoleNarrowed(input: {
+  role: Role
+  allowedRefs?: string[]
+  maxWorkers?: number
+}): Promise<{ plaintext: string }> {
+  const { row, plaintext } = await mintKey(DEV_TOKEN_SECRET, {
+    label: 'older pipeline',
+    createdBy: 'admin',
+    ...input,
+  })
+  await env.DB.prepare(
+    `INSERT INTO api_keys (id, hash, label, role, allowed_refs, max_workers, created_by, created_at)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+  )
+    .bind(
+      row.id,
+      row.hash,
+      row.label,
+      row.role,
+      row.allowed_refs,
+      row.max_workers,
+      row.created_by,
+      row.created_at,
+    )
+    .run()
+  return { plaintext }
 }
 
 const withKey = (plaintext: string) => ({
@@ -178,10 +212,57 @@ describe('authenticating with a key', () => {
   })
 })
 
+describe('what a key may be issued with', () => {
+  /*
+   * Found by the real-user review: a dev key issued for `main, develop` was
+   * listed as able to run both, and every run on develop with it was refused.
+   */
+  it('refuses a branch its role may not run, and names the ones it may', async () => {
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: await auth('admin'),
+      body: JSON.stringify({ label: 'ci', role: 'dev', allowedRefs: ['main', 'develop'] }),
+    })
+
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { error: string }).error).toBe(
+      'dev may not run develop; a dev key may run: main',
+    )
+  })
+
+  it('refuses more workers than its role may use', async () => {
+    const response = await request('/keys', {
+      method: 'POST',
+      headers: await auth('admin'),
+      body: JSON.stringify({ label: 'ci', role: 'dev', maxWorkers: 5 }),
+    })
+
+    expect(response.status).toBe(422)
+  })
+
+  it("takes a narrower list, a branch the role's pattern covers, and any branch for admin", async () => {
+    for (const body of [
+      { role: 'qa', allowedRefs: ['develop'], maxWorkers: 8 },
+      { role: 'qa', allowedRefs: ['release/2.1.0'] },
+      { role: 'admin', allowedRefs: ['feature/x'] },
+    ]) {
+      const response = await request('/keys', {
+        method: 'POST',
+        headers: await auth('admin'),
+        body: JSON.stringify({ label: 'ci', ...body }),
+      })
+      expect(response.status, JSON.stringify(body)).toBe(201)
+    }
+  })
+})
+
 describe('what a key may do', () => {
   it('cannot reach a ref its role may not use', async () => {
     // dev is pinned to main; the key asks for develop too.
-    const { plaintext } = await issue({ role: 'dev', allowedRefs: ['main', 'develop'] })
+    const { plaintext } = await issuedBeforeTheRoleNarrowed({
+      role: 'dev',
+      allowedRefs: ['main', 'develop'],
+    })
 
     const response = await request('/runs', {
       method: 'POST',
@@ -230,7 +311,7 @@ describe('what a key may do', () => {
   })
 
   it('cannot raise the worker ceiling above its role', async () => {
-    const { plaintext } = await issue({ role: 'dev', maxWorkers: 64 })
+    const { plaintext } = await issuedBeforeTheRoleNarrowed({ role: 'dev', maxWorkers: 64 })
 
     const response = await request('/runs', {
       method: 'POST',

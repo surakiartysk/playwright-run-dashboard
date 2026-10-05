@@ -4,6 +4,7 @@ import { actorFor, refuseKeys, requireRole, requireSession } from '../auth'
 import { DEV_TOKEN_SECRET } from '../config'
 import { mintKey, type ApiKeyRow } from '../apiKeys'
 import { ROLES } from '../auth'
+import { matchesRef, policyFor } from '../policy'
 
 export const keyRoutes = new Hono<HonoEnv>()
 
@@ -111,9 +112,34 @@ keyRoutes.post('/', async (c) => {
     return c.json({ error: 'maxWorkers must be a positive integer' }, 422)
   }
 
+  /*
+   * A key may narrow its role and never widen it; `effectivePolicy` makes sure
+   * of that when the key is used. But the key was stored as asked, so the list
+   * showed a dev key as able to run `develop`, which every run with it was
+   * then refused — the admin was told one thing and the key did another.
+   * Asking for more than the role has is refused here, where it can be fixed.
+   */
+  const role = body.role as Role
+  const rolePolicy = policyFor(role)
+  const wider = (body.allowedRefs ?? []).filter((ref) => !matchesRef(rolePolicy.allowedRefs, ref))
+  if (wider.length > 0) {
+    return c.json(
+      {
+        error: `${role} may not run ${wider.join(', ')}; a ${role} key may run: ${rolePolicy.allowedRefs.join(', ')}`,
+      },
+      422,
+    )
+  }
+  if (body.maxWorkers !== undefined && body.maxWorkers > rolePolicy.maxWorkers) {
+    return c.json(
+      { error: `${role} may use up to ${rolePolicy.maxWorkers} workers, so a ${role} key may too` },
+      422,
+    )
+  }
+
   const { row, plaintext } = await mintKey(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, {
     label,
-    role: body.role as Role,
+    role,
     allowedRefs: body.allowedRefs,
     maxWorkers: body.maxWorkers,
     // The person, not only the role. 0005 calls this "the admin who issued

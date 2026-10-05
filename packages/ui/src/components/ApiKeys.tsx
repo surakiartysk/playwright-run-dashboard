@@ -15,9 +15,15 @@ import { c, mono } from '../theme'
  * enforcement: `requireRole('admin')` on the routes is the control.
  */
 
-/** A key's authority, in words, from the fields the server returns. */
-function scopeOf(key: ApiKey): string {
-  const refs = key.allowedRefs?.length ? key.allowedRefs.join(', ') : 'any branch'
+/**
+ * A key's authority, in words, from the fields the server returns.
+ *
+ * A key with no branch list of its own has its role's, which is "any branch"
+ * only for admin. It said "any branch" for every such key, so a dev key read
+ * as able to run anything.
+ */
+export function scopeOf(key: Pick<ApiKey, 'allowedRefs' | 'maxWorkers'>): string {
+  const refs = key.allowedRefs?.length ? key.allowedRefs.join(', ') : "the role's branches"
   const workers = key.maxWorkers === null ? "the role's limit" : `${key.maxWorkers} workers`
   return `${refs} · up to ${workers}`
 }
