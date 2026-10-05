@@ -160,6 +160,23 @@ describe('authenticating with a key', () => {
     // five-second timeout.
   }, 15_000)
 
+  /*
+   * What a pasted command sends when `$RUN_KEY` was never set. It fell through
+   * to session checking and was told "Session is invalid or expired" — found
+   * by the real-user review, pasting the dashboard's own snippet.
+   */
+  it.each(['Bearer ', 'Bearer', ''])(
+    'says an empty Authorization header carries no key: %j',
+    async (header) => {
+      const response = await request('/runs', { headers: { Authorization: header } })
+      const body = (await response.json()) as { error: string }
+
+      expect(response.status).toBe(401)
+      expect(body.error).toContain('carries no key')
+      expect(body.error).toContain('RUN_KEY')
+    },
+  )
+
   it('refuses a key whose secret is wrong', async () => {
     const { plaintext } = await issue({})
     const tampered = `${plaintext.slice(0, -1)}${plaintext.endsWith('a') ? 'b' : 'a'}`

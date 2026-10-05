@@ -358,7 +358,25 @@ async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<
 
 /** Rejects anything without a valid session, and records the role. */
 export async function requireSession(c: Context<HonoEnv>, next: Next) {
-  const bearer = c.req.header('Authorization')?.replace(/^Bearer /, '')
+  const authorization = c.req.header('Authorization')
+
+  /*
+   * A header naming nothing is what a pasted command sends when the variable it
+   * reads (`$RUN_KEY`) was never set. It used to fall through to session
+   * verification and come back "Session is invalid or expired" — a login
+   * problem for someone who never logged in, from a terminal.
+   */
+  if (authorization !== undefined && /^(Bearer)?\s*$/i.test(authorization)) {
+    return c.json(
+      {
+        error:
+          'The Authorization header carries no key. If the command reads $RUN_KEY, set it first.',
+      },
+      401,
+    )
+  }
+
+  const bearer = authorization?.replace(/^Bearer /, '')
 
   /*
    * A key is checked before a session token, and only when it is shaped like

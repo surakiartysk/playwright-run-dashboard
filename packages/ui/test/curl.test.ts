@@ -1,3 +1,4 @@
+import type { Role } from '../src/api'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -144,7 +145,7 @@ describe('limitsLine', () => {
 })
 
 describe('ApiSnippet', () => {
-  const html = (role: 'demo' | 'qa', f = form) =>
+  const html = (role: Role, f = form) =>
     renderToStaticMarkup(createElement(ApiSnippet, { form: f, role, origin: ORIGIN }))
 
   it('is shut until asked for, under a plain heading', () => {
@@ -164,7 +165,24 @@ describe('ApiSnippet', () => {
   it('does not offer the other roles one: they use a key an admin issued', () => {
     const out = html('qa')
     expect(out).not.toContain('Get a sandbox key')
-    expect(out).toContain('admin panel')
+    expect(out).toContain('Ask an admin')
+  })
+
+  /*
+   * Only admin can open the panel the note used to send everyone to, and the
+   * variable the commands read was never shown being set — so a pasted
+   * command sent an empty key. Found by the real-user review.
+   */
+  it('tells admin where keys are issued, and the others to ask for one', () => {
+    expect(html('admin')).toContain('admin panel')
+    expect(html('dev')).not.toContain('admin panel')
+    expect(html('dev')).toContain('Ask an admin')
+  })
+
+  it('shows setting the variable the commands read, for every role that needs one', () => {
+    for (const role of ['dev', 'qa', 'admin'] as const) {
+      expect(html(role)).toContain('export RUN_KEY=')
+    }
   })
 
   it('shows the request the form would send, and the way to see the options', () => {
