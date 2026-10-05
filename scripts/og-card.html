@@ -1,0 +1,114 @@
+<!doctype html>
+<!--
+  The source of packages/ui/public/og.png, the picture a shared link shows.
+
+  Open it in a browser with a 1200x630 viewport and screenshot the page, e.g.
+  with Playwright: page.setViewportSize({ width: 1200, height: 630 }), then
+  page.screenshot({ path: 'packages/ui/public/og.png' }).
+
+  The role table is copied from packages/api/src/policy.ts by hand. A picture
+  cannot be checked against the code, so change both together.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500..800&family=JetBrains+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        background: #f5f6f8;
+        font-family: Manrope;
+        color: #0f172a;
+        padding: 72px 80px;
+        display: grid;
+        grid-template-columns: 1fr 520px;
+        gap: 56px;
+        align-items: center;
+      }
+      h1 {
+        font-size: 64px;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        line-height: 1.02;
+      }
+      p {
+        font-size: 28px;
+        line-height: 1.35;
+        color: #334155;
+        margin-top: 24px;
+        font-weight: 500;
+        max-width: 520px;
+      }
+      .site {
+        font-family: 'JetBrains Mono';
+        font-size: 20px;
+        color: #475569;
+        margin-top: 44px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #dfe2e8;
+        border-radius: 14px;
+        padding: 10px 0;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        padding: 20px 30px;
+        border-top: 1px solid #e6e8ec;
+        align-items: baseline;
+      }
+      .row:first-child {
+        border-top: 0;
+      }
+      .role {
+        font-family: 'JetBrains Mono';
+        font-weight: 500;
+        font-size: 24px;
+        color: #0f172a;
+      }
+      .may {
+        font-family: 'JetBrains Mono';
+        font-size: 22px;
+        color: #334155;
+      }
+      .head {
+        font-size: 16px;
+        font-weight: 700;
+        color: #52607a;
+        padding: 14px 30px 6px;
+        display: grid;
+        grid-template-columns: 120px 1fr;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>Test Run Dashboard</h1>
+      <p>
+        Runs two published Playwright suites on demand, and decides who may run what, and who may
+        see the result.
+      </p>
+      <div class="site">runs.testbydesign.dev</div>
+    </div>
+    <div class="card">
+      <div class="head"><span>Role</span><span>May run</span></div>
+      <div class="row">
+        <span class="role">demo</span><span class="may">main, always simulated</span>
+      </div>
+      <div class="row"><span class="role">dev</span><span class="may">main</span></div>
+      <div class="row">
+        <span class="role">qa</span><span class="may">main, develop, release/*</span>
+      </div>
+      <div class="row"><span class="role">admin</span><span class="may">any branch</span></div>
+    </div>
+  </body>
+</html>
