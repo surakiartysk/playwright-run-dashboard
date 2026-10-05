@@ -60,6 +60,8 @@ export function App() {
   // Whether this session's list has answered yet; until it has, a run link
   // cannot be said to be missing from it.
   const [listed, setListed] = useState(false)
+  // List reads that have failed in a row; the poll backs off on them.
+  const [failures, setFailures] = useState(0)
   // Every read of the run list goes through this, so only the newest is applied.
   const [lists] = useState(() => latestOnly(api.listRuns))
 
@@ -78,6 +80,7 @@ export function App() {
   const endSession = useCallback(() => {
     lists.forget()
     setListed(false)
+    setFailures(0)
     setRole(null)
     setViewAs(null)
     setRuns([])
@@ -148,6 +151,7 @@ export function App() {
       setNextCursor(page.nextCursor)
       setViewAs(page.viewAs)
       setError(null)
+      setFailures(0)
     } catch (e) {
       // An expired session should return to the sign-in screen rather than
       // leaving a dashboard that quietly fails every request.
@@ -155,6 +159,7 @@ export function App() {
         endSession()
         return
       }
+      setFailures((n) => n + 1)
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
   }, [role, endSession, filters, lists])
@@ -210,13 +215,13 @@ export function App() {
   const inFlight = runs.some((run) => isPending(run.status))
   useEffect(() => {
     if (!role) return
-    const delay = pollDelay({ pending: inFlight, loadedMore })
+    const delay = pollDelay({ pending: inFlight, loadedMore, failures })
     if (delay === null) return
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void refresh()
     }, delay)
     return () => clearInterval(timer)
-  }, [role, inFlight, loadedMore, refresh])
+  }, [role, inFlight, loadedMore, failures, refresh])
 
   useEffect(() => {
     if (!role) return
