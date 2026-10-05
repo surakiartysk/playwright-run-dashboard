@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
 import { c } from '../theme'
+import { ProjectLinks } from './ProjectLinks'
 
 /**
  * Sign in — one column, centred, nothing beside it.
@@ -76,7 +77,8 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
         </div>
 
         <h1 style={s.title}>Test Run Dashboard</h1>
-        <p style={s.sub}>Pick a slice, press Run, read the report.</p>
+        <p style={s.sub}>Run a suite on a branch, then read its report.</p>
+        <ProjectLinks style={{ textAlign: 'center', margin: '-14px 0 24px' }} />
 
         <div style={s.card}>
           {demoPassword && (
