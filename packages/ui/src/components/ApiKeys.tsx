@@ -29,6 +29,66 @@ export function scopeOf(key: Pick<ApiKey, 'allowedRefs' | 'maxWorkers'>): string
 }
 
 /**
+ * When a key was last used, as a date nobody can read two ways.
+ *
+ * `toLocaleDateString()` gave "10/5/2026", which is 10 May or 5 October
+ * depending on who reads it. The month is named.
+ */
+export function lastUsedLabel(iso: string | null, timeZone?: string): string {
+  if (!iso) return 'never'
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone,
+  })
+}
+
+/**
+ * Revoke, asked before it is done.
+ *
+ * Revoking cannot be undone, and whatever uses the key stops at once — the same
+ * weight as deleting a run, which already asks. The question sits in the row it
+ * is about, as Delete's does, rather than in a dialog.
+ */
+export function KeyAction({
+  revoked,
+  confirming,
+  onAsk,
+  onCancel,
+  onConfirm,
+}: {
+  revoked: boolean
+  confirming: boolean
+  onAsk: () => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  // Kept in the list on purpose: "was this revoked, or did it never exist?" is
+  // asked while something is broken.
+  if (revoked) return <span style={s.revoked}>revoked</span>
+  if (!confirming)
+    return (
+      <button type="button" onClick={onAsk} style={s.revoke}>
+        Revoke
+      </button>
+    )
+  return (
+    <span style={s.confirmRow}>
+      <span role="alert" style={s.question}>
+        Revoke? Anything using this key stops at once.
+      </span>
+      <button type="button" onClick={onCancel} style={s.revoke}>
+        Cancel
+      </button>
+      <button type="button" onClick={onConfirm} style={s.revokeConfirm}>
+        Revoke key
+      </button>
+    </span>
+  )
+}
+
+/**
  * The one moment the secret exists outside its holder's storage.
  *
  * Deliberately not a toast and not dismissable by clicking elsewhere: the
@@ -130,8 +190,13 @@ export function ApiKeys() {
     }
   }
 
+  // The key whose Revoke is being asked about. One click used to revoke at
+  // once, and revoking cannot be undone: a pipeline using the key stops.
+  const [confirming, setConfirming] = useState<string | null>(null)
+
   async function revoke(key: ApiKey) {
     setError(null)
+    setConfirming(null)
     try {
       await api.revokeKey(key.id)
       await load()
@@ -268,18 +333,16 @@ export function ApiKeys() {
                   </td>
                   <td style={{ ...s.td, ...s.scopeCell }}>{scopeOf(key)}</td>
                   <td style={{ ...s.td, ...mono, fontSize: 12, color: c.t5 }}>
-                    {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : 'never'}
+                    {lastUsedLabel(key.lastUsedAt)}
                   </td>
                   <td style={{ ...s.td, textAlign: 'right' }}>
-                    {key.revokedAt ? (
-                      // Kept in the list on purpose: "was this revoked, or did
-                      // it never exist?" is asked while something is broken.
-                      <span style={s.revoked}>revoked</span>
-                    ) : (
-                      <button onClick={() => void revoke(key)} style={s.revoke}>
-                        Revoke
-                      </button>
-                    )}
+                    <KeyAction
+                      revoked={key.revokedAt !== null}
+                      confirming={confirming === key.id}
+                      onAsk={() => setConfirming(key.id)}
+                      onCancel={() => setConfirming(null)}
+                      onConfirm={() => void revoke(key)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -465,5 +528,19 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
   },
   revoked: { fontSize: 12, color: c.t5 },
+  confirmRow: { display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  question: { fontSize: 12, color: c.danger, fontWeight: 600 },
+  // As Delete run's confirm, so the two irreversible actions look alike.
+  revokeConfirm: {
+    padding: '5px 11px',
+    background: c.dangerBg,
+    border: `1px solid ${c.danger}`,
+    borderRadius: 7,
+    color: c.danger,
+    font: 'inherit',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
   count: { margin: '10px 0 0', fontSize: 12, color: c.t5 },
 }
