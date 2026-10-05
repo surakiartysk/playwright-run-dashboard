@@ -22,3 +22,18 @@ describe('fields on a touch screen', () => {
     expect(Number(rule![1])).toBeGreaterThanOrEqual(16)
   })
 })
+
+describe('controls on a touch screen', () => {
+  /*
+   * Measured at 375px wide with touch: 43 of 47 controls took taps on less
+   * than 44px. The area is invisible, so nothing is drawn bigger.
+   */
+  it('answer a tap at least 44px square, centred on what is drawn', () => {
+    const block = /@media \(pointer: coarse\) \{([\s\S]*?)\n {6}\}/.exec(html)?.[1] ?? ''
+
+    expect(block).toMatch(
+      /button::before,\s*summary::before \{[^}]*width: max\(100%, 44px\);[^}]*height: max\(100%, 44px\);/,
+    )
+    expect(block).toMatch(/button,\s*summary \{\s*position: relative;/)
+  })
+})

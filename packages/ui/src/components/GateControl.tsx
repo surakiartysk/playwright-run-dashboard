@@ -30,13 +30,7 @@ const MODES: { value: GateMode; label: string; hint: string }[] = [
   { value: 'window', label: 'Scheduled', hint: 'Developers may run only inside the window.' },
 ]
 
-export function GateControl({
-  onChanged,
-  readOnly = false,
-}: {
-  onChanged: () => void
-  readOnly?: boolean
-}) {
+export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
   const [gate, setGate] = useState<GateStatus | null>(null)
   const [mode, setMode] = useState<GateMode>('open')
   const [opensAt, setOpensAt] = useState(() => toLocalInput(null))
@@ -75,9 +69,6 @@ export function GateControl({
       )
       setGate(next)
       setSaved(true)
-      // The trigger form reads the gate on mount, so a change here has to push
-      // the rest of the page to re-read rather than waiting for a reload.
-      onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update the gate')
     } finally {

@@ -32,7 +32,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link
       rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%234f6bed'/><line x1='11' y1='7' x2='21' y2='7' stroke='white' stroke-width='2.5' stroke-linecap='round'/><path d='M13 7v8L7 23a2 2 0 0 0 1.6 3.2h14.8A2 2 0 0 0 25 23l-6-8V7' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='19' cy='21' r='2' fill='rgba(255,255,255,0.9)'/></svg>"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f2937'/><line x1='11' y1='7' x2='21' y2='7' stroke='white' stroke-width='2.5' stroke-linecap='round'/><path d='M13 7v8L7 23a2 2 0 0 0 1.6 3.2h14.8A2 2 0 0 0 25 23l-6-8V7' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/><circle cx='19' cy='21' r='2' fill='rgba(255,255,255,0.9)'/></svg>"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -115,6 +115,29 @@
         select,
         textarea {
           font-size: 16px !important;
+        }
+
+        /*
+         * Every control answers a tap at least 44px square, without being drawn
+         * any bigger: an invisible area centred on it. Measured at 375px wide
+         * with touch, 43 of 47 controls took taps on less than that — the
+         * workers −/+ at 31x32, the Copy buttons 19px tall, the status chips
+         * 25. Where two sit closer than 44px apart, the later one takes the
+         * overlap.
+         */
+        button,
+        summary {
+          position: relative;
+        }
+        button::before,
+        summary::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: max(100%, 44px);
+          height: max(100%, 44px);
+          transform: translate(-50%, -50%);
         }
       }
 

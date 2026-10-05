@@ -169,7 +169,23 @@ function Stat({
   )
 }
 
+/**
+ * What the summary column says before there is anything to sum.
+ *
+ * With no runs both the stats and the chart draw nothing, which left a 320px
+ * column beside the list empty — a visitor on a fresh deploy saw a blank half
+ * of the page and no reason for it. Shown only where the column is.
+ */
+export function EmptySummary() {
+  return (
+    <section style={{ ...s.wrap, ...s.empty }}>
+      The pass rate and the run-by-run chart appear here once there are runs to count.
+    </section>
+  )
+}
+
 const s: Record<string, CSSProperties> = {
+  empty: { color: c.t4, fontSize: 13, lineHeight: 1.5 },
   wrap: {
     background: c.card,
     border: `1px solid ${c.border}`,

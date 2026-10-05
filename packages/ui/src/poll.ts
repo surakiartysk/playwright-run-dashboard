@@ -25,13 +25,23 @@ export const IDLE_MS = 15000
 export function pollDelay({
   pending,
   loadedMore,
+  failures = 0,
 }: {
   pending: boolean
   loadedMore: boolean
+  /** How many asks in a row have failed. */
+  failures?: number
 }): number | null {
-  if (pending) return IN_FLIGHT_MS
-  return loadedMore ? null : IDLE_MS
+  const base = pending ? IN_FLIGHT_MS : loadedMore ? null : IDLE_MS
+  if (base === null) return null
+  // While the API is failing, each failure doubles the wait, up to a minute.
+  // It kept asking every two seconds through an outage: a request every two
+  // seconds from every open tab, at a service that was already not answering.
+  return Math.min(base * 2 ** failures, MAX_BACKOFF_MS)
 }
+
+/** The longest the list waits between asks while they are failing. */
+export const MAX_BACKOFF_MS = 60000
 
 /**
  * Whether coming back to the page should reload it now.

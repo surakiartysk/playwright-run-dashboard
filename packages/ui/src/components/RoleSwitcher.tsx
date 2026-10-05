@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { Role, RolePolicy } from '../api'
 import { c } from '../theme'
 import { ProjectLinks } from './ProjectLinks'
@@ -78,9 +78,20 @@ export function RoleSwitcher({
 }) {
   const current = policies.find((p) => p.role === role)
 
+  // One switch at a time: the buttons are disabled until it lands. Clicked in
+  // quick succession, two switches raced, and the page ended on whichever
+  // request was slower rather than the role clicked last — admin, with qa
+  // clicked after it.
+  const [switching, setSwitching] = useState(false)
+
   async function pick(next: Role) {
     if (next === role) return
-    await onSwitched(next)
+    setSwitching(true)
+    try {
+      await onSwitched(next)
+    } finally {
+      setSwitching(false)
+    }
   }
 
   const panel = (
@@ -94,6 +105,8 @@ export function RoleSwitcher({
               <button
                 key={policy.role}
                 onClick={() => void pick(policy.role)}
+                disabled={switching}
+                aria-busy={switching && !active}
                 style={{
                   ...s.tab,
                   ...(active ? s.tabActive : null),

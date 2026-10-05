@@ -41,3 +41,18 @@ export function runCurl(form: RunForm, origin: string, key?: string): string {
 export function optionsCurl(origin: string, key?: string): string {
   return [`curl ${quote(`${origin}/runs/options`)} \\`, `  -H ${authHeader(key)}`].join('\n')
 }
+
+/** The variable the status command reads: the `runId` that starting one answered with. */
+export const RUN_VARIABLE = 'RUN_ID'
+
+/**
+ * How a run started from a terminal is doing.
+ *
+ * Starting one answered `{ "runId": …, "status": "queued" }` and the panel gave
+ * no way to ask again, though `GET /runs/:id` answers a key. Reads the id from a
+ * variable rather than writing one in: there is none until the first command
+ * has run.
+ */
+export function statusCurl(origin: string, key?: string): string {
+  return [`curl "${origin}/runs/$${RUN_VARIABLE}" \\`, `  -H ${authHeader(key)}`].join('\n')
+}

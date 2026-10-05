@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
-import { KEY_VARIABLE, optionsCurl, runCurl } from '../curl'
+import { KEY_VARIABLE, RUN_VARIABLE, optionsCurl, runCurl, statusCurl } from '../curl'
 import type { RunForm } from '../run-form'
 import { c, mono } from '../theme'
 import { CopyButton } from './CopyButton'
@@ -91,6 +91,7 @@ export function SnippetView({
 }) {
   const run = runCurl(form, origin, sandbox?.key)
   const options = optionsCurl(origin, sandbox?.key)
+  const status = statusCurl(origin, sandbox?.key)
 
   return (
     <details style={s.box}>
@@ -128,6 +129,10 @@ export function SnippetView({
 
         <Command title="Start this run" text={run} />
         <Command title="See what you can ask for" text={options} />
+        <Command
+          title={`Check on it, with ${RUN_VARIABLE} set to the runId the first command answered`}
+          text={status}
+        />
       </div>
     </details>
   )

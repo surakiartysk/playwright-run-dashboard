@@ -32,13 +32,7 @@ const TABS: { id: Tab; label: string; hint: string }[] = [
   { id: 'keys', label: 'API keys', hint: 'Credentials for pipelines' },
 ]
 
-export function AdminPanel({
-  onGateChanged,
-  readOnly = false,
-}: {
-  onGateChanged: () => void
-  readOnly?: boolean
-}) {
+export function AdminPanel({ readOnly = false }: { readOnly?: boolean }) {
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('gate')
 
@@ -76,7 +70,7 @@ export function AdminPanel({
 
           <div style={s.tabBody}>
             {tab === 'gate' ? (
-              <GateControl onChanged={onGateChanged} readOnly={readOnly} />
+              <GateControl readOnly={readOnly} />
             ) : readOnly ? (
               <KeysPreview />
             ) : (

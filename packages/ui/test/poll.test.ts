@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { IDLE_MS, IN_FLIGHT_MS, REFRESH_DEBOUNCE_MS, pollDelay, refreshOnReturn } from '../src/poll'
+import {
+  IDLE_MS,
+  IN_FLIGHT_MS,
+  MAX_BACKOFF_MS,
+  REFRESH_DEBOUNCE_MS,
+  pollDelay,
+  refreshOnReturn,
+} from '../src/poll'
 
 /**
  * When the run list asks for itself again.
@@ -44,5 +51,25 @@ describe('refreshOnReturn', () => {
   it('asks again at exactly the debounce, and not a moment before', () => {
     expect(refreshOnReturn(5_000 + REFRESH_DEBOUNCE_MS, 5_000)).toBe(true)
     expect(refreshOnReturn(5_000 + REFRESH_DEBOUNCE_MS - 1, 5_000)).toBe(false)
+  })
+})
+
+/**
+ * Through an outage the list kept asking every two seconds, from every open
+ * tab, at a service that was not answering. Found by the state review.
+ */
+describe('pollDelay while asks are failing', () => {
+  it('doubles the wait with each failure in a row', () => {
+    expect(pollDelay({ pending: true, loadedMore: false, failures: 1 })).toBe(IN_FLIGHT_MS * 2)
+    expect(pollDelay({ pending: true, loadedMore: false, failures: 3 })).toBe(IN_FLIGHT_MS * 8)
+  })
+
+  it('never waits more than a minute', () => {
+    expect(pollDelay({ pending: false, loadedMore: false, failures: 10 })).toBe(MAX_BACKOFF_MS)
+    expect(MAX_BACKOFF_MS).toBe(60000)
+  })
+
+  it('asks at the normal pace once an ask succeeds', () => {
+    expect(pollDelay({ pending: true, loadedMore: false, failures: 0 })).toBe(IN_FLIGHT_MS)
   })
 })

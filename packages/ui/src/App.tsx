@@ -14,7 +14,7 @@ import { RunTrigger } from './components/RunTrigger'
 import { AdminPanel } from './components/AdminPanel'
 import { adminPanelMode } from './admin-panel'
 import { RunHistory } from './components/RunHistory'
-import { RunStats } from './components/RunStats'
+import { EmptySummary, RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
 import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
@@ -53,13 +53,13 @@ export function App() {
   const [options, setOptions] = useState<RunOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
-  const [gateTick, setGateTick] = useState(0)
   // When the reader last came back to the tab; RunTrigger reads the gate again.
   const [returnedAt, setReturnedAt] = useState(0)
   // Whether this session's list has answered yet; until it has, a run link
   // cannot be said to be missing from it.
   const [listed, setListed] = useState(false)
+  // List reads that have failed in a row; the poll backs off on them.
+  const [failures, setFailures] = useState(0)
   // Every read of the run list goes through this, so only the newest is applied.
   const [lists] = useState(() => latestOnly(api.listRuns))
 
@@ -78,6 +78,7 @@ export function App() {
   const endSession = useCallback(() => {
     lists.forget()
     setListed(false)
+    setFailures(0)
     setRole(null)
     setViewAs(null)
     setRuns([])
@@ -148,6 +149,7 @@ export function App() {
       setNextCursor(page.nextCursor)
       setViewAs(page.viewAs)
       setError(null)
+      setFailures(0)
     } catch (e) {
       // An expired session should return to the sign-in screen rather than
       // leaving a dashboard that quietly fails every request.
@@ -155,6 +157,7 @@ export function App() {
         endSession()
         return
       }
+      setFailures((n) => n + 1)
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
   }, [role, endSession, filters, lists])
@@ -210,13 +213,13 @@ export function App() {
   const inFlight = runs.some((run) => isPending(run.status))
   useEffect(() => {
     if (!role) return
-    const delay = pollDelay({ pending: inFlight, loadedMore })
+    const delay = pollDelay({ pending: inFlight, loadedMore, failures })
     if (delay === null) return
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') void refresh()
     }, delay)
     return () => clearInterval(timer)
-  }, [role, inFlight, loadedMore, refresh])
+  }, [role, inFlight, loadedMore, failures, refresh])
 
   useEffect(() => {
     if (!role) return
@@ -235,7 +238,14 @@ export function App() {
     }
   }, [role, refresh])
 
-  if (checking) return <div style={s.loading}>Loading…</div>
+  // Centred and said in words, like the page's other waits; it was a bare
+  // "Loading…" in the top corner, unlike anything else here.
+  if (checking)
+    return (
+      <div style={s.loading} role="status">
+        Checking whether you are signed in…
+      </div>
+    )
   if (!role) return <Login onSignedIn={setRole} />
 
   // The write path (RunTrigger) always uses the real, authenticated role —
@@ -279,6 +289,9 @@ export function App() {
 
       <RunStats runs={runs} total={total} />
 
+      {/* Only beside the list: stacked, an empty summary is simply absent. */}
+      {wide && listed && runs.length === 0 && <EmptySummary />}
+
       <RunTrend runs={runs} collapsible={!wide} />
     </>
   )
@@ -291,20 +304,18 @@ export function App() {
         are — and never the writable one the server would refuse; the same
         real-role rule RunTrigger follows. See admin-panel.ts.
 
-        `gateTick` remounts RunTrigger after the gate changes, so its "runs are
-        paused" notice reflects the new state without a reload. RunTrigger reads
-        the gate on mount, so a key change is the honest way to make it re-read.
+        A gate change here used to remount RunTrigger, so that its "runs are
+        paused" notice would be re-read. That notice is only ever dev's, and
+        only admin can change the gate from this page, so the remount changed
+        nothing anyone saw except the admin's own form, which went back to
+        `items` after every Apply. It is gone; RunTrigger reads the gate on its
+        own (see recheckDelay).
       */}
-      {panelMode && (
-        <AdminPanel
-          readOnly={panelMode === 'readOnly'}
-          onGateChanged={() => setGateTick((n) => n + 1)}
-        />
-      )}
+      {panelMode && <AdminPanel readOnly={panelMode === 'readOnly'} />}
 
       {options ? (
         <RunTrigger
-          key={`${role}-${gateTick}`}
+          key={role}
           options={options}
           role={role}
           returnedAt={returnedAt}
@@ -393,7 +404,7 @@ export function App() {
 }
 
 const s: Record<string, CSSProperties> = {
-  loading: { padding: 40, color: c.t4 },
+  loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', color: c.t4, fontSize: 14 },
   page: { maxWidth: '62rem', margin: '0 auto', padding: '30px 24px 60px' },
   // Wide enough for the list (about 620px) beside a 320px column.
   pageWide: { maxWidth: '76rem' },
