@@ -331,3 +331,30 @@ describe('the list marks a run a key started', () => {
     expect(html([runRow({ id: 'a' })])).not.toContain('via key')
   })
 })
+
+/*
+ * A demo visitor previewing dev was told the list was "your role's scope", and
+ * dev is not their role. Found by the real-user review.
+ */
+describe('the scope beside the heading', () => {
+  it("names dev's scope rather than calling it the reader's own", () => {
+    const html = renderToStaticMarkup(
+      createElement(RunHistory, {
+        runs: [],
+        role: 'dev',
+        canDelete: false,
+        onChanged: () => undefined,
+        total: 0,
+        hasMore: false,
+        loadingMore: false,
+        onLoadMore: () => undefined,
+        options: null,
+        filters: fromSearch(''),
+        onFilters: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('dev’s scope')
+    expect(html).not.toContain('your role')
+  })
+})

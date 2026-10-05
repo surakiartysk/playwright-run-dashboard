@@ -77,7 +77,7 @@ describe('showing an instant in a datetime-local input', () => {
 describe('pausedReason', () => {
   it('names who paused it when the gate says', () => {
     expect(pausedReason({ opensAt: null, updatedBy: 'Nok (admin)' })).toBe(
-      'Runs are paused for your role, by Nok (admin). QA and admin are unaffected.',
+      'Runs are paused for your role, by Nok (admin). Ask Nok (admin) to reopen it, or ask QA to start the run.',
     )
   })
 
@@ -94,7 +94,7 @@ describe('pausedReason', () => {
    */
   it('leaves the attribution out entirely when there is none', () => {
     expect(pausedReason({ opensAt: null, updatedBy: null })).toBe(
-      'Runs are paused for your role. QA and admin are unaffected.',
+      'Runs are paused for your role. Ask an admin to reopen it, or ask QA to start the run.',
     )
   })
 })

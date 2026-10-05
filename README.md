@@ -6,8 +6,8 @@ machine holding an API key can start one without opening the page at all.
 
 Four roles see four different dashboards. A `dev` is pinned to `main` and sees
 only main-branch runs; `qa` may also run `develop` and `release`, and sees every
-run; `admin` may run any branch and delete; `demo` sees the runs it started
-itself, may preview — read-only — what the other roles see, and can never
+run; `admin` may run any branch and delete; `demo` sees the runs started as
+`demo`, by any visitor, may preview — read-only — what the other roles see, and can never
 trigger a real run, which is what makes its password safe to publish rather
 than hand out privately. The interesting part is not the Run button — it is
 _who may run what, and who may then see the result_.
@@ -75,7 +75,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1085 tests — 625 in the Worker, 460 in the UI
+pnpm test          # 1086 tests — 625 in the Worker, 461 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 

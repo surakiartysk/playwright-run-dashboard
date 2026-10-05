@@ -174,13 +174,15 @@ export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
  * What the visibility scoping actually means for the signed-in role, in
  * words. Table-driven rather than a `role === 'dev' ? … : …` — that ternary
  * was silently wrong for `demo`, whose scope is neither "main only" nor
- * "every branch": it is every branch, but only the runs it started itself.
+ * "every branch": it is the runs started as demo, by any visitor.
  */
 const SCOPE_LABEL: Record<Role, string> = {
   // Shared by every demo visitor: `triggered_by` holds the role, not the
   // person, so "you" would promise a separation the query does not make.
   demo: 'runs started as demo — main branch only',
-  dev: 'main branch only — your role’s scope',
+  // Named, not "your role's": a demo previewing dev is shown this, and dev is
+  // not their role.
+  dev: 'main branch only — dev’s scope',
   qa: 'every branch',
   admin: 'every branch',
 }

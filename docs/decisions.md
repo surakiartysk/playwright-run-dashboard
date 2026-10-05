@@ -439,7 +439,8 @@ reflects the same asymmetry — outside simulation it withholds
 button uses, because hiding it would gate a link meant to be handed out and
 gain nothing.
 
-Scoping `demo` to only the runs it started itself needed
+Scoping `demo` to the runs started as `demo` — every visitor's, since they
+share the role — needed
 [`visibilityClause`](#3-visibility-is-enforced-in-sql-never-in-the-handler) to
 stop assuming visibility is always about `ref` — it previously returned only a
 SQL fragment, and `GET /runs/:id` re-checked a single fetched row by comparing

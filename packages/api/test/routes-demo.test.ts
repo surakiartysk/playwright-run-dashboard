@@ -148,7 +148,7 @@ describe('GET /demo/roles', () => {
     })
   })
 
-  it('describes demo as scoped to its own runs, not to a branch', async () => {
+  it('describes demo as scoped to runs started as demo, by any visitor, not to a branch', async () => {
     const response = await as('demo', '/demo/roles')
     const body = (await response.json()) as {
       roles: { role: string; maxWorkers: number; canDelete: boolean; sees: string }[]
@@ -157,7 +157,7 @@ describe('GET /demo/roles', () => {
     expect(body.roles.find((r) => r.role === 'demo')).toMatchObject({
       maxWorkers: 2,
       canDelete: false,
-      sees: 'only the runs it started itself',
+      sees: 'runs started from the demo sign-in, by any visitor',
     })
   })
 

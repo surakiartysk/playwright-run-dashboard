@@ -98,7 +98,10 @@ demoRoutes.post('/stop-preview', (c) => {
  * from the behaviour.
  */
 const SEES: Record<Role, string> = {
-  demo: 'only the runs it started itself',
+  // Every visitor's, not one's own: `triggered_by` holds the role, and every
+  // visitor signs in as the same one. It said "only the runs it started
+  // itself", and a visitor watching saw runs they had not started.
+  demo: 'runs started from the demo sign-in, by any visitor',
   dev: 'runs on main only',
   qa: 'every run, on any branch',
   admin: 'every run, on any branch',

@@ -61,7 +61,9 @@ export function pausedReason(gate: { opensAt: string | null; updatedBy: string |
   const when = gate.opensAt ? ` until ${new Date(gate.opensAt).toLocaleString()}` : ''
   const who = gate.updatedBy ? `, by ${gate.updatedBy}` : ''
 
-  return `Runs are paused for your role${when}${who}. QA and admin are unaffected.`
+  // Says what to do next. "QA and admin are unaffected" explained the system;
+  // the reader wanted to know how to get the run started.
+  return `Runs are paused for your role${when}${who}. Ask ${gate.updatedBy ?? 'an admin'} to reopen it, or ask QA to start the run.`
 }
 
 /**
