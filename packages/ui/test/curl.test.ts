@@ -2,7 +2,7 @@ import type { Role } from '../src/api'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { KEY_VARIABLE, optionsCurl, quote, runCurl } from '../src/curl'
+import { KEY_VARIABLE, optionsCurl, quote, runCurl, statusCurl } from '../src/curl'
 import { ApiSnippet, SnippetView, limitsLine } from '../src/components/ApiSnippet'
 import { initialForm } from '../src/run-form'
 import { runOptions } from './fixtures'
@@ -198,7 +198,17 @@ describe('ApiSnippet', () => {
   })
 
   it('has a copy button for each command', () => {
-    expect(html('qa').match(/>Copy</g)).toHaveLength(2)
+    expect(html('qa').match(/>Copy</g)).toHaveLength(3)
+  })
+
+  /*
+   * Starting a run answered with its id and the panel gave no way to ask how it
+   * was doing. Found by the real-user review.
+   */
+  it('shows how to check on the run the first command started', () => {
+    const out = html('qa')
+    expect(out).toContain('Check on it')
+    expect(out).toContain('/runs/$RUN_ID')
   })
 })
 
@@ -229,10 +239,10 @@ describe('SnippetView once a key has been made', () => {
     expect(out).toContain('>Copy key<')
   })
 
-  it('writes the key into both commands rather than a line of its own', () => {
+  it('writes the key into every command rather than a line of its own', () => {
     const out = html()
     expect(out).not.toContain('export ')
-    expect(out.match(new RegExp(`Bearer ${sandbox.key}`, 'g'))).toHaveLength(2)
+    expect(out.match(new RegExp(`Bearer ${sandbox.key}`, 'g'))).toHaveLength(3)
   })
 
   it('says where its runs will show', () => {
@@ -264,5 +274,17 @@ describe('SnippetView once a key has been made', () => {
     })
     expect(out).toContain('role="alert"')
     expect(out).toContain('issued as fast as they are allowed')
+  })
+})
+
+describe('statusCurl', () => {
+  it('asks for the run by the id the start command answered with, as the key', () => {
+    expect(statusCurl(ORIGIN)).toBe(
+      `curl "${ORIGIN}/runs/$RUN_ID" \\\n  -H "Authorization: Bearer $RUN_KEY"`,
+    )
+  })
+
+  it('writes a sandbox key in, as the other commands do', () => {
+    expect(statusCurl(ORIGIN, 'rdk_a_b')).toContain("'Authorization: Bearer rdk_a_b'")
   })
 })
