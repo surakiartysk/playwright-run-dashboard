@@ -204,7 +204,9 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 999,
     letterSpacing: '0.01em',
   },
-  pillOpen: { background: status.passBg, color: status.pass },
+  // The word carries the state; green text on its own tint measured 2.05:1, and
+  // an open gate is not a test result (decision 10).
+  pillOpen: { background: status.passBg, color: c.t2 },
   pillClosed: { background: status.pendingBg, color: status.pending },
 
   modes: { display: 'flex', gap: 6, flexWrap: 'wrap' },
@@ -267,7 +269,7 @@ const s: Record<string, CSSProperties> = {
     fontWeight: 600,
     cursor: 'pointer',
   },
-  saved: { fontSize: 13, color: status.pass },
+  saved: { fontSize: 13, color: c.t2 },
   error: { color: c.danger, fontSize: 13, margin: '12px 0 0' },
   note: {
     margin: '14px 0 0',

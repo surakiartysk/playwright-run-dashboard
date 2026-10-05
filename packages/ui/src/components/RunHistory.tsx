@@ -284,9 +284,18 @@ function ResultBar({ run }: { run: Run }) {
   return (
     <div style={{ minWidth: 130 }}>
       <div style={s.resultNumbers}>
-        <strong style={{ color: failed > 0 ? sc.fail : sc.pass, fontSize: 15 }}>{passed}</strong>
+        {/*
+          The passed count is a number, not a verdict: it was bold red on a
+          failed run, so the loudest thing in the row was how many passed,
+          while the failure count sat small in a red that fails AA on white
+          (3.76:1). The row's edge and icon carry the result; the failures
+          are named in the AA red made for text.
+        */}
+        <strong style={{ color: c.t1, fontSize: 15 }}>{passed}</strong>
         <span style={{ color: c.t5, fontSize: 13 }}>/ {run.total}</span>
-        {failed > 0 && <span style={{ color: sc.fail, fontSize: 12 }}>· {failed} failed</span>}
+        {failed > 0 && (
+          <span style={{ color: c.danger, fontSize: 12, fontWeight: 600 }}>· {failed} failed</span>
+        )}
       </div>
       <div style={s.bar}>
         {share.passed > 0 && (
