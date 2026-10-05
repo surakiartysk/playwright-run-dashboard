@@ -209,7 +209,7 @@ if (distinct.size > 1) {
   // Padding-tolerant: prettier aligns the columns, so the delimiter is not
   // reliably followed by exactly one space.
   const rows = text.split('\n').filter((line) => /^\|\s*\d+\s*\|/.test(line))
-  const stated = text.match(/\*\*([A-Z][a-z]+(?:-\w+)?) mutations are\s+recorded here\*\*/)
+  const stated = text.match(/\*\*(\d+|[A-Z][a-z]+(?:-\w+)?) mutations are\s+recorded here\*\*/)
 
   if (!stated) {
     problems.push(
