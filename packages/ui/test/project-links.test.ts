@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Login } from '../src/components/Login'
 import { RoleSwitcher } from '../src/components/RoleSwitcher'
-import { DECISIONS_URL, SOURCE_URL } from '../src/components/ProjectLinks'
+import { DECISIONS_URL, PORTFOLIO_URL, SOURCE_URL } from '../src/components/ProjectLinks'
 import type { RolePolicy } from '../src/api'
 
 /**
@@ -37,6 +37,13 @@ describe('the links to the source and the reasoning', () => {
 
     expect(html).toContain(`href="${SOURCE_URL}"`)
     expect(html).toContain(`href="${DECISIONS_URL}"`)
+  })
+
+  it('lead back to the portfolio a visitor most likely came from', () => {
+    const html = renderToStaticMarkup(createElement(Login, { onSignedIn: () => undefined }))
+
+    expect(PORTFOLIO_URL).toBe('https://testbydesign.dev')
+    expect(html).toContain(`href="${PORTFOLIO_URL}"`)
   })
 
   it('point at the decisions document itself', () => {

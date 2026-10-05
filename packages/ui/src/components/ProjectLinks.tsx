@@ -12,10 +12,16 @@ import { c } from '../theme'
  */
 export const SOURCE_URL = 'https://github.com/surakiartysk/playwright-run-dashboard'
 export const DECISIONS_URL = `${SOURCE_URL}/blob/main/docs/decisions.md`
+/** The portfolio this belongs to, which draws how it fits with both suites. */
+export const PORTFOLIO_URL = 'https://testbydesign.dev'
 
 export function ProjectLinks({ style }: { style?: CSSProperties }) {
   return (
     <p style={{ ...s.line, ...style }}>
+      <a href={PORTFOLIO_URL} style={s.link} target="_blank" rel="noreferrer">
+        testbydesign.dev
+      </a>
+      <span aria-hidden="true"> · </span>
       <a href={SOURCE_URL} style={s.link} target="_blank" rel="noreferrer">
         Source on GitHub
       </a>

@@ -5,7 +5,7 @@ report — without waiting for someone else or digging through CI artifacts. A
 machine holding an API key can start one without opening the page at all.
 
 Four roles see four different dashboards. A `dev` is pinned to `main` and sees
-only main-branch runs; `qa` may also run `develop` and `release`, and sees every
+only main-branch runs; `qa` may also run `develop` and `release/<version>`, and sees every
 run; `admin` may run any branch and delete; `demo` sees the runs it started
 itself, may preview — read-only — what the other roles see, and can never
 trigger a real run, which is what makes its password safe to publish rather
@@ -19,6 +19,9 @@ running?" is answerable without signing in.
 
 Start with [`docs/decisions.md`](docs/decisions.md) if you have five minutes and
 want the reasoning rather than the code.
+
+Part of [testbydesign.dev](https://testbydesign.dev), which draws how this and both
+suites fit together.
 
 **Live at [runs.testbydesign.dev](https://runs.testbydesign.dev)** — one button, no
 password to type. That deployment is real: real D1, real R2, a real GitHub
@@ -75,7 +78,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1060 tests — 618 in the Worker, 442 in the UI
+pnpm test          # 1061 tests — 618 in the Worker, 443 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 

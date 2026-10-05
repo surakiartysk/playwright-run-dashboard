@@ -1667,7 +1667,7 @@ pair, unlocks the Tag field, and sends the pair on.
   intersect.
 - **The input is sent only when it is used.** `tag` is in the dispatch body only
   when a service and a tag are both named. A workflow rejects an input it does
-  not declare, and QA dispatches against `develop` and `release`, whose copy of
+  not declare, and QA dispatches against `develop` and `release/*`, whose copy of
   the workflow may predate `tag`. If every dispatch carried one, every QA run on
   those branches would be refused over a feature it never used. Every legacy
   request is byte-for-byte the body it was.
