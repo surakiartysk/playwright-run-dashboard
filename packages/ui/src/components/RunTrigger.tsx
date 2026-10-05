@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { api, SUITES, SUITE_LABELS, type Role, type RunOptions, type Suite } from '../api'
 import { c, mono, status } from '../theme'
-import { pausedReason } from '../gate-form'
+import { pausedReason, recheckDelay } from '../gate-form'
 import { stepOption } from '../appearance'
 import {
   clampWorkers,
@@ -46,6 +46,7 @@ export function RunTrigger({
   role,
   onStarted,
   initial,
+  returnedAt = 0,
 }: {
   /**
    * What this caller may ask for, from `GET /runs/options`: the dropdowns, the
@@ -57,6 +58,8 @@ export function RunTrigger({
   onStarted: () => void
   /** What the form opens on, where it should not be the API suite's `items`. */
   initial?: Partial<RunForm>
+  /** Changes when the reader comes back to the tab, so the gate is read again. */
+  returnedAt?: number
 }) {
   const compact = useCompact()
   const [form, setForm] = useState<RunForm>(() => initialForm(options, initial))
@@ -79,19 +82,29 @@ export function RunTrigger({
    * Keyed on the role: switching from a gated role to an ungated one has to
    * re-read it, or QA inherits the warning a developer was shown. That is not
    * hypothetical — it is what this did before the role was a dependency.
+   *
+   * Read again when the reader returns to the tab (an admin may have opened it
+   * meanwhile) and just after a closure's own end — see `recheckDelay`.
    */
+  const [gateCheck, setGateCheck] = useState(0)
   useEffect(() => {
+    let live = true
+    let timer: ReturnType<typeof setTimeout> | undefined
     api
       .gate()
-      .then((g) =>
-        setGate(
-          g.appliesToYou && g.state === 'closed'
-            ? { opensAt: g.opensAt, updatedBy: g.updatedBy }
-            : null,
-        ),
-      )
-      .catch(() => setGate(null))
-  }, [role])
+      .then((g) => {
+        if (!live) return
+        const closed = g.appliesToYou && g.state === 'closed'
+        setGate(closed ? { opensAt: g.opensAt, updatedBy: g.updatedBy } : null)
+        const delay = closed ? recheckDelay(g.opensAt, Date.now()) : null
+        if (delay !== null) timer = setTimeout(() => setGateCheck((n) => n + 1), delay)
+      })
+      .catch(() => live && setGate(null))
+    return () => {
+      live = false
+      clearTimeout(timer)
+    }
+  }, [role, returnedAt, gateCheck])
 
   // Branches of the SUITE, not of the product under test — `main` is the
   // reviewed suite, `develop` is the one QA is still writing. Labelled

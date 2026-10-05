@@ -55,6 +55,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
+  // When the reader last came back to the tab; RunTrigger reads the gate again.
+  const [returnedAt, setReturnedAt] = useState(0)
   // Every read of the run list goes through this, so only the newest is applied.
   const [lists] = useState(() => latestOnly(api.listRuns))
 
@@ -215,7 +217,10 @@ export function App() {
     if (!role) return
     const onReturn = () => {
       if (document.visibilityState !== 'visible') return
-      if (refreshOnReturn(Date.now(), lastRefreshAt.current)) void refresh()
+      if (refreshOnReturn(Date.now(), lastRefreshAt.current)) {
+        void refresh()
+        setReturnedAt(Date.now())
+      }
     }
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
@@ -297,6 +302,7 @@ export function App() {
           key={`${role}-${gateTick}`}
           options={options}
           role={role}
+          returnedAt={returnedAt}
           onStarted={() => void refresh()}
         />
       ) : (
