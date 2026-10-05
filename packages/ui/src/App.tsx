@@ -238,7 +238,14 @@ export function App() {
     }
   }, [role, refresh])
 
-  if (checking) return <div style={s.loading}>Loading…</div>
+  // Centred and said in words, like the page's other waits; it was a bare
+  // "Loading…" in the top corner, unlike anything else here.
+  if (checking)
+    return (
+      <div style={s.loading} role="status">
+        Checking whether you are signed in…
+      </div>
+    )
   if (!role) return <Login onSignedIn={setRole} />
 
   // The write path (RunTrigger) always uses the real, authenticated role —
@@ -397,7 +404,7 @@ export function App() {
 }
 
 const s: Record<string, CSSProperties> = {
-  loading: { padding: 40, color: c.t4 },
+  loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', color: c.t4, fontSize: 14 },
   page: { maxWidth: '62rem', margin: '0 auto', padding: '30px 24px 60px' },
   // Wide enough for the list (about 620px) beside a 320px column.
   pageWide: { maxWidth: '76rem' },
