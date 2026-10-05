@@ -296,13 +296,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 161 mutations were introduced
+**Every test here was proven able to fail.** In all, 198 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-107 of those are recorded individually in
+144 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -439,7 +439,8 @@ reflects the same asymmetry — outside simulation it withholds
 button uses, because hiding it would gate a link meant to be handed out and
 gain nothing.
 
-Scoping `demo` to only the runs it started itself needed
+Scoping `demo` to the runs started as `demo` — every visitor's, since they
+share the role — needed
 [`visibilityClause`](#3-visibility-is-enforced-in-sql-never-in-the-handler) to
 stop assuming visibility is always about `ref` — it previously returned only a
 SQL fragment, and `GET /runs/:id` re-checked a single fetched row by comparing
@@ -1453,7 +1454,7 @@ the ninety-nine was, until now, handed a sentence.
 
 **Decision.** Recover what the commit history actually holds, write it down, and
 state the shortfall in the same breath. `docs/mutations.md` lists them one per
-row — forty-five when it was written, 107 now — with the commit that
+row — forty-five when it was written, 144 now — with the commit that
 ran each, what was changed, and the message it produced. Two further commits
 counted four more without describing them, which is noted rather than guessed
 at. The remaining fifty were run during development and never written down.

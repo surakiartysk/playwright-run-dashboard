@@ -104,6 +104,20 @@
         outline-offset: 2px;
       }
 
+      /*
+       * On a touch screen, every field at 16px. Below that, iOS Safari zooms
+       * the page in when a field is focused and leaves it zoomed; most fields
+       * here were 13–14px. Login already set 16px for this reason, and only
+       * Login. !important because the components size their fields inline.
+       */
+      @media (pointer: coarse) {
+        input,
+        select,
+        textarea {
+          font-size: 16px !important;
+        }
+      }
+
       @keyframes spin {
         to {
           transform: rotate(360deg);

@@ -61,5 +61,31 @@ export function pausedReason(gate: { opensAt: string | null; updatedBy: string |
   const when = gate.opensAt ? ` until ${new Date(gate.opensAt).toLocaleString()}` : ''
   const who = gate.updatedBy ? `, by ${gate.updatedBy}` : ''
 
-  return `Runs are paused for your role${when}${who}. QA and admin are unaffected.`
+  // Says what to do next. "QA and admin are unaffected" explained the system;
+  // the reader wanted to know how to get the run started.
+  return `Runs are paused for your role${when}${who}. Ask ${gate.updatedBy ?? 'an admin'} to reopen it, or ask QA to start the run.`
 }
+
+/**
+ * How long until a closed gate should be read again, or null to wait for the
+ * reader instead.
+ *
+ * The form read the gate once, so a developer shown "paused until 14:00" still
+ * had a disabled Run button at 14:05, until a reload — measured nineteen
+ * seconds past the opening and still disabled. When the closure says when it
+ * ends, the form reads again a second after. A manual close says nothing, and
+ * is read again when the reader returns to the tab.
+ *
+ * Capped at what `setTimeout` can hold: past about 24.8 days it fires at once.
+ *
+ * @param opensAt - when the gate opens, as `GET /gate` reports it
+ * @param now - the current time, in milliseconds
+ */
+export function recheckDelay(opensAt: string | null, now: number): number | null {
+  if (!opensAt) return null
+  const at = Date.parse(opensAt)
+  if (Number.isNaN(at)) return null
+  return Math.min(Math.max(0, at - now) + 1000, MAX_TIMEOUT_MS)
+}
+
+const MAX_TIMEOUT_MS = 2_147_483_647

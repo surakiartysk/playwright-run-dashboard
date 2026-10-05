@@ -32,8 +32,9 @@ export const POLICIES: Record<Role, RolePolicy> = {
   // The public-facing tier. Its safety does not come from allowedRefs or
   // maxWorkers here — those are the same courtesy limits every role gets. It
   // comes from dispatchWorkflow refusing this role a real dispatch regardless
-  // of SIMULATE_DISPATCH, and from visibilityClause below scoping it to only
-  // the runs it started itself. See decision 12.
+  // of SIMULATE_DISPATCH, and from visibilityClause below scoping it to runs
+  // started as demo — every visitor's, since they share the role. See
+  // decision 12.
   demo: { allowedRefs: ['main'], maxWorkers: 2, canDelete: false },
 
   // `ref` is a branch of the TEST SUITE, not of the product under test.

@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
-import { optionsCurl, runCurl } from '../curl'
+import { KEY_VARIABLE, optionsCurl, runCurl } from '../curl'
 import type { RunForm } from '../run-form'
 import { c, mono } from '../theme'
 import { CopyButton } from './CopyButton'
@@ -59,6 +59,19 @@ export function ApiSnippet({
 }
 
 /** The panel for a given state, apart from the request that changes it, so each state can be rendered. */
+/**
+ * How a role that is not demo gets the key the commands read.
+ *
+ * It said "Use a key from the admin panel's API keys, as $RUN_KEY" to every
+ * role, but only admin can open that panel, and it never showed setting the
+ * variable — so a pasted command sent an empty key.
+ */
+export function keyNote(role: Role): string {
+  return role === 'admin'
+    ? 'Issue a key under API keys in the admin panel, then set it in the terminal first:'
+    : 'Ask an admin for an API key, then set it in the terminal first:'
+}
+
 export function SnippetView({
   form,
   role,
@@ -103,7 +116,7 @@ export function SnippetView({
           )
         ) : (
           <p style={s.note}>
-            Use a key from the admin panel’s API keys, as <code style={mono}>$RUN_KEY</code>.
+            {keyNote(role)} <code style={mono}>export {KEY_VARIABLE}=&lt;the key&gt;</code>
           </p>
         )}
 

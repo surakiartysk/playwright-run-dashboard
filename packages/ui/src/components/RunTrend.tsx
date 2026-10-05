@@ -125,6 +125,18 @@ export interface TrendPoint {
  * the chart takes the newest thirty — and "Last N finished runs" above it says
  * how many that is.
  */
+/**
+ * How far the pass rate moved across the window, in words.
+ *
+ * Neutral, not green for up and red for down: a drop is not a failure, and the
+ * colours are kept for results (decision 10). Coloured by direction it showed a
+ * green "↑" while the newest run had failed. "1 pt", not "1 pts".
+ */
+export function changeLabel(change: number): string {
+  const size = Math.abs(change)
+  return `${change > 0 ? '↑' : '↓'} ${size} ${size === 1 ? 'pt' : 'pts'}`
+}
+
 export const MAX_TREND_POINTS = 30
 
 /**
@@ -333,9 +345,7 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
             {change !== 0 && (
               <>
                 {' · '}
-                <span style={{ color: change > 0 ? sc.pass : sc.fail }}>
-                  {change > 0 ? '↑' : '↓'} {Math.abs(change)} pts
-                </span>
+                <span style={{ color: c.t3 }}>{changeLabel(change)}</span>
               </>
             )}
           </p>

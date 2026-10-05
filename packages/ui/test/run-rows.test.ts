@@ -8,6 +8,7 @@ import {
   runFromHash,
   runHash,
   toggleRow,
+  linkNotice,
 } from '../src/run-rows'
 
 /**
@@ -102,5 +103,29 @@ describe('run links', () => {
   it('opens the list shut when the address names none', () => {
     expect(initialRows('')).toEqual(CLOSED)
     expect(initialRows('#something-else')).toEqual(CLOSED)
+  })
+})
+
+/**
+ * What a run link says when its run is not among the rows shown. It said
+ * nothing: the row did not open and the page did not move.
+ */
+describe('linkNotice', () => {
+  it('says the role cannot see it, or it is gone, when the lookup fails', () => {
+    expect(linkNotice(null, false)).toBe(
+      'That run link names a run this role cannot see, or one that no longer exists.',
+    )
+  })
+
+  it('names the run and blames the filters when they are narrowing the list', () => {
+    expect(linkNotice({ service: 'items', ref: 'main' }, true)).toBe(
+      'The linked run (items on main) is not in the list: the filters hide it.',
+    )
+  })
+
+  it('names the run and says it is further down when nothing is filtered', () => {
+    expect(linkNotice({ service: 'items', ref: 'main' }, false)).toBe(
+      'The linked run (items on main) is further down the list than has been loaded.',
+    )
   })
 })

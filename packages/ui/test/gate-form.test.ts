@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modeFromStatus, pausedReason, toLocalInput } from '../src/gate-form'
+import { modeFromStatus, pausedReason, recheckDelay, toLocalInput } from '../src/gate-form'
 
 /**
  * The gate form's two silent failure modes.
@@ -77,7 +77,7 @@ describe('showing an instant in a datetime-local input', () => {
 describe('pausedReason', () => {
   it('names who paused it when the gate says', () => {
     expect(pausedReason({ opensAt: null, updatedBy: 'Nok (admin)' })).toBe(
-      'Runs are paused for your role, by Nok (admin). QA and admin are unaffected.',
+      'Runs are paused for your role, by Nok (admin). Ask Nok (admin) to reopen it, or ask QA to start the run.',
     )
   })
 
@@ -94,7 +94,32 @@ describe('pausedReason', () => {
    */
   it('leaves the attribution out entirely when there is none', () => {
     expect(pausedReason({ opensAt: null, updatedBy: null })).toBe(
-      'Runs are paused for your role. QA and admin are unaffected.',
+      'Runs are paused for your role. Ask an admin to reopen it, or ask QA to start the run.',
     )
+  })
+})
+
+/**
+ * When a closed gate is read again. The form read it once, so a developer told
+ * "paused until 14:00" still had a disabled Run button after 14:00.
+ */
+describe('recheckDelay', () => {
+  const now = Date.parse('2026-10-05T10:00:00Z')
+
+  it('reads again a second after the closure says it ends', () => {
+    expect(recheckDelay('2026-10-05T10:05:00Z', now)).toBe(5 * 60 * 1000 + 1000)
+  })
+
+  it('reads again at once when the opening has already passed', () => {
+    expect(recheckDelay('2026-10-05T09:00:00Z', now)).toBe(1000)
+  })
+
+  it('waits for the reader when the closure names no end, or an unreadable one', () => {
+    expect(recheckDelay(null, now)).toBeNull()
+    expect(recheckDelay('not a date', now)).toBeNull()
+  })
+
+  it('never asks setTimeout for more than it can hold, which would fire at once', () => {
+    expect(recheckDelay('2027-10-05T10:00:00Z', now)).toBe(2_147_483_647)
   })
 })

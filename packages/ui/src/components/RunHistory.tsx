@@ -14,11 +14,12 @@ import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
 import { runTag } from '../run-form'
-import { useCompact } from '../use-compact'
+import { TABLE_NEEDS, useCompact } from '../use-compact'
 import {
   askDelete,
   cancelDelete,
   initialRows,
+  linkNotice,
   runFromHash,
   runHash,
   toggleRow,
@@ -173,13 +174,15 @@ export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
  * What the visibility scoping actually means for the signed-in role, in
  * words. Table-driven rather than a `role === 'dev' ? … : …` — that ternary
  * was silently wrong for `demo`, whose scope is neither "main only" nor
- * "every branch": it is every branch, but only the runs it started itself.
+ * "every branch": it is the runs started as demo, by any visitor.
  */
 const SCOPE_LABEL: Record<Role, string> = {
   // Shared by every demo visitor: `triggered_by` holds the role, not the
   // person, so "you" would promise a separation the query does not make.
   demo: 'runs started as demo — main branch only',
-  dev: 'main branch only — your role’s scope',
+  // Named, not "your role's": a demo previewing dev is shown this, and dev is
+  // not their role.
+  dev: 'main branch only — dev’s scope',
   qa: 'every branch',
   admin: 'every branch',
 }
@@ -283,9 +286,18 @@ function ResultBar({ run }: { run: Run }) {
   return (
     <div style={{ minWidth: 130 }}>
       <div style={s.resultNumbers}>
-        <strong style={{ color: failed > 0 ? sc.fail : sc.pass, fontSize: 15 }}>{passed}</strong>
+        {/*
+          The passed count is a number, not a verdict: it was bold red on a
+          failed run, so the loudest thing in the row was how many passed,
+          while the failure count sat small in a red that fails AA on white
+          (3.76:1). The row's edge and icon carry the result; the failures
+          are named in the AA red made for text.
+        */}
+        <strong style={{ color: c.t1, fontSize: 15 }}>{passed}</strong>
         <span style={{ color: c.t5, fontSize: 13 }}>/ {run.total}</span>
-        {failed > 0 && <span style={{ color: sc.fail, fontSize: 12 }}>· {failed} failed</span>}
+        {failed > 0 && (
+          <span style={{ color: c.danger, fontSize: 12, fontWeight: 600 }}>· {failed} failed</span>
+        )}
       </div>
       <div style={s.bar}>
         {share.passed > 0 && (
@@ -314,6 +326,7 @@ export function RunHistory({
   options,
   filters,
   onFilters,
+  listed = true,
 }: {
   runs: Run[]
   role: Role
@@ -328,6 +341,8 @@ export function RunHistory({
   options: RunOptions | null
   filters: HistoryFilters
   onFilters: (next: HistoryFilters) => void
+  /** Whether the list has answered at least once this session. */
+  listed?: boolean
 }) {
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -366,6 +381,43 @@ export function RunHistory({
     document.getElementById(`run-${id}`)?.scrollIntoView({ block: 'center' })
   }, [shown])
 
+  /*
+   * A link pasted into this tab changes only the fragment, so the page does not
+   * load again and the hash above is never re-read; the row stayed shut until a
+   * reload. Followed here as the first load would have.
+   */
+  const [linkedId, setLinkedId] = useState(linked.current)
+  useEffect(() => {
+    const follow = () => {
+      const id = runFromHash(window.location.hash)
+      if (!id) return
+      linked.current = id
+      setLinkedId(id)
+      setRows({ open: id, confirmingDelete: null })
+    }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [])
+
+  // Looked up once the list has answered, and only if it does not hold the run.
+  const missing = listed && linkedId !== null && !runs.some((r) => r.id === linkedId)
+  // `found` decides the way out: Load more cannot reach a run the role cannot see.
+  const [notice, setNotice] = useState<{ text: string; found: boolean } | null>(null)
+  useEffect(() => {
+    if (!missing || !linkedId) return setNotice(null)
+    let live = true
+    api
+      .run(linkedId)
+      .then(
+        (run) =>
+          live && setNotice({ text: linkNotice(run, activeCount(filters) > 0), found: true }),
+      )
+      .catch(() => live && setNotice({ text: linkNotice(null, false), found: false }))
+    return () => {
+      live = false
+    }
+  }, [missing, linkedId, filters])
+
   return (
     <section>
       <header style={s.head}>
@@ -385,6 +437,23 @@ export function RunHistory({
       )}
 
       {error && <div style={s.deleteError}>{error}</div>}
+
+      {missing && notice && (
+        <div role="status" style={s.linkNotice}>
+          {notice.text}{' '}
+          {!notice.found ? null : activeCount(filters) > 0 ? (
+            <button onClick={() => onFilters({})} style={s.clearFilter}>
+              Clear filters
+            </button>
+          ) : (
+            hasMore && (
+              <button onClick={onLoadMore} disabled={loadingMore} style={s.clearFilter}>
+                Load more
+              </button>
+            )
+          )}
+        </div>
+      )}
 
       {runs.length === 0 ? (
         activeCount(filters) > 0 ? (
@@ -457,7 +526,7 @@ export function RunHistory({
                       </td>
 
                       <td style={{ ...s.td, ...(compact ? cellTop(2) : null) }}>
-                        <div style={{ ...s.runCell, ...(compact ? s.runCellCompact : null) }}>
+                        <div style={s.runCell}>
                           {/*
                             In the existing cell rather than a column of its
                             own: the table already carries six, and a seventh
@@ -710,6 +779,17 @@ const s: Record<string, CSSProperties> = {
     fontSize: 13,
   },
 
+  // Neutral, not red: a link to a run outside the view is not a failure.
+  linkNotice: {
+    background: c.card,
+    border: `1px solid ${c.border}`,
+    borderRadius: 10,
+    padding: '10px 14px',
+    marginBottom: 10,
+    color: c.t2,
+    fontSize: 13,
+  },
+
   tableWrap: {
     border: `1px solid ${c.border}`,
     borderRadius: 12,
@@ -722,7 +802,7 @@ const s: Record<string, CSSProperties> = {
     // Below this the columns stop being readable and the wrapper scrolls
     // instead of squeezing them — a table that reflows into three-word columns
     // is harder to scan than one you push sideways.
-    minWidth: 620,
+    minWidth: TABLE_NEEDS,
   },
   // The narrow layout. A row is a grid: the status takes the first column over
   // both lines, the caret the last, and what ran sits above its result.
@@ -733,7 +813,6 @@ const s: Record<string, CSSProperties> = {
     gridTemplateColumns: '52px minmax(0, 1fr) 44px',
     alignItems: 'center',
   },
-  runCellCompact: { flexWrap: 'wrap', rowGap: 4 },
   meta: { ...mono, fontSize: 12, color: c.t5, marginTop: 5 },
   th: {
     textAlign: 'left',
@@ -763,7 +842,17 @@ const s: Record<string, CSSProperties> = {
   tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
-  runCell: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
+  // Wraps in the table too, not only in cards. Unwrapped, a long service with a
+  // tag, a ref and two chips held this cell at 332px, and between 640 and 767px
+  // the table outgrew its box and cut off Started, Took and the caret.
+  runCell: {
+    display: 'flex',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: 8,
+    rowGap: 4,
+    minWidth: 0,
+  },
   runSuite: {
     ...mono,
     fontSize: 10.5,

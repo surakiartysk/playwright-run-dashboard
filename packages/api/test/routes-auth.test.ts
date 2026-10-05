@@ -119,6 +119,21 @@ describe('POST /auth/logout', () => {
     expect(cookie).toContain('HttpOnly')
   })
 
+  /*
+   * The preview cookie is signed over the session's expiry, in whole seconds.
+   * Left behind by a sign-out, it applied again to a demo sign-in landing in
+   * the same second, and the new session opened previewing admin — found by
+   * the state review, by curl.
+   */
+  it('clears the preview cookie too, so it cannot outlive the session it rode on', async () => {
+    const response = await request('/auth/logout', { method: 'POST' })
+    const cleared = response.headers.getSetCookie().find((c) => c.startsWith('preview-role='))
+
+    expect(cleared).toBeDefined()
+    expect(cleared).toMatch(/^preview-role=;/)
+    expect(cleared).toContain('Max-Age=0')
+  })
+
   it('succeeds when nobody was signed in', async () => {
     // Signing out twice, or from a stale tab, is ordinary. It must not error.
     expect((await request('/auth/logout', { method: 'POST' })).status).toBe(200)

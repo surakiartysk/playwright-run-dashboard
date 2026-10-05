@@ -6,8 +6,8 @@ machine holding an API key can start one without opening the page at all.
 
 Four roles see four different dashboards. A `dev` is pinned to `main` and sees
 only main-branch runs; `qa` may also run `develop` and `release/<version>`, and sees every
-run; `admin` may run any branch and delete; `demo` sees the runs it started
-itself, may preview — read-only — what the other roles see, and can never
+run; `admin` may run any branch and delete; `demo` sees the runs started as
+`demo`, by any visitor, may preview — read-only — what the other roles see, and can never
 trigger a real run, which is what makes its password safe to publish rather
 than hand out privately. The interesting part is not the Run button — it is
 _who may run what, and who may then see the result_.
@@ -78,7 +78,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1061 tests — 618 in the Worker, 443 in the UI
+pnpm test          # 1087 tests — 625 in the Worker, 462 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -87,12 +87,12 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 161 deliberate mutations — deleting
+Every test was proven able to fail. In all, 198 deliberate mutations — deleting
 the privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. 107 of them are written down one by one in
+behaviour. 144 of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 161 are _not_
+message it produced; that file also says plainly which of the 198 are _not_
 recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 

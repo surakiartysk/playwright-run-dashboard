@@ -17,7 +17,7 @@ import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
-import { useWide } from './use-compact'
+import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { pollDelay, refreshOnReturn } from './poll'
 import { latestOnly } from './latest'
@@ -55,6 +55,11 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
+  // When the reader last came back to the tab; RunTrigger reads the gate again.
+  const [returnedAt, setReturnedAt] = useState(0)
+  // Whether this session's list has answered yet; until it has, a run link
+  // cannot be said to be missing from it.
+  const [listed, setListed] = useState(false)
   // Every read of the run list goes through this, so only the newest is applied.
   const [lists] = useState(() => latestOnly(api.listRuns))
 
@@ -72,6 +77,7 @@ export function App() {
    */
   const endSession = useCallback(() => {
     lists.forget()
+    setListed(false)
     setRole(null)
     setViewAs(null)
     setRuns([])
@@ -136,6 +142,7 @@ export function App() {
       const page = await lists.ask(toQuery(filters))
       if (!page) return
       setLoadedMore(false)
+      setListed(true)
       setRuns(page.runs)
       setTotal(page.total)
       setNextCursor(page.nextCursor)
@@ -215,7 +222,10 @@ export function App() {
     if (!role) return
     const onReturn = () => {
       if (document.visibilityState !== 'visible') return
-      if (refreshOnReturn(Date.now(), lastRefreshAt.current)) void refresh()
+      if (refreshOnReturn(Date.now(), lastRefreshAt.current)) {
+        void refresh()
+        setReturnedAt(Date.now())
+      }
     }
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
@@ -297,6 +307,7 @@ export function App() {
           key={`${role}-${gateTick}`}
           options={options}
           role={role}
+          returnedAt={returnedAt}
           onStarted={() => void refresh()}
         />
       ) : (
@@ -317,6 +328,7 @@ export function App() {
         options={options}
         filters={filters}
         onFilters={setFilters}
+        listed={listed}
       />
     </>
   )
@@ -387,8 +399,8 @@ const s: Record<string, CSSProperties> = {
   pageWide: { maxWidth: '76rem' },
   columns: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) 320px',
-    gap: 24,
+    gridTemplateColumns: `minmax(0, 1fr) ${ASIDE_WIDTH}px`,
+    gap: COLUMN_GAP,
     alignItems: 'start',
   },
   main: { minWidth: 0 },

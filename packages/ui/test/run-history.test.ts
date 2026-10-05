@@ -13,7 +13,7 @@ import {
   startedTitle,
   suiteCommitUrl,
 } from '../src/components/RunHistory'
-import { COMPACT_BELOW, COMPACT_QUERY } from '../src/use-compact'
+import { COMPACT_BELOW, COMPACT_QUERY, PAGE_GUTTER, TABLE_NEEDS } from '../src/use-compact'
 import type { Run } from '../src/api'
 import { fromSearch } from '../src/run-query'
 import { run as runRow } from './fixtures'
@@ -187,11 +187,13 @@ describe('rowMeta', () => {
 
 describe('the narrow layout', () => {
   /**
-   * The table needs 620px (`minWidth` in the styles) and the list switches to
-   * rows below 640, so the two cannot leave a band of widths that is neither.
+   * The table needs TABLE_NEEDS and gets the viewport less the gutter, so the
+   * list must turn into rows at any width where the two do not fit. Compared
+   * with the table alone, as this once was, it left 640–669px wide where the
+   * table was 30px wider than its box and Started, Took and the caret were cut.
    */
-  it('starts just under the width the table needs', () => {
-    expect(COMPACT_BELOW).toBeGreaterThanOrEqual(620)
+  it('turns into rows wherever the table would not fit beside the gutter', () => {
+    expect(COMPACT_BELOW).toBeGreaterThanOrEqual(TABLE_NEEDS + PAGE_GUTTER)
     expect(COMPACT_QUERY).toBe(`(max-width: ${COMPACT_BELOW - 1}px)`)
   })
 })
@@ -327,5 +329,32 @@ describe('the list marks a run a key started', () => {
 
   it('says nothing when no run came from a key', () => {
     expect(html([runRow({ id: 'a' })])).not.toContain('via key')
+  })
+})
+
+/*
+ * A demo visitor previewing dev was told the list was "your role's scope", and
+ * dev is not their role. Found by the real-user review.
+ */
+describe('the scope beside the heading', () => {
+  it("names dev's scope rather than calling it the reader's own", () => {
+    const html = renderToStaticMarkup(
+      createElement(RunHistory, {
+        runs: [],
+        role: 'dev',
+        canDelete: false,
+        onChanged: () => undefined,
+        total: 0,
+        hasMore: false,
+        loadingMore: false,
+        onLoadMore: () => undefined,
+        options: null,
+        filters: fromSearch(''),
+        onFilters: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('dev’s scope')
+    expect(html).not.toContain('your role')
   })
 })

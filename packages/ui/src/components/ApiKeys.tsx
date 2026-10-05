@@ -15,9 +15,15 @@ import { c, mono } from '../theme'
  * enforcement: `requireRole('admin')` on the routes is the control.
  */
 
-/** A key's authority, in words, from the fields the server returns. */
-function scopeOf(key: ApiKey): string {
-  const refs = key.allowedRefs?.length ? key.allowedRefs.join(', ') : 'any branch'
+/**
+ * A key's authority, in words, from the fields the server returns.
+ *
+ * A key with no branch list of its own has its role's, which is "any branch"
+ * only for admin. It said "any branch" for every such key, so a dev key read
+ * as able to run anything.
+ */
+export function scopeOf(key: Pick<ApiKey, 'allowedRefs' | 'maxWorkers'>): string {
+  const refs = key.allowedRefs?.length ? key.allowedRefs.join(', ') : "the role's branches"
   const workers = key.maxWorkers === null ? "the role's limit" : `${key.maxWorkers} workers`
   return `${refs} · up to ${workers}`
 }
@@ -175,7 +181,7 @@ export function ApiKeys() {
           </div>
 
           <div style={s.row}>
-            <div style={s.field}>
+            <div style={s.rowField}>
               <label htmlFor="key-role" style={s.label}>
                 Role
               </label>
@@ -196,7 +202,7 @@ export function ApiKeys() {
               </select>
             </div>
 
-            <div style={s.field}>
+            <div style={s.rowField}>
               <label htmlFor="key-workers" style={s.label}>
                 Max workers
               </label>
@@ -373,7 +379,10 @@ const s: Record<string, CSSProperties> = {
     gap: 14,
   },
   row: { display: 'flex', gap: 12, flexWrap: 'wrap' },
-  field: { flex: '1 1 180px', minWidth: 0 },
+  // In the form's column, flex-basis is a height: `1 1 180px` held a 82px field
+  // at 180px tall. The basis only belongs to fields sharing a row.
+  field: { minWidth: 0 },
+  rowField: { flex: '1 1 180px', minWidth: 0 },
   label: { display: 'block', fontSize: 12, fontWeight: 500, color: c.t2, marginBottom: 6 },
   input: {
     width: '100%',
