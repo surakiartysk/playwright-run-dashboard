@@ -53,8 +53,6 @@ export function App() {
   const [options, setOptions] = useState<RunOptions | null>(null)
   const [optionsError, setOptionsError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
-  const [gateTick, setGateTick] = useState(0)
   // When the reader last came back to the tab; RunTrigger reads the gate again.
   const [returnedAt, setReturnedAt] = useState(0)
   // Whether this session's list has answered yet; until it has, a run link
@@ -299,20 +297,18 @@ export function App() {
         are — and never the writable one the server would refuse; the same
         real-role rule RunTrigger follows. See admin-panel.ts.
 
-        `gateTick` remounts RunTrigger after the gate changes, so its "runs are
-        paused" notice reflects the new state without a reload. RunTrigger reads
-        the gate on mount, so a key change is the honest way to make it re-read.
+        A gate change here used to remount RunTrigger, so that its "runs are
+        paused" notice would be re-read. That notice is only ever dev's, and
+        only admin can change the gate from this page, so the remount changed
+        nothing anyone saw except the admin's own form, which went back to
+        `items` after every Apply. It is gone; RunTrigger reads the gate on its
+        own (see recheckDelay).
       */}
-      {panelMode && (
-        <AdminPanel
-          readOnly={panelMode === 'readOnly'}
-          onGateChanged={() => setGateTick((n) => n + 1)}
-        />
-      )}
+      {panelMode && <AdminPanel readOnly={panelMode === 'readOnly'} />}
 
       {options ? (
         <RunTrigger
-          key={`${role}-${gateTick}`}
+          key={role}
           options={options}
           role={role}
           returnedAt={returnedAt}
