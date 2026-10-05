@@ -135,6 +135,40 @@ export function RunTrigger({
   const refIsLocked = refLocked(refs)
   const blocked = busy || gate !== null
 
+  const workersControl = (
+    <Workers
+      fill={compact}
+      value={workers}
+      max={options.maxWorkers}
+      onChange={(workers) => set({ workers })}
+    />
+  )
+
+  const runButton = (
+    <button
+      type="button"
+      onClick={() => void start()}
+      disabled={blocked}
+      style={{
+        ...s.run,
+        ...(blocked ? s.runDisabled : null),
+        ...(compact ? s.runCompact : null),
+      }}
+    >
+      {busy ? (
+        <>
+          <Icon name="running" size={16} style={{ animation: 'spin 1.1s linear infinite' }} />
+          Starting…
+        </>
+      ) : (
+        <>
+          <Icon name="play" size={16} />
+          Run
+        </>
+      )}
+    </button>
+  )
+
   return (
     <section style={s.card} aria-label="New run">
       <header style={s.head}>
@@ -187,35 +221,24 @@ export function RunTrigger({
           lockedReason={refLockedReason(role, refs)}
         />
 
-        <Workers
-          fill={compact}
-          value={workers}
-          max={options.maxWorkers}
-          onChange={(workers) => set({ workers })}
-        />
-
-        <button
-          type="button"
-          onClick={() => void start()}
-          disabled={blocked}
-          style={{
-            ...s.run,
-            ...(blocked ? s.runDisabled : null),
-            ...(compact ? s.runCompact : null),
-          }}
-        >
-          {busy ? (
-            <>
-              <Icon name="running" size={16} style={{ animation: 'spin 1.1s linear infinite' }} />
-              Starting…
-            </>
-          ) : (
-            <>
-              <Icon name="play" size={16} />
-              Run
-            </>
-          )}
-        </button>
+        {/*
+          How many workers and Run go together, at the end of the row. Apart, the
+          six controls needed 903px of a 794px row at every desktop width, and
+          Run wrapped onto a row of its own with nothing beside it. Together,
+          they wrap as a pair and stay right-aligned. The narrow layout lays the
+          two out on its own, so it keeps them apart.
+        */}
+        {compact ? (
+          <>
+            {workersControl}
+            {runButton}
+          </>
+        ) : (
+          <div style={s.go} role="group" aria-label="Workers and run">
+            {workersControl}
+            {runButton}
+          </div>
+        )}
       </div>
 
       {/*
@@ -573,9 +596,9 @@ const s: Record<string, CSSProperties> = {
   },
   workerMax: { fontSize: 11.5, color: c.t5, fontWeight: 500 },
 
+  go: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   run: {
     ...control,
-    marginLeft: 'auto',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -598,7 +621,7 @@ const s: Record<string, CSSProperties> = {
   fillHalf: { flex: '1 1 calc(50% - 4px)', minWidth: 0 },
   suiteOptionFill: { flex: 1, justifyContent: 'center' },
   selectFill: { width: '100%' },
-  runCompact: { flex: '1 1 100%', marginLeft: 0 },
+  runCompact: { flex: '1 1 100%' },
   runDisabled: { background: c.surface, color: c.t4, cursor: 'not-allowed' },
 
   fieldNote: {

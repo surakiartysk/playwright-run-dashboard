@@ -185,3 +185,17 @@ describe('the first render of the command bar', () => {
     expect(html).toContain('Only main is available to qa here.')
   })
 })
+
+/*
+ * Apart, the six controls needed 903px of a 794px row at every desktop width,
+ * and Run wrapped onto a row of its own with nothing beside it. Found by the
+ * design review; the pair now wraps together, at the end of the row.
+ */
+describe('the end of the command bar', () => {
+  it('keeps the worker count and Run together, Run last', () => {
+    const html = render(policy())
+    expect(html).toMatch(
+      /role="group" aria-label="Workers and run"[^>]*>.*aria-label="Workers, .*Run<\/button><\/div>/s,
+    )
+  })
+})
