@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 141 now — which was the one figure
+**ninety-nine** when this file was written, 161 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **Eighty-seven mutations are
+This file is what that number can actually show. **107 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between eighty-seven and 141 is
+changed and what went red. The gap between 107 and 161 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -113,6 +113,26 @@ figure the prose states, so the two cannot drift apart.
 | 85  | `7bbe555` · 5 Oct  | No opener policy anywhere                                                     | 4 tests: `expected null to be 'same-origin'`                                                                              |
 | 86  | `7bbe555` · 5 Oct  | The UI's `_headers` without the opener policy                                 | `expected undefined to be 'same-origin'`                                                                                  |
 | 87  | `7bbe555` · 5 Oct  | The UI's `_headers` lets the site frame itself                                | `expected 'frame-ancestors \'self\'' to be 'frame-ancestors \'none\''`                                                    |
+| 88  | `8cd4219` · 5 Oct  | A list answer applied whatever was asked since                                | 2 tests: `expected 'unfiltered' to be null`                                                                               |
+| 89  | `8cd4219` · 5 Oct  | `forget()` does nothing                                                       | `expected 'the admin\'s runs' to be null`                                                                                 |
+| 90  | `8cd4219` · 5 Oct  | A superseded failure rethrown                                                 | `Error: stale 401`                                                                                                        |
+| 91  | `8cd4219` · 5 Oct  | Sign-out without `lists.forget()`                                             | not the suite (no component tests run effects): the browser probe, dev sees 2 of 25 develop rows                          |
+| 92  | `8cd4219` · 5 Oct  | `refresh` asks `api.listRuns` directly                                        | not the suite: the browser probe, "rows API 0 UI 13" with no filter                                                       |
+| 93  | `8cd4219` · 5 Oct  | `loadMore` asks `api.listRuns` directly                                       | not the suite: the browser probe, 4 API rows under `?suite=ui`                                                            |
+| 94  | `7622f7d` · 5 Oct  | A service checked by its shape again                                          | 3 tests: `expected 201 to be 422`                                                                                         |
+| 95  | `7622f7d` · 5 Oct  | A tag checked by its shape again                                              | 3 tests, incl. "records nothing…": `expected 20 to be 19`                                                                 |
+| 96  | `7622f7d` · 5 Oct  | Either suite's names accepted for both                                        | 3 tests: "rejects the other suite's service with 422"                                                                     |
+| 97  | `7622f7d` · 5 Oct  | Every ref allowed, to show the count-based tests bite                         | 5 tests, incl. "records no run when the ref is refused": `expected 19 to be 18`                                           |
+| 98  | `7622f7d` · 5 Oct  | The gate never applies                                                        | 2 tests: `expected 201 to be 503`                                                                                         |
+| 99  | `b1b969c` · 5 Oct  | No `og:image`                                                                 | 3 tests: `expected false to be true`                                                                                      |
+| 100 | `b1b969c` · 5 Oct  | `og:image` relative                                                           | `expected '/og.png' to match /^https:\/\//`                                                                               |
+| 101 | `b1b969c` · 5 Oct  | `og:image` names a file not shipped                                           | 2 tests: `ENOENT`                                                                                                         |
+| 102 | `b1b969c` · 5 Oct  | The stated image width wrong                                                  | `expected [ '1280', '630' ] to deeply equal [ '1200', '630' ]`                                                            |
+| 103 | `b1b969c` · 5 Oct  | A summary card, not a large one                                               | `expected 'summary' to be 'summary_large_image'`                                                                          |
+| 104 | `f501026` · 5 Oct  | No links on the sign-in page                                                  | `expected '<main …' to contain 'href=…'`                                                                                  |
+| 105 | `f501026` · 5 Oct  | No note in demo's role panel                                                  | `… to contain 'the point of the project'`                                                                                 |
+| 106 | `f501026` · 5 Oct  | The note shown to every role                                                  | `… not to contain 'the point of the project'`                                                                             |
+| 107 | `f501026` · 5 Oct  | The decisions link at the repository root                                     | `… to match /\/docs\/decisions\.md$/`                                                                                     |
 
 ---
 
@@ -125,12 +145,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **ninety-one**: eighty-seven described, four
+So the commit history accounts for **111**: 107 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-141 mutations have been run. Ninety-one are in the history. The other fifty
+161 mutations have been run. 111 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -139,14 +159,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-141 is also a floor rather than an exact count. The prose figure stood at
+161 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 87 are all from that period, and every future one belongs
+produced — rows 23 to 107 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 

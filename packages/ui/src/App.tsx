@@ -20,6 +20,7 @@ import { Appearance } from './components/Appearance'
 import { useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { pollDelay, refreshOnReturn } from './poll'
+import { latestOnly } from './latest'
 import { c } from './theme'
 
 export function App() {
@@ -54,6 +55,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   // Bumped when an admin changes the gate, to remount RunTrigger so it re-reads it.
   const [gateTick, setGateTick] = useState(0)
+  // Every read of the run list goes through this, so only the newest is applied.
+  const [lists] = useState(() => latestOnly(api.listRuns))
 
   /**
    * Ends the session on this page, and forgets everything it loaded.
@@ -63,8 +66,12 @@ export function App() {
    * signing in after an `admin` on the same tab was shown runs from branches
    * the server would never send a `dev`. Visibility is enforced in the query;
    * a client holding on to another session's rows walks around it.
+   *
+   * Clearing state was not enough on its own: a list request still in flight
+   * answered after this and put the rows back. `lists.forget()` drops it.
    */
   const endSession = useCallback(() => {
+    lists.forget()
     setRole(null)
     setViewAs(null)
     setRuns([])
@@ -75,7 +82,7 @@ export function App() {
     setOptions(null)
     setOptionsError(null)
     setError(null)
-  }, [])
+  }, [lists])
 
   // Restores an existing session on load, so a refresh is not a sign-out.
   useEffect(() => {
@@ -126,7 +133,8 @@ export function App() {
     if (!role) return
     lastRefreshAt.current = Date.now()
     try {
-      const page = await api.listRuns(toQuery(filters))
+      const page = await lists.ask(toQuery(filters))
+      if (!page) return
       setLoadedMore(false)
       setRuns(page.runs)
       setTotal(page.total)
@@ -142,7 +150,7 @@ export function App() {
       }
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
-  }, [role, endSession, filters])
+  }, [role, endSession, filters, lists])
 
   /** Appends the next page. The cursor makes this safe against new runs
    *  arriving at the top: it names a row, not an offset. */
@@ -150,7 +158,9 @@ export function App() {
     if (!nextCursor || loadingMore) return
     setLoadingMore(true)
     try {
-      const page = await api.listRuns({ ...toQuery(filters), cursor: nextCursor })
+      const page = await lists.ask({ ...toQuery(filters), cursor: nextCursor })
+      // A filter change or a poll asked since; this page belongs to that old list.
+      if (!page) return
       // Guards against a double-click racing two identical requests: a run
       // already on screen is never appended twice.
       setRuns((current) => {
@@ -170,7 +180,7 @@ export function App() {
     } finally {
       setLoadingMore(false)
     }
-  }, [nextCursor, loadingMore, endSession, filters])
+  }, [nextCursor, loadingMore, endSession, filters, lists])
 
   useEffect(() => {
     void refresh()

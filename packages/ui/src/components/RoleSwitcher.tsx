@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { Role, RolePolicy } from '../api'
 import { c } from '../theme'
+import { ProjectLinks } from './ProjectLinks'
 import { Collapsible } from './Collapsible'
 
 /**
@@ -117,6 +118,16 @@ export function RoleSwitcher({
       )}
 
       <p style={s.note}>{previewNote(role, realRole)}</p>
+
+      {realRole === 'demo' && (
+        <div style={s.about}>
+          <p style={s.aboutText}>
+            This panel is the point of the project: each role may run and see different things, and
+            the server enforces it rather than the page.
+          </p>
+          <ProjectLinks />
+        </div>
+      )}
     </div>
   )
 
@@ -176,4 +187,6 @@ const s: Record<string, CSSProperties> = {
   lineValue: { margin: 0, color: c.t1, minWidth: 0 },
 
   note: { margin: '10px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.5 },
+  about: { marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.divider}` },
+  aboutText: { margin: '0 0 6px', fontSize: 13, color: c.t3, lineHeight: 1.5 },
 }

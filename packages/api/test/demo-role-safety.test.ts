@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env, createExecutionContext } from 'cloudflare:test'
-import { migrate, sessionFor, uniqueService } from './helpers'
+import { migrate, sessionFor } from './helpers'
 import { dispatchWorkflow } from '../src/github'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import worker from '../src/index'
@@ -114,7 +114,7 @@ describe('POST /runs — demo cannot escape simulation through the endpoint', ()
       new Request('http://api.test/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('demo') },
-        body: JSON.stringify({ service: uniqueService(), tags: 'all' }),
+        body: JSON.stringify({ service: 'items', tags: 'all' }),
       }),
       patched,
       ctx,

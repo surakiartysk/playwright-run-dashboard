@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { migrate, request, as, seedRun, uniqueService } from './helpers'
+import { migrate, request, as, seedRun } from './helpers'
 import type { RunView } from '../src/types'
 import { DEV_PASSWORDS } from '../src/config'
 
@@ -173,20 +173,19 @@ describe('a name given at sign-in', () => {
       body: JSON.stringify({ password, name }),
     })
     const cookie = (signedIn.headers.get('Set-Cookie') ?? '').split(';')[0]!
-    const service = uniqueService()
-
     const started = await request('/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
-      body: JSON.stringify({ service, tags: 'all', ref: 'main' }),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
     })
     expect(started.status).toBe(201)
+    const { runId } = (await started.json()) as { runId: string }
 
     const listed = await request('/runs?limit=100', { headers: { Cookie: cookie } })
     const { runs } = (await listed.json()) as { runs: RunView[] }
     return {
       signedIn: (await signedIn.json()) as { name?: string },
-      run: runs.find((run) => run.service === service),
+      run: runs.find((run) => run.id === runId),
     }
   }
 

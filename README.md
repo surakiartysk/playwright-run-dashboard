@@ -48,8 +48,11 @@ The other three roles sign in with their own name as the password: `dev`,
 change the run gate or issue an API key — a `demo` session previewing admin
 _sees_ both, read-only, but never what admin may _do_.
 
-Press Run. The dashboard simulates a dispatch, walks the run through
-queued → running → result, and the report link opens a real Allure report.
+Press Run. The dashboard simulates a dispatch and walks the run through
+queued → running → result. Locally the report link answers 404: the report is
+an object in R2, and a fresh clone's local bucket is empty. On the deployed
+site every simulated run opens one real, shared Allure report
+([decision 14](docs/decisions.md#14-one-real-allure-report-shared-by-every-simulated-run)).
 Sign in as `demo` and use the **Viewing as** bar to watch what each role is
 allowed to see — without gaining what it is allowed to do.
 
@@ -72,7 +75,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1040 tests — 611 in the Worker, 429 in the UI
+pnpm test          # 1060 tests — 618 in the Worker, 442 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -81,12 +84,12 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 141 deliberate mutations — deleting
+Every test was proven able to fail. In all, 161 deliberate mutations — deleting
 the privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. Eighty-seven of them are written down one by one in
+behaviour. 107 of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 141 are _not_
+message it produced; that file also says plainly which of the 161 are _not_
 recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 
@@ -115,10 +118,21 @@ This is a demo, and it says so in code rather than in a comment:
 
 ## Deploying it for real
 
-Set every secret first. The Worker **refuses to serve** without them — a 503 on
-every route, and `/health` says which are missing — because the development
-defaults are published in this repo, and a deployment that silently used them
-would sign report links with a value anyone can read.
+Set every secret first. Once `SIMULATE_DISPATCH` is `false`, the Worker
+**refuses to serve** without them — a 503 on every route, and `/health` says
+which are missing — because the development defaults are published in this
+repo, and a deployment that silently used them would sign report links with a
+value anyone can read.
+
+While it simulates, it does not check: simulation is how a clone runs on its
+defaults. So a deployment that simulates and has no secrets serves the
+published passwords, and anyone can sign in to it as `admin` with `admin` —
+delete runs, issue keys, close the gate — and forge its report links. Nothing
+it starts is real, but set the secrets on anything public whatever the flag
+says.
+
+Every `wrangler` command below runs from `packages/api`, where `wrangler.toml`
+is (`pnpm exec wrangler …` if it is not on your PATH).
 
 ```bash
 wrangler secret put WEBHOOK_SECRET   # signs the result callback
@@ -196,7 +210,7 @@ wrangler deploy --var GITHUB_REPO:<owner/api-repo> \
                 --var GITHUB_UI_WORKFLOW:on-demand.yml \
                 --var SIMULATE_DISPATCH:false        # 2. the Worker
 pnpm --filter @run-dashboard/ui build                 # 3. the UI
-wrangler pages deploy dist --project-name <project>
+wrangler pages deploy ../ui/dist --project-name <project>
 ```
 
 `GITHUB_UI_REPO` and `GITHUB_UI_WORKFLOW` are the only optional pair. A

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, as, seedRun, uniqueService, runsForService } from './helpers'
+import { migrate, as, seedRun, uniqueService, createdRun, runCount } from './helpers'
 import type { RunView } from '../src/types'
 
 beforeAll(migrate)
@@ -106,13 +106,13 @@ describe('GET /runs/:id — visibility', () => {
 
 describe('POST /runs — policy enforcement', () => {
   it('lets dev run against main', async () => {
-    const response = await create('dev', { service: uniqueService(), tags: 'all', ref: 'main' })
+    const response = await create('dev', { service: 'items', tags: 'all', ref: 'main' })
     expect(response.status).toBe(201)
   })
 
   it('refuses dev a branch it may not use, with 403 rather than 422', async () => {
     const response = await create('dev', {
-      service: uniqueService(),
+      service: 'items',
       tags: 'all',
       ref: 'develop',
     })
@@ -122,26 +122,26 @@ describe('POST /runs — policy enforcement', () => {
   })
 
   it('lets qa run a release branch, and not a lookalike', async () => {
-    const service = uniqueService()
-    const ok = await create('qa', { service, tags: 'all', ref: 'release/1.0.0' })
+    const before = await runCount()
+    const ok = await create('qa', { service: 'items', tags: 'all', ref: 'release/1.0.0' })
     expect(ok.status).toBe(201)
 
     for (const ref of ['release', 'releasefoo', 'release/../main', 'release/1.0/x']) {
-      const refused = await create('qa', { service, tags: 'all', ref })
+      const refused = await create('qa', { service: 'items', tags: 'all', ref })
       expect(refused.status, ref).toBe(403)
     }
-    expect(await runsForService(service)).toHaveLength(1)
+    expect(await runCount()).toBe(before + 1)
   })
 
   /** `*` is not a character a git ref may carry here, so the pattern cannot be named as a ref. */
   it('refuses the pattern itself as a branch name', async () => {
-    const response = await create('qa', { service: uniqueService(), tags: 'all', ref: 'release/*' })
+    const response = await create('qa', { service: 'items', tags: 'all', ref: 'release/*' })
     expect(response.status).toBe(422)
   })
 
   it('does not let dev run a release branch', async () => {
     const response = await create('dev', {
-      service: uniqueService(),
+      service: 'items',
       tags: 'all',
       ref: 'release/1.0.0',
     })
@@ -149,32 +149,28 @@ describe('POST /runs — policy enforcement', () => {
   })
 
   it('records no run when the ref is refused', async () => {
-    const service = uniqueService()
-    await create('dev', { service, tags: 'all', ref: 'develop' })
+    const before = await runCount()
+    await create('dev', { service: 'items', tags: 'all', ref: 'develop' })
 
-    expect(await runsForService(service)).toHaveLength(0)
+    expect(await runCount()).toBe(before)
   })
 
   it('refuses more workers than the role may use', async () => {
-    const service = uniqueService()
-    const response = await create('dev', { service, tags: 'all', workers: 8 })
+    const before = await runCount()
+    const response = await create('dev', { service: 'items', tags: 'all', workers: 8 })
 
     expect(response.status).toBe(403)
-    expect(await runsForService(service)).toHaveLength(0)
+    expect(await runCount()).toBe(before)
   })
 
   it('allows qa the worker count it refuses dev', async () => {
-    expect(
-      (await create('dev', { service: uniqueService(), tags: 'all', workers: 8 })).status,
-    ).toBe(403)
-    expect((await create('qa', { service: uniqueService(), tags: 'all', workers: 8 })).status).toBe(
-      201,
-    )
+    expect((await create('dev', { service: 'items', tags: 'all', workers: 8 })).status).toBe(403)
+    expect((await create('qa', { service: 'items', tags: 'all', workers: 8 })).status).toBe(201)
   })
 
   it('lets admin use a branch no other role may', async () => {
     const response = await create('admin', {
-      service: uniqueService(),
+      service: 'items',
       tags: 'all',
       ref: 'feature/whatever',
     })
@@ -189,8 +185,41 @@ describe('POST /runs — policy enforcement', () => {
     ['a ref with a space', { service: 'items', tags: 'all', ref: 'ma in' }],
     ['zero workers', { service: 'items', tags: 'all', workers: 0 }],
     ['fractional workers', { service: 'items', tags: 'all', workers: 1.5 }],
+    ['a service the suite does not have', { service: 'payments', tags: 'all' }],
+    ["the other suite's service", { suite: 'api', service: 'cart', tags: 'all' }],
+    ['a tag the suite does not have', { service: 'items', tags: 'nightly' }],
+    ["the other suite's tag", { suite: 'ui', service: 'cart', tags: 'flow' }],
   ])('rejects %s with 422', async (_label, body) => {
     expect((await create('admin', body)).status).toBe(422)
+  })
+
+  /*
+   * A slice is checked against what the suite takes, not against the shape of
+   * a name. `cart` on the API suite and a tag nobody defined were both accepted
+   * once, and simulation reported each one green in everyone's history.
+   */
+  it('names what the suite takes when a slice is not one of them', async () => {
+    const response = await create('admin', { suite: 'api', service: 'cart', tags: 'all' })
+    const body = (await response.json()) as { error: string }
+
+    expect(body.error).toContain('items')
+    expect(body.error).not.toContain('cart')
+  })
+
+  it('records nothing for a slice the suite does not take', async () => {
+    const before = await runCount()
+    await create('admin', { service: 'items', tags: 'nightly' })
+
+    expect(await runCount()).toBe(before)
+  })
+
+  it("takes each suite's own names", async () => {
+    expect((await create('admin', { suite: 'ui', service: 'cart', tags: 'smoke' })).status).toBe(
+      201,
+    )
+    expect((await create('admin', { suite: 'api', service: 'items', tags: 'flow' })).status).toBe(
+      201,
+    )
   })
 
   /*
@@ -203,11 +232,10 @@ describe('POST /runs — policy enforcement', () => {
    * as made — and `integration-contract.test.ts` holds what is sent for it.
    */
   it('accepts a service and a tag together, and records both as asked', async () => {
-    const service = uniqueService()
-    const response = await create('admin', { service, tags: 'smoke' })
+    const response = await create('admin', { service: 'items', tags: 'smoke' })
 
     expect(response.status).toBe(201)
-    expect(await runsForService(service)).toEqual([expect.objectContaining({ tags: 'smoke' })])
+    expect(await createdRun(response)).toEqual(expect.objectContaining({ tags: 'smoke' }))
   })
 
   it.each([
@@ -224,18 +252,17 @@ describe('POST /runs — policy enforcement', () => {
    */
   it('accepts the combination for any role that may run at all', async () => {
     for (const role of ['dev', 'qa', 'admin'] as const) {
-      const response = await create(role, { service: uniqueService(), tags: 'flow' })
+      const response = await create(role, { service: 'items', tags: 'flow' })
       expect(response.status, role).toBe(201)
     }
   })
 
   it('records the requesting role as who triggered it, and defaults to main', async () => {
-    const service = uniqueService()
-    await create('qa', { service, tags: 'all' })
+    const response = await create('qa', { service: 'items', tags: 'all' })
 
-    expect(await runsForService(service)).toEqual([
+    expect(await createdRun(response)).toEqual(
       expect.objectContaining({ triggered_by: 'qa', ref: 'main' }),
-    ])
+    )
   })
 
   /**
@@ -244,16 +271,14 @@ describe('POST /runs — policy enforcement', () => {
    * people pressing Run on the same service is ordinary, not an edge case.
    */
   it('accepts two runs of the same service in the same minute', async () => {
-    const service = uniqueService()
-
-    const first = await create('admin', { service, tags: 'all' })
-    const second = await create('admin', { service, tags: 'all' })
+    const first = await create('admin', { service: 'items', tags: 'all' })
+    const second = await create('admin', { service: 'items', tags: 'all' })
 
     expect([first.status, second.status]).toEqual([201, 201])
 
-    const runs = await runsForService(service)
-    expect(runs).toHaveLength(2)
-    expect(new Set(runs.map((run) => run.id)).size).toBe(2)
+    const runs = [await createdRun(first), await createdRun(second)]
+    expect(runs.every(Boolean)).toBe(true)
+    expect(new Set(runs.map((run) => run!.id)).size).toBe(2)
   })
 })
 

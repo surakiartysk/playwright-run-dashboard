@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env, createExecutionContext } from 'cloudflare:test'
-import { migrate, sessionFor, uniqueService } from './helpers'
+import { migrate, sessionFor } from './helpers'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import worker from '../src/index'
 import type { Role, RunView } from '../src/types'
@@ -49,7 +49,7 @@ async function startRun(role: Role, real: boolean): Promise<RunView> {
   try {
     const created = await call(role, '/runs', real, {
       method: 'POST',
-      body: JSON.stringify({ service: uniqueService(), tags: 'all' }),
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
     expect(created.status).toBe(201)
     const { runId } = (await created.json()) as { runId: string }

@@ -13,6 +13,7 @@ import { DEV_TOKEN_SECRET } from '../config'
 import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
 import { matchesRef, policyFor, redactForPreview, visibilityClause } from '../policy'
 import { gateApplies, loadGate, resolveGate } from '../gate'
+import { SUITE_OPTIONS } from '../options'
 
 export const runRoutes = new Hono<HonoEnv>()
 
@@ -108,6 +109,7 @@ export function randomSuffix(length = 6): string {
  */
 const DEMO_RUNS_PER_HOUR = 30
 
+// The history's filters: a name a past run carried need not be offered today.
 const SERVICE_RE = /^[a-z][a-z0-9-]*$/
 const TAG_RE = /^[a-z][a-z0-9-]*$/
 const REF_RE = /^[a-zA-Z0-9._\-/]+$/
@@ -136,11 +138,27 @@ runRoutes.post('/', async (c) => {
     return c.json({ error: `suite must be one of: ${SUITES.join(', ')}` }, 422)
   }
 
-  if (!service || !SERVICE_RE.test(service)) {
-    return c.json({ error: 'service must match /^[a-z][a-z0-9-]*$/' }, 422)
+  /*
+   * Checked against what the suite takes, not against a shape.
+   *
+   * A pattern let through anything shaped like a name: the API suite's run of
+   * `cart` (a UI-suite group) and a tag nobody defined were both accepted, and
+   * simulation reported each one green in everyone's history. Deployed, the
+   * workflow would refuse the dispatch for an input it does not accept. The
+   * names are in `SUITE_OPTIONS`, which is also what the form offers.
+   */
+  const offered = SUITE_OPTIONS[suite]
+  if (!service || !offered.services.includes(service)) {
+    return c.json(
+      { error: `service must be one of the ${suite} suite's: ${offered.services.join(', ')}` },
+      422,
+    )
   }
-  if (!tags || !TAG_RE.test(tags)) {
-    return c.json({ error: 'tags must match /^[a-z][a-z0-9-]*$/' }, 422)
+  if (!tags || !offered.tags.includes(tags)) {
+    return c.json(
+      { error: `tags must be one of the ${suite} suite's: ${offered.tags.join(', ')}` },
+      422,
+    )
   }
 
   /*

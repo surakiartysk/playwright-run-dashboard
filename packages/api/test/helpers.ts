@@ -183,6 +183,23 @@ export const statusOf = async (id: string): Promise<string | undefined> =>
       .first<{ status: string }>()
   )?.status
 
+/** The row `POST /runs` answered with, by the id it returned. */
+export async function createdRun(response: Response) {
+  const { runId } = (await response.json()) as { runId: string }
+  return env.DB.prepare(`SELECT id, ref, tags, status, triggered_by FROM runs WHERE id = ?1`)
+    .bind(runId)
+    .first<{ id: string; ref: string; tags: string; status: string; triggered_by: string }>()
+}
+
+/**
+ * How many runs exist. For "nothing was written": `POST /runs` takes only the
+ * services a suite offers, so a refused request cannot be told apart by a
+ * service of its own — tests within a file run one at a time, so the count
+ * before and after is the check.
+ */
+export const runCount = async () =>
+  (await env.DB.prepare(`SELECT COUNT(*) AS n FROM runs`).first<{ n: number }>())!.n
+
 /** Every run recorded for one service, newest first. */
 export const runsForService = async (service: string) =>
   (
