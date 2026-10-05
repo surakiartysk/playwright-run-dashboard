@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 161 now — which was the one figure
+**ninety-nine** when this file was written, 198 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **107 mutations are
+This file is what that number can actually show. **144 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 107 and 161 is
+changed and what went red. The gap between 144 and 198 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -133,6 +133,43 @@ figure the prose states, so the two cannot drift apart.
 | 105 | `f501026` · 5 Oct  | No note in demo's role panel                                                  | `… to contain 'the point of the project'`                                                                                 |
 | 106 | `f501026` · 5 Oct  | The note shown to every role                                                  | `… not to contain 'the point of the project'`                                                                             |
 | 107 | `f501026` · 5 Oct  | The decisions link at the repository root                                     | `… to match /\/docs\/decisions\.md$/`                                                                                     |
+| 108 | `d1d797d` · 5 Oct  | Logout does not clear the preview cookie                                      | `expected undefined to be defined`                                                                                        |
+| 109 | `d1d797d` · 5 Oct  | The preview clear replaces the session clear instead of appending             | "clears the session cookie": `expected 'preview-role=; …' to contain 'session=;'`                                         |
+| 110 | `297b432` · 5 Oct  | A key may name branches its role may not run                                  | `expected 201 to be 422`                                                                                                  |
+| 111 | `297b432` · 5 Oct  | A key may name more workers than its role                                     | `expected 201 to be 422`                                                                                                  |
+| 112 | `297b432` · 5 Oct  | Exact match instead of the role's patterns                                    | 2 tests, incl. `{"role":"qa","allowedRefs":["release/2.1.0"]}: expected 422 to be 201`                                    |
+| 113 | `297b432` · 5 Oct  | Drop the `*` clause from the check                                            | survived: `matchesRef` already reads `*` as any branch, so the clause was removed                                         |
+| 114 | `297b432` · 5 Oct  | "any branch" for a key without a list                                         | `expected 'any branch · …' to be 'the role\'s branches · …'`                                                              |
+| 115 | `92b66ac` · 5 Oct  | An empty Authorization header falls through to sessions                       | 3 tests: `expected 'Session is invalid or expired' to contain 'carries no key'`                                           |
+| 116 | `92b66ac` · 5 Oct  | Only a wholly empty header caught                                             | the `"Bearer "` and `"Bearer"` cases                                                                                      |
+| 117 | `92b66ac` · 5 Oct  | Every role sent to the admin panel for a key                                  | 2 tests: `… to contain 'Ask an admin'`                                                                                    |
+| 118 | `92b66ac` · 5 Oct  | No `export RUN_KEY=` line                                                     | `… to contain 'export RUN_KEY='`                                                                                          |
+| 119 | `481b9a0` · 5 Oct  | `recheckDelay` always null                                                    | 3 tests: `expected null to be 301000`                                                                                     |
+| 120 | `481b9a0` · 5 Oct  | No cap on the recheck delay                                                   | `expected 31536001000 to be 2147483647`                                                                                   |
+| 121 | `481b9a0` · 5 Oct  | The recheck timer never set                                                   | the timer probe stays disabled (probe only, not the suite)                                                                |
+| 122 | `481b9a0` · 5 Oct  | The gate effect ignores a return                                              | the return probe stays disabled (probe only, not the suite)                                                               |
+| 123 | `481b9a0` · 5 Oct  | App never signals a return                                                    | the return probe stays disabled (probe only, not the suite)                                                               |
+| 124 | `1eaf78f` · 5 Oct  | `linkNotice` never blames the filters                                         | `expected 'The linked run (items on main) is fur…' to be …`                                                               |
+| 125 | `1eaf78f` · 5 Oct  | `linkNotice` describes a missing run as found                                 | `expected 'The linked run is further down…' to be 'That run link names…'`                                                 |
+| 126 | `1eaf78f` · 5 Oct  | No `hashchange` listener                                                      | "opened? 0" (probe only, not the suite)                                                                                   |
+| 127 | `1eaf78f` · 5 Oct  | A missing linked run never looked up                                          | "any notice? []" (probe only, not the suite)                                                                              |
+| 128 | `1eaf78f` · 5 Oct  | Load more offered for a run the role cannot see                               | the probe shows it (probe only, not the suite)                                                                            |
+| 129 | `1eaf78f` · 5 Oct  | Looked up before the list answered                                            | "notice shown? 1" while loading (probe only, not the suite)                                                               |
+| 130 | `d1c57a6` · 5 Oct  | The run cell does not wrap in the table                                       | "709 in 630" at 680 (probe only, not the suite)                                                                           |
+| 131 | `d1c57a6` · 5 Oct  | Compact from 640 again                                                        | `expected 640 to be greater than or equal to 670`                                                                         |
+| 132 | `d1c57a6` · 5 Oct  | Two columns from 1000 again                                                   | `expected 1000 to be greater than or equal to 1014`                                                                       |
+| 133 | `d1c57a6` · 5 Oct  | No coarse-pointer font rule                                                   | `no coarse-pointer rule for input, select and textarea`                                                                   |
+| 134 | `d1c57a6` · 5 Oct  | The row's flex basis on the key form's column fields                          | "180/180 … 180/180", 602px (probe only, not the suite)                                                                    |
+| 135 | `92fd288` · 5 Oct  | Workers and Run never grouped                                                 | `… to match /role="group" aria-label="Workers and run"…/`                                                                 |
+| 136 | `92fd288` · 5 Oct  | Run before the worker count                                                   | the same test                                                                                                             |
+| 137 | `b844bcf` · 5 Oct  | The trend's change coloured by direction                                      | `expected true to be false`                                                                                               |
+| 138 | `b844bcf` · 5 Oct  | Always "pts"                                                                  | `expected '↑ 1 pts' to be '↑ 1 pt'`                                                                                       |
+| 139 | `b844bcf` · 5 Oct  | The passed count red on a failed run                                          | `expected true to be false`                                                                                               |
+| 140 | `b844bcf` · 5 Oct  | The failures in the status red                                                | `… to match /color:var\(--c-danger\)…/`                                                                                   |
+| 141 | `b844bcf` · 5 Oct  | The gate's Open in green text                                                 | `… not to match /color:\s*status\.pass\b/`                                                                                |
+| 142 | `75ddacf` · 5 Oct  | The gate refusal explains the system again                                    | 2 tests: `expected 'Runs are paused for your role, by Nok…' to be …`                                                      |
+| 143 | `75ddacf` · 5 Oct  | demo told it sees only its own runs                                           | `expected { role: 'demo', …(4) } to match object …`                                                                       |
+| 144 | `75ddacf` · 5 Oct  | "your role's scope" for dev again                                             | `… to contain 'dev’s scope'`                                                                                              |
 
 ---
 
@@ -145,12 +182,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **111**: 107 described, four
+So the commit history accounts for **148**: 144 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-161 mutations have been run. 111 are in the history. The other fifty
+198 mutations have been run. 148 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -159,14 +196,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-161 is also a floor rather than an exact count. The prose figure stood at
+198 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 107 are all from that period, and every future one belongs
+produced — rows 23 to 144 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
