@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
 import {
   clearCookie,
+  clearPreviewRoleCookie,
   createToken,
   isHttps,
   requireSession,
@@ -70,7 +71,12 @@ authRoutes.post('/login', async (c) => {
 })
 
 authRoutes.post('/logout', (c) => {
-  c.header('Set-Cookie', clearCookie(isHttps(c.req.url)))
+  const secure = isHttps(c.req.url)
+  c.header('Set-Cookie', clearCookie(secure))
+  // The preview cookie is bound to the session's expiry, which has one-second
+  // resolution: left behind, it applied again to a demo sign-in in the same
+  // second, and the new session opened previewing admin.
+  c.header('Set-Cookie', clearPreviewRoleCookie(secure), { append: true })
   return c.json({ ok: true })
 })
 
