@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 198 now — which was the one figure
+**ninety-nine** when this file was written, 217 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **144 mutations are
+This file is what that number can actually show. **163 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 144 and 198 is
+changed and what went red. The gap between 163 and 217 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -170,6 +170,25 @@ figure the prose states, so the two cannot drift apart.
 | 142 | `75ddacf` · 5 Oct  | The gate refusal explains the system again                                    | 2 tests: `expected 'Runs are paused for your role, by Nok…' to be …`                                                      |
 | 143 | `75ddacf` · 5 Oct  | demo told it sees only its own runs                                           | `expected { role: 'demo', …(4) } to match object …`                                                                       |
 | 144 | `75ddacf` · 5 Oct  | "your role's scope" for dev again                                             | `… to contain 'dev’s scope'`                                                                                              |
+| 145 | `b3ec3ab` · 5 Oct  | Revoke acts on the first press                                                | "after first press: revoked? true" (probe only, not the suite)                                                            |
+| 146 | `b3ec3ab` · 5 Oct  | The revoke question offers no confirm                                         | `… to contain '>Revoke key<'`                                                                                             |
+| 147 | `b3ec3ab` · 5 Oct  | A revoked key offered the question                                            | `… not to contain '<button'`                                                                                              |
+| 148 | `b3ec3ab` · 5 Oct  | A numeric "last used" date again                                              | `expected '10/5/2026' to match /Oct/`                                                                                     |
+| 149 | `5f4e3a3` · 5 Oct  | Failures ignored by `pollDelay`                                               | 2 tests: `expected 2000 to be 4000`; probe, 10 asks in 20s                                                                |
+| 150 | `5f4e3a3` · 5 Oct  | App never counts a failed ask                                                 | 10 asks in 20s of outage (probe only, not the suite)                                                                      |
+| 151 | `5f4e3a3` · 5 Oct  | No cap on the backoff                                                         | `expected 15360000 to be 60000`                                                                                           |
+| 152 | `2d34660` · 5 Oct  | No status command in the panel                                                | 3 tests, incl. `expected [ '>Copy<', '>Copy<' ] to have a length of 3`                                                    |
+| 153 | `2d34660` · 5 Oct  | The status command without the key                                            | 3 tests, incl. `… to contain 'Authorization: Bearer rdk_a_b'`                                                             |
+| 154 | `57eadf3` · 5 Oct  | The tap area no larger than the control                                       | `… to match /button::before, summary::before …/`; probe, 43 of 47                                                         |
+| 155 | `57eadf3` · 5 Oct  | The tap area not positioned on the control                                    | `… to match /button, summary { position: relative;/`; probe, 43 of 47                                                     |
+| 156 | `5f31720` · 5 Oct  | The empty-summary note never shown                                            | "1280px, no runs: note shown? 0" (probe only, not the suite)                                                              |
+| 157 | `5f31720` · 5 Oct  | The note shown with runs too                                                  | "1280px, runs: note shown? 1" (probe only, not the suite)                                                                 |
+| 158 | `5f31720` · 5 Oct  | The note shown stacked too                                                    | "700px, no runs: note shown? 1" (probe only, not the suite)                                                               |
+| 159 | `5f31720` · 5 Oct  | The note says nothing                                                         | `… to contain 'pass rate and the run-…'`                                                                                  |
+| 160 | `1225996` · 5 Oct  | Role buttons left enabled while switching                                     | "preview requests: [\"admin\",\"qa\"]", ending on admin (probe only, not the suite)                                       |
+| 161 | `1225996` · 5 Oct  | The second guard inside `pick()` removed                                      | survived: with the buttons disabled it could never fire, so it was removed                                                |
+| 162 | `0acd6a2` · 5 Oct  | The old blue tab icon                                                         | `expected '#4f6bed' to be '#1f2937'`                                                                                      |
+| 163 | `0acd6a2` · 5 Oct  | A bare "Loading…" again                                                       | `… to contain 'role="status"'`                                                                                            |
 
 ---
 
@@ -182,12 +201,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **148**: 144 described, four
+So the commit history accounts for **167**: 163 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-198 mutations have been run. 148 are in the history. The other fifty
+217 mutations have been run. 167 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -196,14 +215,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-198 is also a floor rather than an exact count. The prose figure stood at
+217 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 144 are all from that period, and every future one belongs
+produced — rows 23 to 163 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
