@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { coverage, ringBackground, summarise } from '../src/components/RunStats'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { EmptySummary, coverage, ringBackground, summarise } from '../src/components/RunStats'
 import {
   ASIDE_WIDTH,
   COLUMN_GAP,
@@ -195,5 +197,16 @@ describe('the two-column layout', () => {
     expect(WIDE_FROM).toBeGreaterThanOrEqual(TABLE_NEEDS + COLUMN_GAP + ASIDE_WIDTH + PAGE_GUTTER)
     expect(WIDE_FROM).toBeGreaterThan(COMPACT_BELOW)
     expect(WIDE_QUERY).toBe(`(min-width: ${WIDE_FROM}px)`)
+  })
+})
+
+/*
+ * With no runs, the stats and the chart draw nothing, and the summary column
+ * beside the list was a blank 320px. Found by the design review.
+ */
+describe('the summary column before any runs', () => {
+  it('says what will appear there, rather than standing empty', () => {
+    const html = renderToStaticMarkup(createElement(EmptySummary))
+    expect(html).toContain('pass rate and the run-by-run chart appear here')
   })
 })

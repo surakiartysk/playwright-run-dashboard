@@ -14,7 +14,7 @@ import { RunTrigger } from './components/RunTrigger'
 import { AdminPanel } from './components/AdminPanel'
 import { adminPanelMode } from './admin-panel'
 import { RunHistory } from './components/RunHistory'
-import { RunStats } from './components/RunStats'
+import { EmptySummary, RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
 import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
@@ -283,6 +283,9 @@ export function App() {
       )}
 
       <RunStats runs={runs} total={total} />
+
+      {/* Only beside the list: stacked, an empty summary is simply absent. */}
+      {wide && listed && runs.length === 0 && <EmptySummary />}
 
       <RunTrend runs={runs} collapsible={!wide} />
     </>
