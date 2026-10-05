@@ -116,6 +116,29 @@
         textarea {
           font-size: 16px !important;
         }
+
+        /*
+         * Every control answers a tap at least 44px square, without being drawn
+         * any bigger: an invisible area centred on it. Measured at 375px wide
+         * with touch, 43 of 47 controls took taps on less than that — the
+         * workers −/+ at 31x32, the Copy buttons 19px tall, the status chips
+         * 25. Where two sit closer than 44px apart, the later one takes the
+         * overlap.
+         */
+        button,
+        summary {
+          position: relative;
+        }
+        button::before,
+        summary::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: max(100%, 44px);
+          height: max(100%, 44px);
+          transform: translate(-50%, -50%);
+        }
       }
 
       @keyframes spin {
