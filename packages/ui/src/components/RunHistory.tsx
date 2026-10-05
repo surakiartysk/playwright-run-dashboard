@@ -14,7 +14,7 @@ import { RunFilters, applyFilter, type StatusFilter } from './RunFilters'
 import { RunActions } from './RunActions'
 import { StatusIcon } from './StatusIcon'
 import { runTag } from '../run-form'
-import { useCompact } from '../use-compact'
+import { TABLE_NEEDS, useCompact } from '../use-compact'
 import {
   askDelete,
   cancelDelete,
@@ -515,7 +515,7 @@ export function RunHistory({
                       </td>
 
                       <td style={{ ...s.td, ...(compact ? cellTop(2) : null) }}>
-                        <div style={{ ...s.runCell, ...(compact ? s.runCellCompact : null) }}>
+                        <div style={s.runCell}>
                           {/*
                             In the existing cell rather than a column of its
                             own: the table already carries six, and a seventh
@@ -791,7 +791,7 @@ const s: Record<string, CSSProperties> = {
     // Below this the columns stop being readable and the wrapper scrolls
     // instead of squeezing them — a table that reflows into three-word columns
     // is harder to scan than one you push sideways.
-    minWidth: 620,
+    minWidth: TABLE_NEEDS,
   },
   // The narrow layout. A row is a grid: the status takes the first column over
   // both lines, the caret the last, and what ran sits above its result.
@@ -802,7 +802,6 @@ const s: Record<string, CSSProperties> = {
     gridTemplateColumns: '52px minmax(0, 1fr) 44px',
     alignItems: 'center',
   },
-  runCellCompact: { flexWrap: 'wrap', rowGap: 4 },
   meta: { ...mono, fontSize: 12, color: c.t5, marginTop: 5 },
   th: {
     textAlign: 'left',
@@ -832,7 +831,17 @@ const s: Record<string, CSSProperties> = {
   tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
-  runCell: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
+  // Wraps in the table too, not only in cards. Unwrapped, a long service with a
+  // tag, a ref and two chips held this cell at 332px, and between 640 and 767px
+  // the table outgrew its box and cut off Started, Took and the caret.
+  runCell: {
+    display: 'flex',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    gap: 8,
+    rowGap: 4,
+    minWidth: 0,
+  },
   runSuite: {
     ...mono,
     fontSize: 10.5,

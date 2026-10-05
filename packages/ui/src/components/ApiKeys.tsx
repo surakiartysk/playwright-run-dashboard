@@ -181,7 +181,7 @@ export function ApiKeys() {
           </div>
 
           <div style={s.row}>
-            <div style={s.field}>
+            <div style={s.rowField}>
               <label htmlFor="key-role" style={s.label}>
                 Role
               </label>
@@ -202,7 +202,7 @@ export function ApiKeys() {
               </select>
             </div>
 
-            <div style={s.field}>
+            <div style={s.rowField}>
               <label htmlFor="key-workers" style={s.label}>
                 Max workers
               </label>
@@ -379,7 +379,10 @@ const s: Record<string, CSSProperties> = {
     gap: 14,
   },
   row: { display: 'flex', gap: 12, flexWrap: 'wrap' },
-  field: { flex: '1 1 180px', minWidth: 0 },
+  // In the form's column, flex-basis is a height: `1 1 180px` held a 82px field
+  // at 180px tall. The basis only belongs to fields sharing a row.
+  field: { minWidth: 0 },
+  rowField: { flex: '1 1 180px', minWidth: 0 },
   label: { display: 'block', fontSize: 12, fontWeight: 500, color: c.t2, marginBottom: 6 },
   input: {
     width: '100%',

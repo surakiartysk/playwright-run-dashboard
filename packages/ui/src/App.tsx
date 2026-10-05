@@ -17,7 +17,7 @@ import { RunHistory } from './components/RunHistory'
 import { RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
-import { useWide } from './use-compact'
+import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { pollDelay, refreshOnReturn } from './poll'
 import { latestOnly } from './latest'
@@ -399,8 +399,8 @@ const s: Record<string, CSSProperties> = {
   pageWide: { maxWidth: '76rem' },
   columns: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1fr) 320px',
-    gap: 24,
+    gridTemplateColumns: `minmax(0, 1fr) ${ASIDE_WIDTH}px`,
+    gap: COLUMN_GAP,
     alignItems: 'start',
   },
   main: { minWidth: 0 },

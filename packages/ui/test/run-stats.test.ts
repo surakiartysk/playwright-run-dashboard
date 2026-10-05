@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { coverage, ringBackground, summarise } from '../src/components/RunStats'
-import { COMPACT_BELOW, WIDE_FROM, WIDE_QUERY } from '../src/use-compact'
+import {
+  ASIDE_WIDTH,
+  COLUMN_GAP,
+  COMPACT_BELOW,
+  PAGE_GUTTER,
+  TABLE_NEEDS,
+  WIDE_FROM,
+  WIDE_QUERY,
+} from '../src/use-compact'
 import { status as sc } from '../src/theme'
 import type { Run, RunStatus } from '../src/api'
 import { run as fixture } from './fixtures'
@@ -178,11 +186,13 @@ describe('ringBackground', () => {
 describe('the two-column layout', () => {
   /**
    * Both breakpoints are about the same list. The column appears only where the
-   * list's 620px and the 320px beside it fit, and the list is already in its
-   * two-line form below COMPACT_BELOW, so the two can never be in conflict.
+   * table, the column, the gap between and the page's gutter all fit; counted
+   * without the gap and gutter, as it once was, it left the table 606px of its
+   * 620 between 1000 and 1013 wide. The list is already in its two-line form
+   * below COMPACT_BELOW, so the two can never be in conflict.
    */
   it('puts the column only where the list and the column both fit', () => {
-    expect(WIDE_FROM).toBeGreaterThanOrEqual(620 + 320)
+    expect(WIDE_FROM).toBeGreaterThanOrEqual(TABLE_NEEDS + COLUMN_GAP + ASIDE_WIDTH + PAGE_GUTTER)
     expect(WIDE_FROM).toBeGreaterThan(COMPACT_BELOW)
     expect(WIDE_QUERY).toBe(`(min-width: ${WIDE_FROM}px)`)
   })

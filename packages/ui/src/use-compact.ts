@@ -1,24 +1,34 @@
 import { useSyncExternalStore } from 'react'
 
+/** The table's `minWidth`: below it the columns stop being readable. */
+export const TABLE_NEEDS = 620
+/** The page's padding and the table's border either side, around the table. */
+export const PAGE_GUTTER = 50
+
 /**
  * Below this width the run list stops being a table.
  *
- * Six columns need about 620px; under 640 the list scrolled sideways and the
- * result — the one thing a row is for — was the column that left the screen.
- * The breakpoint is shared by name so a test can see that the query and the
- * number in the comment agree.
+ * Under it the list scrolled sideways and the result — the one thing a row is
+ * for — was the column that left the screen. It was 640, compared with the
+ * table's 620 as if the table had the whole viewport; it has the viewport less
+ * the gutter, so between 640 and 669 the table was still 30px wider than its
+ * box. The breakpoint is shared by name so a test can hold it to the sum.
  */
-export const COMPACT_BELOW = 640
+export const COMPACT_BELOW = 680
 export const COMPACT_QUERY = `(max-width: ${COMPACT_BELOW - 1}px)`
+
+/** The summary column beside the list, and the gap between them. */
+export const ASIDE_WIDTH = 320
+export const COLUMN_GAP = 24
 
 /**
  * Above this width the summary moves into a column beside the run list.
  *
- * The list wants about 620px and the column 320, with the gap and the page's
- * padding around them; below that the two would squeeze each other, so the
- * column folds back into one stack, summary first.
+ * Below it the two would squeeze each other, so the column folds back into one
+ * stack, summary first. It was 1000, which left the table 606px of the 620 it
+ * needs between 1000 and 1013 wide — the sum is what decides it now.
  */
-export const WIDE_FROM = 1000
+export const WIDE_FROM = 1020
 export const WIDE_QUERY = `(min-width: ${WIDE_FROM}px)`
 
 /**
