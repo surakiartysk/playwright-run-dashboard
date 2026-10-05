@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
-import { as, migrate, request, sessionFor, seedRun, uniqueService } from './helpers'
+import { as, migrate, request, sessionFor, seedRun } from './helpers'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import worker from '../src/index'
 
@@ -85,7 +85,7 @@ describe('a demo session previewing admin still cannot write as admin', () => {
     const response = await callAsDemoPreviewingAdmin(
       'POST',
       '/runs',
-      { service: uniqueService(), tags: 'all', ref: 'develop' },
+      { service: 'items', tags: 'all', ref: 'develop' },
       false,
     )
 
@@ -105,7 +105,7 @@ describe('a demo session previewing admin still cannot write as admin', () => {
     const response = await callAsDemoPreviewingAdmin(
       'POST',
       '/runs',
-      { service: uniqueService(), tags: 'all' },
+      { service: 'items', tags: 'all' },
       true,
     )
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, as, request, uniqueService, runsForService } from './helpers'
+import { migrate, as, request, runCount } from './helpers'
 import { createToken } from '../src/auth'
 import { DEV_TOKEN_SECRET } from '../src/config'
 
@@ -23,18 +23,18 @@ const createRun = (role: 'dev' | 'qa' | 'admin', service: string) =>
 
 describe('POST /runs — the gate', () => {
   it('lets dev run while the gate is open', async () => {
-    expect((await createRun('dev', uniqueService())).status).toBe(201)
+    expect((await createRun('dev', 'items')).status).toBe(201)
   })
 
   it('refuses dev with 503 while the gate is closed', async () => {
     await setGate('closed')
-    const service = uniqueService()
+    const before = await runCount()
 
-    const response = await createRun('dev', service)
+    const response = await createRun('dev', 'items')
 
     // 503, not 403: the request is allowed and worth retrying later.
     expect(response.status).toBe(503)
-    expect(await runsForService(service)).toHaveLength(0)
+    expect(await runCount()).toBe(before)
   })
 
   /**
@@ -44,14 +44,14 @@ describe('POST /runs — the gate', () => {
   it.each(['qa', 'admin'] as const)('still lets %s run while closed', async (role) => {
     await setGate('closed')
 
-    expect((await createRun(role, uniqueService())).status).toBe(201)
+    expect((await createRun(role, 'items')).status).toBe(201)
   })
 
   it('tells dev when the gate reopens, if that is known', async () => {
     const future = new Date(Date.now() + 3_600_000).toISOString()
     await setGate('window', future, new Date(Date.now() + 7_200_000).toISOString())
 
-    const response = await createRun('dev', uniqueService())
+    const response = await createRun('dev', 'items')
     const body = (await response.json()) as { error: string; gate: { opensAt: string } }
 
     expect(response.status).toBe(503)
@@ -66,7 +66,7 @@ describe('POST /runs — the gate', () => {
       new Date(Date.now() + 3_600_000).toISOString(),
     )
 
-    expect((await createRun('dev', uniqueService())).status).toBe(201)
+    expect((await createRun('dev', 'items')).status).toBe(201)
   })
 
   /**
@@ -79,7 +79,7 @@ describe('POST /runs — the gate', () => {
     const response = await as('dev', '/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service: uniqueService(), tags: 'all', ref: 'develop' }),
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'develop' }),
     })
 
     expect(response.status).toBe(403)
