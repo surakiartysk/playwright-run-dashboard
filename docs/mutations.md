@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 217 now — which was the one figure
+**ninety-nine** when this file was written, 223 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **163 mutations are
+This file is what that number can actually show. **169 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 163 and 217 is
+changed and what went red. The gap between 169 and 223 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -189,6 +189,12 @@ figure the prose states, so the two cannot drift apart.
 | 161 | `1225996` · 5 Oct  | The second guard inside `pick()` removed                                      | survived: with the buttons disabled it could never fire, so it was removed                                                |
 | 162 | `0acd6a2` · 5 Oct  | The old blue tab icon                                                         | `expected '#4f6bed' to be '#1f2937'`                                                                                      |
 | 163 | `0acd6a2` · 5 Oct  | A bare "Loading…" again                                                       | `… to contain 'role="status"'`                                                                                            |
+| 164 | `f98a871` · 6 Oct  | The folded summary's verdict always reads "all green"                         | "says the pass rate, the verdict and what is still running"                                                               |
+| 165 | `f98a871` · 6 Oct  | No finished runs read as a percentage                                         | "says so when nothing has finished, rather than a percentage"                                                             |
+| 166 | `f98a871` · 6 Oct  | A run still in flight not said on the folded summary                          | "says the pass rate, the verdict and what is still running"                                                               |
+| 167 | `f98a871` · 6 Oct  | The summary ignores `collapsible`                                             | "is one folded row when asked, and the whole card when not"                                                               |
+| 168 | `f98a871` · 6 Oct  | An empty hint on the folded row                                               | "is one folded row when asked, and the whole card when not"                                                               |
+| 169 | `f98a871` · 6 Oct  | `App` never folds the summary                                                 | survived: nothing renders `App`; now "folds RunStats when the layout is not wide"                                         |
 
 ---
 
@@ -201,12 +207,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **167**: 163 described, four
+So the commit history accounts for **173**: 169 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-217 mutations have been run. 167 are in the history. The other fifty
+223 mutations have been run. 173 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -215,14 +221,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-217 is also a floor rather than an exact count. The prose figure stood at
+223 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 163 are all from that period, and every future one belongs
+produced — rows 23 to 169 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
