@@ -274,6 +274,7 @@ export const api = {
     tags: string
     workers?: number
     ref?: string
+    outcome?: 'random' | 'pass' | 'fail'
   }) =>
     request<{ runId: string; simulated: boolean }>('/runs', {
       method: 'POST',

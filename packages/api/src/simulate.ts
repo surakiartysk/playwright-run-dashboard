@@ -1,4 +1,4 @@
-import type { Bindings, RunStatus, Suite } from './types'
+import type { Bindings, OutcomeMode, RunStatus, Suite } from './types'
 import { DEMO_REPORT_PREFIX } from './config'
 import { sampleFailures } from './details'
 
@@ -50,18 +50,26 @@ const SUITE_SIZE: Record<Suite, number> = {
  * Most runs pass. A failure appears roughly one time in five so the red path
  * is reachable without editing code — the state nobody remembers to design for
  * until it happens in front of someone.
+ *
+ * That is `random`. A visitor who came to see the failures panel should not
+ * have to click until the dice agree, so the caller may ask for `pass` or
+ * `fail` outright; what a failure looks like is the same either way.
  */
-function outcome(suite: Suite, service: string): SimulatedOutcome {
+export function outcome(
+  suite: Suite,
+  service: string,
+  mode: OutcomeMode = 'random',
+  roll: () => number = Math.random,
+): SimulatedOutcome {
   const size = SUITE_SIZE[suite]
   // A slice is some fraction of the suite, floored so the smallest group is
   // still a plausible run rather than a handful of tests.
-  const total =
-    service === 'all' ? size : Math.max(4, Math.round(size * (0.1 + Math.random() * 0.3)))
-  const shouldFail = Math.random() < 0.2
+  const total = service === 'all' ? size : Math.max(4, Math.round(size * (0.1 + roll() * 0.3)))
+  const shouldFail = mode === 'fail' || (mode === 'random' && roll() < 0.2)
 
   if (!shouldFail) return { status: 'passed', total, passed: total, failed: 0 }
 
-  const failed = 1 + Math.floor(Math.random() * 3)
+  const failed = 1 + Math.floor(roll() * 3)
   return { status: 'failed', total, passed: total - failed, failed }
 }
 
@@ -106,9 +114,10 @@ export async function simulateRun(
   runId: string,
   suite: Suite,
   service: string,
+  mode: OutcomeMode = 'random',
 ): Promise<void> {
   try {
-    await walkStates(env, runId, suite, service)
+    await walkStates(env, runId, suite, service, mode)
   } catch (error) {
     await markErrored(env, runId, error)
   }
@@ -119,6 +128,7 @@ async function walkStates(
   runId: string,
   suite: Suite,
   service: string,
+  mode: OutcomeMode,
 ): Promise<void> {
   // Queued → running, fast enough that a user watching sees the transition.
   await sleep(1500)
@@ -128,7 +138,7 @@ async function walkStates(
 
   await sleep(2500 + Math.random() * 2000)
 
-  const result = outcome(suite, service)
+  const result = outcome(suite, service, mode)
 
   /**
    * Points at the shared Allure report rather than writing one.

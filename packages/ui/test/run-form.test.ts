@@ -36,13 +36,40 @@ describe('what the form sends', () => {
   it('sends the service and the tag as two separate fields, as selected', async () => {
     let sent: unknown
     await submitRun(
-      { suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4 },
+      { suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4, outcome: 'random' },
       async (body) => {
         sent = body
         return { simulated: true }
       },
     )
-    expect(sent).toEqual({ suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4 })
+    expect(sent).toEqual({
+      suite: 'api',
+      service: 'items',
+      tags: 'smoke',
+      ref: 'main',
+      workers: 4,
+      outcome: 'random',
+    })
+  })
+
+  /**
+   * The failure a visitor asked for is the one that is sent.
+   *
+   * A form that opened on `fail` and posted `random` would answer a request
+   * for a red run with whatever the dice gave, and nothing on screen would
+   * say it had been ignored.
+   */
+  it('sends the outcome that was asked for', async () => {
+    let sent: { outcome?: string } | undefined
+    await submitRun({ ...initialForm(runOptions()), outcome: 'fail' }, async (body) => {
+      sent = body
+      return { simulated: true }
+    })
+    expect(sent?.outcome).toBe('fail')
+  })
+
+  it('opens on `random`, which is what a real run takes', () => {
+    expect(initialForm(runOptions()).outcome).toBe('random')
   })
 
   it('does not hand over its own state: a later change cannot alter what was sent', async () => {
@@ -200,6 +227,7 @@ describe('initialForm', () => {
       tags: 'all',
       ref: 'main',
       workers: 4,
+      outcome: 'random',
     })
     expect(initialForm(runOptions({ maxWorkers: 2 })).workers).toBe(2)
   })

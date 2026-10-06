@@ -15,7 +15,25 @@ export interface RunForm {
   tags: string
   ref: string
   workers: number
+  /**
+   * What a simulated run comes back as. Shown only where runs are simulated,
+   * and `random` everywhere else: a real run takes no other value, and the API
+   * refuses one rather than ignoring it.
+   */
+  outcome: Outcome
 }
+
+/**
+ * How a simulated run ends: left to chance (about one in five fails), or asked
+ * for. The values are the API's own (`POST /runs` takes `outcome`).
+ */
+export type Outcome = 'random' | 'pass' | 'fail'
+
+export const OUTCOME_CHOICES: readonly { value: Outcome; label: string }[] = [
+  { value: 'random', label: 'Random, 1 in 5 fail' },
+  { value: 'pass', label: 'Always passes' },
+  { value: 'fail', label: 'Always fails' },
+]
 
 /*
  * What each suite can be sliced by, and which branches may be picked, is the
@@ -95,6 +113,7 @@ export function initialForm(options: RunOptions, over: Partial<RunForm> = {}): R
     service: api.services.includes('items') ? 'items' : (api.services[1] ?? 'all'),
     tags: 'all',
     ref: api.refs.includes('main') ? 'main' : (api.refs[0] ?? 'main'),
+    outcome: 'random',
     ...over,
     workers: clampWorkers(over.workers ?? defaultWorkers(options.maxWorkers), options.maxWorkers),
   }

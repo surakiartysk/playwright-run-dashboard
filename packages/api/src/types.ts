@@ -25,6 +25,21 @@ export const SUITES: readonly Suite[] = ['api', 'ui'] as const
 export const isSuite = (value: unknown): value is Suite =>
   typeof value === 'string' && (SUITES as readonly string[]).includes(value)
 
+/**
+ * What a simulated run comes back as: left to chance, or asked for.
+ *
+ * `random` is how the simulator always behaved (about one run in five fails).
+ * `pass` and `fail` exist so the red path can be reached on purpose, by someone
+ * who came to see the failures panel and would otherwise click Run until one
+ * turned up. They mean nothing to a real run, and a real run refuses them.
+ */
+export type OutcomeMode = 'random' | 'pass' | 'fail'
+
+export const OUTCOME_MODES: readonly OutcomeMode[] = ['random', 'pass', 'fail'] as const
+
+export const isOutcomeMode = (value: unknown): value is OutcomeMode =>
+  typeof value === 'string' && (OUTCOME_MODES as readonly string[]).includes(value)
+
 export interface Bindings {
   DB: D1Database
   REPORTS: R2Bucket
@@ -178,6 +193,12 @@ export interface CreateRunRequest {
   workers?: number
   /** Git ref to run against. Restricted by role — see routes/runs.ts. */
   ref?: string
+  /**
+   * What a simulated run should come back as. Optional, defaulting to
+   * `random`. A real run takes only `random`: there is no outcome to ask a
+   * workflow for, and accepting the field would be ignoring it.
+   */
+  outcome?: OutcomeMode
 }
 
 /** Posted back by the workflow when a run finishes. */

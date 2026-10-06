@@ -106,6 +106,27 @@ describe('the first render of the command bar', () => {
     expect(atCeiling).not.toMatch(/aria-label="Fewer workers"[^>]*disabled/)
   })
 
+  /**
+   * The failure a visitor can ask for exists only where runs are simulated.
+   * A real run takes no outcome and the API refuses one, so offering the choice
+   * there would promise a failure the pipeline cannot be told to produce.
+   */
+  it('offers the simulated result only where the run is simulated', () => {
+    const simulated = render(policy(), true)
+    expect(simulated).toContain('aria-label="Simulated result"')
+    expect(simulated).toContain('<option value="fail">Always fails</option>')
+    expect(simulated).toContain('<option value="random" selected="">')
+
+    // What the form holds is what the dropdown shows.
+    expect(render(policy(), true, { outcome: 'fail' })).toContain(
+      '<option value="fail" selected="">',
+    )
+
+    const real = render(policy({ role: 'qa', allowedRefs: ['*'] }), false)
+    expect(real).not.toContain('Simulated result')
+    expect(real).not.toContain('Always fails')
+  })
+
   it('says before Run whether the run will be simulated', () => {
     expect(render(policy(), true)).toContain('Simulated here')
     expect(render(policy(), false)).toContain('Runs the published suites on GitHub Actions')

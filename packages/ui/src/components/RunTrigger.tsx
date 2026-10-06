@@ -4,6 +4,7 @@ import { c, mono, status } from '../theme'
 import { pausedReason, recheckDelay } from '../gate-form'
 import { stepOption } from '../appearance'
 import {
+  OUTCOME_CHOICES,
   clampWorkers,
   describeSelection,
   initialForm,
@@ -63,7 +64,7 @@ export function RunTrigger({
 }) {
   const compact = useCompact()
   const [form, setForm] = useState<RunForm>(() => initialForm(options, initial))
-  const { suite, service, tags, ref, workers } = form
+  const { suite, service, tags, ref, workers, outcome } = form
   const set = (change: Partial<RunForm>) => setForm((f) => ({ ...f, ...change }))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -143,6 +144,23 @@ export function RunTrigger({
       onChange={(workers) => set({ workers })}
     />
   )
+
+  /*
+   * Only where the run is simulated. A real run has no outcome to ask for, and
+   * the API refuses the field; showing the choice there would offer a failure
+   * the pipeline cannot be told to produce.
+   */
+  const outcomeControl = options.simulated ? (
+    <PillSelect
+      icon="alert"
+      label="Simulated result"
+      basis={220}
+      fill={compact}
+      value={outcome}
+      options={OUTCOME_CHOICES}
+      onChange={(next) => set({ outcome: next as RunForm['outcome'] })}
+    />
+  ) : null
 
   const runButton = (
     <button
@@ -231,6 +249,9 @@ export function RunTrigger({
         {compact ? (
           <>
             {workersControl}
+            {/* Above Run on a phone: the choice is made before the button
+                that acts on it, and Run still fits the first screen. */}
+            {outcomeControl}
             {runButton}
           </>
         ) : (
@@ -240,6 +261,9 @@ export function RunTrigger({
           </div>
         )}
       </div>
+
+      {/* Wide: a row of its own, since the main row is already full. */}
+      {!compact && outcomeControl && <div style={s.row}>{outcomeControl}</div>}
 
       {/*
         What pressing Run will run, said in words. Two dropdowns that combine

@@ -50,6 +50,7 @@ interviewer should press on hardest.
 39. [A limit says when it lifts, and using a key writes at most once an hour](#39-a-limit-says-when-it-lifts-and-using-a-key-writes-at-most-once-an-hour)
 40. [A report is someone else's program on this origin, so it is fenced](#40-a-report-is-someone-elses-program-on-this-origin-so-it-is-fenced)
 41. [A cookie is Secure when its request was](#41-a-cookie-is-secure-when-its-request-was)
+42. [A simulated run can be asked to fail](#42-a-simulated-run-can-be-asked-to-fail)
 
 ---
 
@@ -2298,6 +2299,54 @@ otherwise. `wrangler dev` and the Vite proxy are plain HTTP, and keep working.
   session cookie, but it means renaming the cookies — signing everyone out
   once — and it cannot apply to the report cookie at all, which is scoped to
   one run's path by design.
+
+---
+
+## 42. A simulated run can be asked to fail
+
+**Context.** The simulator ends about one run in five as `failed`, on purpose,
+so the red path is reachable without editing code. For a visitor that is the
+wrong shape of chance: someone who came to see the failures panel — the part of
+this dashboard that shows which tests failed — had to click Run, wait several
+seconds a time, and hope. Most never saw it. A portfolio page whose failure
+state cannot be summoned shows one that is always green.
+
+**Decision.** `POST /runs` takes an optional `outcome`: `random` (the old
+behaviour, and the default), `pass` or `fail`. The form shows a dropdown for it
+under the main row, only where the run is simulated, so `demo` and any
+deployment with `SIMULATE_DISPATCH` on. A failure asked for looks like any other
+simulated one: one to three failed tests with invented names, and `simulated`
+on the row.
+
+A real run **refuses** `pass` and `fail` with a 422 rather than ignoring them.
+There is no outcome to ask a workflow for, and a green run sent back to someone
+who asked for a red one is an answer that says nothing is wrong. The decision
+is made from the same `simulates()` the row is recorded with, so the two cannot
+disagree. `random` is accepted for a real run, because the form always sends the
+field and an omitted one means `random`.
+
+The same lever is in the "Run this from a script" command whenever it is not
+`random`, so a sandbox key can ask for a failure from a terminal too. A command
+for a real role never carries the field.
+
+**Trade-offs.**
+
+- **A failing run is one click away, and so is a passing one.** The demo no
+  longer shows the dice. It is still openly fake, which is what the
+  `simulated` chip already says, and the failures it names are invented in the
+  same way they were before.
+- **It is a lever on a simulation, not on the pipeline.** To watch a _real_ run
+  fail, the suite's own repository has to contain something that fails. A
+  branch of the API suite with three mock faults (`demo-failing`) exists for
+  that, and it is selected as an ordinary branch; the dashboard does not know
+  it is special.
+- **One more field on a public endpoint.** It is validated against three
+  literals and does nothing outside the simulator, so the surface it adds is
+  small; it is still a field a client must now be told about.
+- **The dropdown's wiring is not under test.** The UI tests render to a string,
+  so what the form shows and sends is held, and that choosing an entry changes
+  the form is not — the same is true of every other control in the row, and
+  was left rather than building a DOM harness for one select.
 
 ---
 

@@ -1,7 +1,15 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
-import { toView, isSuite, SUITES, isRunStatus, RUN_STATUSES } from '../types'
+import {
+  toView,
+  isSuite,
+  SUITES,
+  isRunStatus,
+  RUN_STATUSES,
+  isOutcomeMode,
+  OUTCOME_MODES,
+} from '../types'
 import { dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { recordRefSha } from '../branches'
@@ -181,6 +189,22 @@ runRoutes.post('/', async (c) => {
     return c.json({ error: 'ref contains characters that are not valid in a git ref' }, 422)
   }
 
+  /*
+   * What a simulated run should come back as.
+   *
+   * Refused for a real run rather than ignored. Someone who sends `fail` to
+   * the real pipeline and gets a green run back has been told nothing is
+   * wrong; a 422 says the field means nothing there. Decided from the same
+   * `simulates` the run is recorded with, so the two cannot disagree.
+   */
+  const outcome = body.outcome ?? 'random'
+  if (!isOutcomeMode(outcome)) {
+    return c.json({ error: `outcome must be one of: ${OUTCOME_MODES.join(', ')}` }, 422)
+  }
+  if (outcome !== 'random' && !simulates(c.env, role)) {
+    return c.json({ error: 'outcome applies only to simulated runs; this run is real' }, 422)
+  }
+
   // 403, not 422: the request is well-formed, the caller simply may not make
   // it. A client can tell "fix your input" from "ask for access" by the status.
   const refAllowed = matchesRef(policy.allowedRefs, ref)
@@ -328,7 +352,7 @@ runRoutes.post('/', async (c) => {
   }
 
   if (dispatch.simulated) {
-    c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service))
+    c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service, outcome))
   } else {
     // Which commit the branch is at, written down while the run is still
     // queued. After the response: nobody should wait on a second GitHub call.

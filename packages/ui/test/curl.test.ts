@@ -63,6 +63,17 @@ describe('runCurl', () => {
     })
   })
 
+  /**
+   * `random` is the default, and a real run refuses the field, so a command for
+   * a real role must not carry one. A requested failure has to be in the
+   * command, or pasting it would not do what the form did.
+   */
+  it('leaves the outcome out unless one was asked for', () => {
+    expect(text).not.toContain('outcome')
+    const asked = runCurl({ ...form, outcome: 'fail' }, ORIGIN)
+    expect(JSON.parse(/-d '(.*)'$/.exec(asked)![1]!)).toMatchObject({ outcome: 'fail' })
+  })
+
   it('follows the form: another selection is another command', () => {
     const other = runCurl(
       { ...form, suite: 'ui', service: 'auth', ref: 'develop', workers: 3 },
