@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
 import { c, mono, status as sc } from '../theme'
+import { Collapsible } from './Collapsible'
 
 /**
  * What the run list adds up to, above the list itself.
@@ -83,12 +84,42 @@ export function ringBackground(rate: number | null): string {
 }
 
 /**
+ * What the folded summary says about itself, on the one line it costs.
+ *
+ * On a phone the card was 307px of a 667px screen and put the Run button below
+ * the fold, so the stacked layout folds it like the chart and the role panel
+ * beside it. Shut, it still has to answer the question the card answers —
+ * is the suite healthy — so the figure and the verdict are here, and an
+ * unfinished run is said too: a green ring while something is running is not
+ * the whole picture.
+ */
+export function statsHint(
+  summary: Pick<RunSummary, 'finished' | 'inFlight' | 'failing' | 'rate'>,
+): string {
+  const { finished, inFlight, failing, rate } = summary
+  const parts =
+    rate === null
+      ? ['none finished yet']
+      : [`${rate}% of ${finished}`, failing === 0 ? 'all green' : `${failing} failing`]
+  if (inFlight > 0) parts.push(`${inFlight} in flight`)
+  return parts.join(' · ')
+}
+
+/**
  * `total` is every run the caller may see. "Runs" shows it, because the list
  * beside it says "Showing 25 of 140" and a tile reading 25 contradicts that;
  * the other figures are computed from the loaded runs, and the footnote says
  * so whenever that is fewer.
  */
-export function RunStats({ runs, total: available }: { runs: Run[]; total: number }) {
+export function RunStats({
+  runs,
+  total: available,
+  collapsible = false,
+}: {
+  runs: Run[]
+  total: number
+  collapsible?: boolean
+}) {
   // Nothing to summarise, and a panel of zeroes reads as a broken widget.
   if (runs.length === 0) return null
 
@@ -96,8 +127,8 @@ export function RunStats({ runs, total: available }: { runs: Run[]; total: numbe
   const { available: all, finished, inFlight, failing, rate, median } = summary
   const footnote = coverage(summary)
 
-  return (
-    <section style={s.wrap} aria-label="Summary">
+  const card = (
+    <section style={collapsible ? { ...s.wrap, marginBottom: 0 } : s.wrap} aria-label="Summary">
       <div style={s.ringRow}>
         <div
           style={{ ...s.ring, background: ringBackground(rate) }}
@@ -136,6 +167,14 @@ export function RunStats({ runs, total: available }: { runs: Run[]; total: numbe
 
       {footnote && <p style={s.footnote}>{footnote}</p>}
     </section>
+  )
+
+  return collapsible ? (
+    <Collapsible title="Pass rate" hint={statsHint(summary)}>
+      {card}
+    </Collapsible>
+  ) : (
+    card
   )
 }
 

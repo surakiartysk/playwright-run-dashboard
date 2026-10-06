@@ -287,7 +287,7 @@ export function App() {
         />
       )}
 
-      <RunStats runs={runs} total={total} />
+      <RunStats runs={runs} total={total} collapsible={!wide} />
 
       {/* Only beside the list: stacked, an empty summary is simply absent. */}
       {wide && listed && runs.length === 0 && <EmptySummary />}

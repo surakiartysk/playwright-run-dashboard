@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +14,7 @@ import {
   trendHint,
   trendPoints,
 } from '../src/components/RunTrend'
+import { RunStats, statsHint } from '../src/components/RunStats'
 import type { RolePolicy } from '../src/api'
 import { status as sc } from '../src/theme'
 import { run } from './fixtures'
@@ -82,6 +84,77 @@ describe('the folded chart', () => {
     )
     expect(html).toBe('')
   })
+})
+
+describe('the folded summary', () => {
+  /**
+   * The card was 307px of a 667px phone screen and put the Run button below the
+   * fold. Shut, it has to keep answering "is the suite healthy" in one line.
+   */
+  it('says the pass rate, the verdict and what is still running', () => {
+    expect(statsHint({ finished: 6, inFlight: 0, failing: 0, rate: 100 })).toBe(
+      '100% of 6 · all green',
+    )
+    expect(statsHint({ finished: 12, inFlight: 0, failing: 2, rate: 83 })).toBe(
+      '83% of 12 · 2 failing',
+    )
+    expect(statsHint({ finished: 6, inFlight: 1, failing: 0, rate: 100 })).toBe(
+      '100% of 6 · all green · 1 in flight',
+    )
+  })
+
+  /** No rate to give is not 0%, which would read as "everything failed". */
+  it('says so when nothing has finished, rather than a percentage', () => {
+    expect(statsHint({ finished: 0, inFlight: 2, failing: 0, rate: null })).toBe(
+      'none finished yet · 2 in flight',
+    )
+    expect(statsHint({ finished: 0, inFlight: 0, failing: 0, rate: null })).toBe(
+      'none finished yet',
+    )
+  })
+
+  it('is one folded row when asked, and the whole card when not', () => {
+    const folded = renderToStaticMarkup(
+      createElement(RunStats, { runs, total: runs.length, collapsible: true }),
+    )
+    expect(folded).toContain('<details')
+    expect(folded).toContain('Pass rate')
+    expect(folded).toContain('75% of 4 · 1 failing')
+    // The ring and the tiles are inside, so they are not drawn while shut.
+    expect(folded).not.toContain('conic-gradient')
+    expect(folded).not.toContain('Counts runs, not tests')
+
+    const open = renderToStaticMarkup(createElement(RunStats, { runs, total: runs.length }))
+    expect(open).not.toContain('<details')
+    expect(open).toContain('conic-gradient')
+    expect(open).toContain('Counts runs, not tests')
+  })
+
+  it('does not draw a row for a summary of nothing', () => {
+    expect(
+      renderToStaticMarkup(createElement(RunStats, { runs: [], total: 0, collapsible: true })),
+    ).toBe('')
+  })
+})
+
+/**
+ * Whether a panel folds is decided where it is placed, not inside it, and `App`
+ * cannot be rendered here: its first render is "Checking whether you are signed
+ * in". So the wiring is read from the source. A summary that stopped folding
+ * would pass every test above and put the Run button back below the fold on a
+ * phone, which is the thing the folding is for.
+ */
+describe('which panels the stacked layout folds', () => {
+  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
+
+  it.each(['RoleSwitcher', 'RunStats', 'RunTrend'])(
+    'folds %s when the layout is not wide',
+    (name) => {
+      const tag = new RegExp(`<${name}\\b[^>]*>`, 's').exec(app)?.[0]
+      expect(tag, `<${name} …> in App.tsx`).toBeDefined()
+      expect(tag).toContain('collapsible={!wide}')
+    },
+  )
 })
 
 describe('the folded role switcher', () => {
