@@ -297,13 +297,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 223 mutations were introduced
+**Every test here was proven able to fail.** In all, 236 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-169 of those are recorded individually in
+182 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -1455,7 +1455,7 @@ the ninety-nine was, until now, handed a sentence.
 
 **Decision.** Recover what the commit history actually holds, write it down, and
 state the shortfall in the same breath. `docs/mutations.md` lists them one per
-row — forty-five when it was written, 169 now — with the commit that
+row — forty-five when it was written, 182 now — with the commit that
 ran each, what was changed, and the message it produced. Two further commits
 counted four more without describing them, which is noted rather than guessed
 at. The remaining fifty were run during development and never written down.
