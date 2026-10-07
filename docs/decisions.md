@@ -2312,11 +2312,14 @@ seconds a time, and hope. Most never saw it. A portfolio page whose failure
 state cannot be summoned shows one that is always green.
 
 **Decision.** `POST /runs` takes an optional `outcome`: `random` (the old
-behaviour, and the default), `pass` or `fail`. The form shows a dropdown for it
-under the main row, only where the run is simulated, so `demo` and any
-deployment with `SIMULATE_DISPATCH` on. A failure asked for looks like any other
-simulated one: one to three failed tests with invented names, and `simulated`
-on the row.
+behaviour, and what a caller that sends nothing gets), `pass` or `fail`. The
+form shows a dropdown for it, only where the run is simulated, so `demo` and
+any deployment with `SIMULATE_DISPATCH` on: above Run on a phone, where Run
+stays on the first screen, and in a row of its own on a wide one. It has two
+entries, "Passes, every test" and "Fails, 1 to 3 tests", and opens on the first.
+A failure asked for looks like any other simulated one: one to three failed
+tests with invented names, and `simulated` on the row, out of dozens, the shape
+of a regression rather than of a run where everything broke.
 
 A real run **refuses** `pass` and `fail` with a 422 rather than ignoring them.
 There is no outcome to ask a workflow for, and a green run sent back to someone
@@ -2325,12 +2328,17 @@ is made from the same `simulates()` the row is recorded with, so the two cannot
 disagree. `random` is accepted for a real run, because the form always sends the
 field and an omitted one means `random`.
 
-The same lever is in the "Run this from a script" command whenever it is not
-`random`, so a sandbox key can ask for a failure from a terminal too. A command
-for a real role never carries the field.
+The same lever is in the "Run this from a script" command whenever the form
+holds one, so a sandbox key can ask for a failure from a terminal too. A form
+for a real role holds none, so its command never carries the field and the
+request it sends is the one a real run takes.
 
 **Trade-offs.**
 
+- **The form has no "random".** It was the first entry, and nobody who opens a
+  form wants to be told that a run is a coin toss: they want to see green, or to
+  see what red shows. The API keeps it, as what a caller that omits the field
+  gets, so existing scripts behave as before; it is a default, not a choice.
 - **A failing run is one click away, and so is a passing one.** The demo no
   longer shows the dice. It is still openly fake, which is what the
   `simulated` chip already says, and the failures it names are invented in the

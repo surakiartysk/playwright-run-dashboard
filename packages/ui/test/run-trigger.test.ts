@@ -114,8 +114,10 @@ describe('the first render of the command bar', () => {
   it('offers the simulated result only where the run is simulated', () => {
     const simulated = render(policy(), true)
     expect(simulated).toContain('aria-label="Simulated result"')
-    expect(simulated).toContain('<option value="fail">Always fails</option>')
-    expect(simulated).toContain('<option value="random" selected="">')
+    expect(simulated).toContain('<option value="fail">Fails, 1 to 3 tests</option>')
+    expect(simulated).toContain('<option value="pass" selected="">Passes, every test</option>')
+    // Two choices: nobody asks to be told that a run is a coin toss.
+    expect(simulated).not.toContain('value="random"')
 
     // What the form holds is what the dropdown shows.
     expect(render(policy(), true, { outcome: 'fail' })).toContain(
@@ -124,7 +126,7 @@ describe('the first render of the command bar', () => {
 
     const real = render(policy({ role: 'qa', allowedRefs: ['*'] }), false)
     expect(real).not.toContain('Simulated result')
-    expect(real).not.toContain('Always fails')
+    expect(real).not.toContain('Fails, 1 to 3 tests')
   })
 
   it('says before Run whether the run will be simulated', () => {

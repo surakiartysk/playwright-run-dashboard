@@ -156,7 +156,7 @@ export function RunTrigger({
       label="Simulated result"
       basis={220}
       fill={compact}
-      value={outcome}
+      value={outcome ?? 'pass'}
       options={OUTCOME_CHOICES}
       onChange={(next) => set({ outcome: next as RunForm['outcome'] })}
     />

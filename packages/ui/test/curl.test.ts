@@ -60,18 +60,23 @@ describe('runCurl', () => {
       tags: 'smoke',
       ref: 'main',
       workers: 2,
+      // The form is for a simulated run and opens on `pass`, so that is sent.
+      outcome: 'pass',
     })
   })
 
   /**
-   * `random` is the default, and a real run refuses the field, so a command for
-   * a real role must not carry one. A requested failure has to be in the
-   * command, or pasting it would not do what the form did.
+   * A real run refuses the field, so a command for a real role must not carry
+   * one; where the form holds one it has to be in the command, or pasting it
+   * would not do what the form did.
    */
-  it('leaves the outcome out unless one was asked for', () => {
-    expect(text).not.toContain('outcome')
-    const asked = runCurl({ ...form, outcome: 'fail' }, ORIGIN)
-    expect(JSON.parse(/-d '(.*)'$/.exec(asked)![1]!)).toMatchObject({ outcome: 'fail' })
+  it('carries the outcome the form holds, and none when it holds none', () => {
+    const real = runCurl(initialForm(runOptions({ simulated: false })), ORIGIN)
+    expect(real).not.toContain('outcome')
+    for (const outcome of ['pass', 'fail'] as const) {
+      const asked = runCurl({ ...form, outcome }, ORIGIN)
+      expect(JSON.parse(/-d '(.*)'$/.exec(asked)![1]!)).toMatchObject({ outcome })
+    }
   })
 
   it('follows the form: another selection is another command', () => {

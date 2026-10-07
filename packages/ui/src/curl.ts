@@ -28,9 +28,10 @@ export function runCurl(form: RunForm, origin: string, key?: string): string {
     tags: form.tags,
     ref: form.ref,
     workers: form.workers,
-    // Only when asked for: the default is `random`, and a real run refuses
-    // the field, so a snippet for a real role must never carry one.
-    ...(form.outcome === 'random' ? null : { outcome: form.outcome }),
+    // Only when the form holds one, which it does only where runs are
+    // simulated: a real run refuses the field, so a snippet for a real role
+    // must never carry one.
+    ...(form.outcome ? { outcome: form.outcome } : null),
   })
   return [
     `curl -X POST ${quote(`${origin}/runs`)} \\`,

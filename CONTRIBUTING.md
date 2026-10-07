@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                    |
 | ------------------- | ------------------------------------------------------- |
-| `pnpm test`         | Both packages — 636 Worker tests, then 488 UI tests     |
+| `pnpm test`         | Both packages — 636 Worker tests, then 489 UI tests     |
 | `pnpm verify`       | Everything CI runs: format, lint, types, tests, claims  |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale |
 

@@ -36,7 +36,7 @@ describe('what the form sends', () => {
   it('sends the service and the tag as two separate fields, as selected', async () => {
     let sent: unknown
     await submitRun(
-      { suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4, outcome: 'random' },
+      { suite: 'api', service: 'items', tags: 'smoke', ref: 'main', workers: 4, outcome: 'pass' },
       async (body) => {
         sent = body
         return { simulated: true }
@@ -48,14 +48,14 @@ describe('what the form sends', () => {
       tags: 'smoke',
       ref: 'main',
       workers: 4,
-      outcome: 'random',
+      outcome: 'pass',
     })
   })
 
   /**
    * The failure a visitor asked for is the one that is sent.
    *
-   * A form that opened on `fail` and posted `random` would answer a request
+   * A form that opened on `fail` and posted `pass` would answer a request
    * for a red run with whatever the dice gave, and nothing on screen would
    * say it had been ignored.
    */
@@ -68,8 +68,23 @@ describe('what the form sends', () => {
     expect(sent?.outcome).toBe('fail')
   })
 
-  it('opens on `random`, which is what a real run takes', () => {
-    expect(initialForm(runOptions()).outcome).toBe('random')
+  /**
+   * Green to start with where there is a choice, and no choice where there is
+   * none: a real run refuses `pass`, so a form for one that opened on it would
+   * fail its first request.
+   */
+  it('opens on `pass` for a simulated run, and holds no outcome for a real one', () => {
+    expect(initialForm(runOptions({ simulated: true })).outcome).toBe('pass')
+    expect(initialForm(runOptions({ simulated: false })).outcome).toBeUndefined()
+  })
+
+  it('sends no outcome at all for a real run', async () => {
+    let sent: object | undefined
+    await submitRun(initialForm(runOptions({ simulated: false })), async (body) => {
+      sent = body
+      return { simulated: false }
+    })
+    expect(JSON.stringify(sent)).not.toContain('outcome')
   })
 
   it('does not hand over its own state: a later change cannot alter what was sent', async () => {
@@ -227,7 +242,7 @@ describe('initialForm', () => {
       tags: 'all',
       ref: 'main',
       workers: 4,
-      outcome: 'random',
+      outcome: 'pass',
     })
     expect(initialForm(runOptions({ maxWorkers: 2 })).workers).toBe(2)
   })

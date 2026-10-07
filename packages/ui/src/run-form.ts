@@ -16,23 +16,27 @@ export interface RunForm {
   ref: string
   workers: number
   /**
-   * What a simulated run comes back as. Shown only where runs are simulated,
-   * and `random` everywhere else: a real run takes no other value, and the API
-   * refuses one rather than ignoring it.
+   * What a simulated run comes back as. Held only where runs are simulated and
+   * absent for a real one: the API refuses `pass` and `fail` there rather than
+   * ignoring them, and a request that omits it is the one a real run takes.
    */
-  outcome: Outcome
+  outcome?: Outcome
 }
 
 /**
- * How a simulated run ends: left to chance (about one in five fails), or asked
- * for. The values are the API's own (`POST /runs` takes `outcome`).
+ * How a simulated run ends: every test passes, or a few fail. The values are
+ * the API's own (`POST /runs` takes `outcome`).
+ *
+ * There is no third entry for "leave it to chance". The API still has one, as
+ * what a caller that sends nothing gets, but nobody who opens the form wants
+ * to be told that a run is a coin toss: they want to see a green run, or to see
+ * what a red one shows.
  */
-export type Outcome = 'random' | 'pass' | 'fail'
+export type Outcome = 'pass' | 'fail'
 
 export const OUTCOME_CHOICES: readonly { value: Outcome; label: string }[] = [
-  { value: 'random', label: 'Random, 1 in 5 fail' },
-  { value: 'pass', label: 'Always passes' },
-  { value: 'fail', label: 'Always fails' },
+  { value: 'pass', label: 'Passes, every test' },
+  { value: 'fail', label: 'Fails, 1 to 3 tests' },
 ]
 
 /*
@@ -113,7 +117,8 @@ export function initialForm(options: RunOptions, over: Partial<RunForm> = {}): R
     service: api.services.includes('items') ? 'items' : (api.services[1] ?? 'all'),
     tags: 'all',
     ref: api.refs.includes('main') ? 'main' : (api.refs[0] ?? 'main'),
-    outcome: 'random',
+    // Green to start with, and only where there is a choice to make.
+    ...(options.simulated ? { outcome: 'pass' as const } : null),
     ...over,
     workers: clampWorkers(over.workers ?? defaultWorkers(options.maxWorkers), options.maxWorkers),
   }

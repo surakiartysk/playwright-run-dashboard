@@ -82,7 +82,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1124 tests — 636 in the Worker, 488 in the UI
+pnpm test          # 1125 tests — 636 in the Worker, 489 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
