@@ -52,6 +52,7 @@ interviewer should press on hardest.
 41. [A cookie is Secure when its request was](#41-a-cookie-is-secure-when-its-request-was)
 42. [A simulated run can be asked to fail](#42-a-simulated-run-can-be-asked-to-fail)
 43. [A report is kept by count and by age, and the run outlives it](#43-a-report-is-kept-by-count-and-by-age-and-the-run-outlives-it)
+44. [A result that counted no tests is an error](#44-a-result-that-counted-no-tests-is-an-error)
 
 ---
 
@@ -2406,6 +2407,41 @@ because storage is tight.
 - **Nothing here measures the bucket.** The cap is a count, not bytes. A run of
   both styles is twice the size of one, so 500 of them is more than 500 of the
   small kind; the arithmetic above uses the large end.
+
+## 44. A result that counted no tests is an error
+
+**Context.** The form lets someone pick a scope and a tag that match nothing: Items
+with `@flow`, Core with `@smoke`, fourteen of the pairs in the API suite. The workflow
+then has nothing to run, Playwright exits non-zero with "No tests found", and the
+callback said `failed` with 0 of 0. Measured on the live dashboard: the row showed a red
+cross, the failing count and the pass rate went down, no report, and the detail
+row said "This result did not say which tests failed", about a run in which none had been run.
+
+**Decision.** The webhook records `passed` or `failed` with an explicit `total: 0` as
+`error`. The row's note for an error says it can mean a scope and tag that matched no
+tests, besides a dispatch that failed. `error` and `timeout` are left as reported, and
+a callback with no `total` (a workflow older than the totals) is left alone: that is
+not a run that counted nothing.
+
+**Why here.** Every suite's result lands at this endpoint, and "ran nothing" is a fact
+about the number and not about any suite, so one rule covers the API suite, the UI suite
+and a suite that does not exist yet, instead of one `if` per workflow in repositories
+that cannot import each other. `passed` with no tests is as wrong the other way; nothing
+sends it today.
+
+**Trade-offs.**
+
+- **The dashboard overrides a signed status.** A suite that says `failed` is told it
+  was an `error`. It is an override only for a contradiction in the callback itself
+  (tests failed, none counted), and it is recorded as `error`, the status the UI already
+  words as "no tests ran".
+- **It does not stop the mistake.** A form that offered only pairs that match something
+  would; the dashboard does not know the suites' tag counts, and a list copied here would
+  drift. The run is still made and still costs a runner for a few seconds.
+- **An infrastructure failure looks the same.** A mock that never started also reports
+  `total: 0`. The sentence says "or it errored", and the workflow run link is what tells them apart.
+- **The workflows still send `failed`.** Their own job is red, correctly. Only the
+  dashboard's recording changes.
 
 ---
 

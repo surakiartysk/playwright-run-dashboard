@@ -70,6 +70,28 @@ webhookRoutes.post('/', async (c) => {
     return c.json({ error: `status must be one of: ${REPORTABLE_STATUSES.join(', ')}` }, 422)
   }
 
+  /*
+   * A result that counted no tests is an error, not a pass or a fail.
+   *
+   * A scope and a tag the form lets someone pick can match nothing: Items with
+   * @flow, Core with @smoke, fourteen pairs in the API suite. The workflow then
+   * has nothing to run, Playwright exits non-zero with "No tests found", and the
+   * callback said `failed` with 0 of 0. The row showed a red cross, counted
+   * against the pass rate, and its detail said "This result did not say which
+   * tests failed" about a run in which none had been run. `passed` with no
+   * tests is as wrong the other way, and nothing sends it today.
+   *
+   * Decided here and not in each suite's workflow because this is where every
+   * suite's result lands, and because "ran nothing" is a fact about the number
+   * and not about the suite. Only an explicit 0: a workflow older than the
+   * totals omits them, and that is not a run that counted nothing. `error` and
+   * `timeout` are left as they were reported.
+   */
+  const status =
+    payload.total === 0 && (payload.status === 'passed' || payload.status === 'failed')
+      ? 'error'
+      : payload.status
+
   const result = await c.env.DB.prepare(
     `UPDATE runs
         SET status = ?2, total = ?3, passed = ?4, failed = ?5,
@@ -83,7 +105,7 @@ webhookRoutes.post('/', async (c) => {
   )
     .bind(
       payload.runId,
-      payload.status,
+      status,
       payload.total ?? null,
       payload.passed ?? null,
       payload.failed ?? null,
