@@ -11,6 +11,7 @@ import { gateRoutes } from './routes/gate'
 import { keyRoutes } from './routes/keys'
 import { optionsRoutes } from './routes/options'
 import { sweepStaleRuns } from './stale'
+import { pruneReports } from './retention'
 import { pruneSandbox } from './sandbox'
 import pkg from '../package.json'
 
@@ -179,6 +180,9 @@ export default {
         pruneSandbox(env.DB).then(({ keys, runs }) => {
           if (keys + runs > 0)
             console.log(`[prune] removed ${keys} sandbox key(s), ${runs} old demo run(s)`)
+        }),
+        pruneReports(env.DB, env.REPORTS).then((removed) => {
+          if (removed > 0) console.log(`[retention] removed the report of ${removed} old run(s)`)
         }),
       ]),
     )

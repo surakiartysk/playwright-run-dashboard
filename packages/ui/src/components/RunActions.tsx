@@ -61,6 +61,15 @@ export function RunActions({
         </a>
       )}
 
+      {!run.reportUrl && run.reportRemovedAt && (
+        <span
+          style={s.removed}
+          title="Old reports are removed to keep storage bounded. The result stays."
+        >
+          {reportRemovedNote(run.reportRemovedAt)}
+        </span>
+      )}
+
       {run.workflowUrl && (
         <a
           href={run.workflowUrl}
@@ -117,6 +126,10 @@ export function RunActions({
   )
 }
 
+/** What stands where the link was, once the report it opened has been removed. */
+export const reportRemovedNote = (removedAt: string): string =>
+  `Report removed ${removedAt.slice(0, 10)}`
+
 const button: CSSProperties = {
   padding: '5px 11px',
   borderRadius: 7,
@@ -137,6 +150,7 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${c.primaryBorder}`,
     borderRadius: 7,
   },
+  removed: { color: c.t5, fontSize: 13, padding: '5px 0' },
   workflow: {
     color: c.t3,
     textDecoration: 'none',

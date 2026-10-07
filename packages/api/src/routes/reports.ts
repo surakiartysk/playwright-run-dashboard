@@ -133,10 +133,23 @@ reportRoutes.get('/:runId/*', async (c) => {
    * record their own — the row says which, and a real run whose upload never
    * arrived still 404s rather than quietly serving someone else's results.
    */
-  const row = await c.env.DB.prepare(`SELECT report_path FROM runs WHERE id = ?1`)
+  const row = await c.env.DB.prepare(
+    `SELECT report_path, report_removed_at FROM runs WHERE id = ?1`,
+  )
     .bind(runId)
-    .first<{ report_path: string | null }>()
+    .first<{ report_path: string | null; report_removed_at: string | null }>()
 
+  // 410 and not 404: the report existed and was taken away on purpose, which is
+  // a different thing from a run that never had one, and a person holding an old
+  // link should be told which.
+  if (row?.report_removed_at) {
+    return c.json(
+      {
+        error: `This run's report was removed on ${row.report_removed_at.slice(0, 10)} to keep storage bounded. The run's result is still recorded.`,
+      },
+      410,
+    )
+  }
   if (!row?.report_path) return c.json({ error: 'That run has no report' }, 404)
 
   // `report_path` names the report's entry point; its directory is the prefix

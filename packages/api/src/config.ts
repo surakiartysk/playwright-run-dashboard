@@ -52,6 +52,27 @@ export const DEMO_PASSWORD_DEFAULT = DEV_PASSWORDS.demo
 export const DEMO_REPORT_PREFIX = 'demo-report'
 
 /**
+ * How many real runs keep their report, before the oldest may be removed.
+ *
+ * A report is 3.6 to 9.3 MB measured (a run of both styles is the large end), so
+ * this is about 4.5 GB at the large end, under the 10 GB R2 includes free. It is a
+ * count and not a number of days because what fills the bucket is runs, and
+ * a quiet month should not cost anything its history.
+ */
+export const REPORTS_KEPT = 500
+
+/**
+ * A report is never removed before it is this old, whatever the count.
+ *
+ * The count alone would let a busy day push out a report from last week. Both
+ * have to hold: outside the newest {@link REPORTS_KEPT} *and* older than this.
+ */
+export const REPORT_MIN_AGE_MS = 180 * 24 * 60 * 60 * 1000
+
+/** Reports removed per sweep, so a first run over a long backlog stays short. */
+export const REPORTS_REMOVED_PER_SWEEP = 25
+
+/**
  * Fails fast when a deployment is running for real on development secrets.
  *
  * Evaluated on every request (and logged once, in index.ts) rather than cached:

@@ -131,6 +131,8 @@ export interface RunRow {
   finished_at: string | null
   duration_ms: number | null
   report_path: string | null
+  /** When the stored report was removed to bound the bucket — see 0013. */
+  report_removed_at: string | null
   workflow_url: string | null
   /** The suite that produced this result. Null until its callback arrives. */
   suite_version: string | null
@@ -171,6 +173,8 @@ export interface RunView {
   finishedAt: string | null
   durationMs: number | null
   reportUrl: string | null
+  /** When the report was removed to keep storage bounded, or null while it is stored. */
+  reportRemovedAt: string | null
   workflowUrl: string | null
   suiteVersion: string | null
   suiteSha: string | null
@@ -240,6 +244,7 @@ export const toView = (row: RunRow, reportUrl: string | null): RunView => ({
   finishedAt: row.finished_at,
   durationMs: row.duration_ms,
   reportUrl,
+  reportRemovedAt: row.report_removed_at,
   workflowUrl: row.workflow_url,
   suiteVersion: row.suite_version,
   suiteSha: row.suite_sha,

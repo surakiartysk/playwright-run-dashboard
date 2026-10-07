@@ -26,6 +26,8 @@ bucket_name = "run-dashboard-reports"
 # Every ten minutes, end runs that were never going to report (see src/stale.ts).
 # A cron costs one UPDATE; with none, a run whose callback never arrives is
 # `running` for ever and the page polls for as long as it is open.
+# The same tick removes old sandbox keys and demo runs, and the oldest stored
+# reports once there are more than 500 (see src/retention.ts).
 [triggers]
 crons = ["*/10 * * * *"]
 

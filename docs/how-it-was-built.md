@@ -21,8 +21,8 @@ review half is where the value was:
   believed.
 
 The discipline that made this work: **nothing is described as passing until it
-has been seen to fail for the right reason.** In all, 243 deliberate mutations
-were each confirmed to produce a failure naming the right behaviour. 189
+has been seen to fail for the right reason.** In all, 262 deliberate mutations
+were each confirmed to produce a failure naming the right behaviour. 208
 are listed with their evidence in [mutations.md](mutations.md), which also
 states which are not, and why that gap is left open rather than filled in.
 

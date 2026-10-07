@@ -51,6 +51,7 @@ interviewer should press on hardest.
 40. [A report is someone else's program on this origin, so it is fenced](#40-a-report-is-someone-elses-program-on-this-origin-so-it-is-fenced)
 41. [A cookie is Secure when its request was](#41-a-cookie-is-secure-when-its-request-was)
 42. [A simulated run can be asked to fail](#42-a-simulated-run-can-be-asked-to-fail)
+43. [A report is kept by count and by age, and the run outlives it](#43-a-report-is-kept-by-count-and-by-age-and-the-run-outlives-it)
 
 ---
 
@@ -297,13 +298,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 243 mutations were introduced
+**Every test here was proven able to fail.** In all, 262 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-189 of those are recorded individually in
+208 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -1455,7 +1456,7 @@ the ninety-nine was, until now, handed a sentence.
 
 **Decision.** Recover what the commit history actually holds, write it down, and
 state the shortfall in the same breath. `docs/mutations.md` lists them one per
-row — forty-five when it was written, 189 now — with the commit that
+row — forty-five when it was written, 208 now — with the commit that
 ran each, what was changed, and the message it produced. Two further commits
 counted four more without describing them, which is noted rather than guessed
 at. The remaining fifty were run during development and never written down.
@@ -2355,6 +2356,56 @@ request it sends is the one a real run takes.
   so what the form shows and sends is held, and that choosing an entry changes
   the form is not — the same is true of every other control in the row, and
   was left rather than building a DOM harness for one select.
+
+## 43. A report is kept by count and by age, and the run outlives it
+
+**Context.** A run's row says that it happened: how many tests, which passed, who
+started it, when. Its report is the detail behind that — every request and
+response, 3.6 to 9.3 MB measured, the large end for a run of both styles — and the
+only thing here that grows without bound. Nothing removed one except an admin
+deleting a whole run, so the bucket would have filled at the rate runs were made.
+The question was how long it should be kept, and the use is to answer "did this
+pass last time, and what did it send": a log someone looks back through.
+
+**Decision.** A report is removed only when it is outside the newest 500 runs
+that still have one _and_ older than 180 days, oldest first, at most 25 per
+sweep, from the cron that already runs every ten minutes. The constants are in
+`config.ts`; the rule and its reasoning are in `retention.ts`. Only the stored
+object goes. The row stays, `report_path` is cleared and `report_removed_at` is
+written (migration 0013), so a run whose report was removed is told apart from
+one whose upload never arrived. The detail row then says "Report removed" with
+the date where the link was, and the report URL answers 410 with the same
+information instead of a 404 that reads as a run that never had one.
+
+500 is about 4.5 GB at the large size, under the 10 GB R2 includes free (the
+free allowance is as remembered and should be checked against current pricing).
+At the rate the dashboard has been used, 10 real runs in five weeks, it will not
+be reached for years; it is there so that a day of heavy use cannot do harm, not
+because storage is tight.
+
+**Trade-offs.**
+
+- **Both conditions, not one.** A count alone lets a busy day push out last
+  week's report; an age alone deletes a quiet month's history for no reason, as a
+  bucket holding twenty reports costs nothing. Requiring both means the rule
+  does nothing until there is both a lot and an old tail, which is the
+  intention, and also that it will let the bucket pass 500 if every run is
+  younger than 180 days.
+- **The evidence does not outlive the row.** "This passed on that day" does. What
+  it sent and got back does not, past the cap. A report cannot be recovered once
+  removed.
+- **The object is deleted before the row is updated.** A failure between them
+  leaves a row naming a report that is gone, which the next sweep finds and
+  finishes. The other order would leave a stored report nothing points at.
+- **Only reports under `runs/` count.** Simulated runs point at one shared sample
+  that no run owns; counting them would let a day of demo clicks push a real
+  report out of the newest 500, and removing "their" report would break every
+  other run's link.
+- **No notice before removal, and no way to pin a report.** An admin can delete a
+  run; nobody can say "keep this one". Added when someone needs it, not before.
+- **Nothing here measures the bucket.** The cap is a count, not bytes. A run of
+  both styles is twice the size of one, so 500 of them is more than 500 of the
+  small kind; the arithmetic above uses the large end.
 
 ---
 
