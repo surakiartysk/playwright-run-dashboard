@@ -42,6 +42,7 @@ export function run(overrides: Partial<Run> = {}): Run {
     finishedAt: null,
     durationMs: 1000,
     reportUrl: null,
+    reportRemovedAt: null,
     workflowUrl: null,
     suiteVersion: null,
     suiteSha: null,

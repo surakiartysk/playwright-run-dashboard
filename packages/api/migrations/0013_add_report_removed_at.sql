@@ -1,0 +1,12 @@
+-- When a run's stored report was removed to keep the bucket bounded.
+--
+-- A run's row is the record that it happened: how many tests, passed or failed,
+-- who started it, when. The report is the detail behind it, several megabytes of
+-- Allure with every request and response, and it is what a bucket fills with.
+-- Removing an old one nulls `report_path` and writes this, so a run whose report
+-- was taken away is told apart from one whose upload never arrived, which also has no
+-- `report_path`, and the row says what happened instead of offering a link that
+-- opens a 404.
+--
+-- Null for every run before this and for every run whose report is still stored.
+ALTER TABLE runs ADD COLUMN report_removed_at TEXT;

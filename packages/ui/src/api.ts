@@ -52,6 +52,11 @@ export interface Run {
   finishedAt: string | null
   durationMs: number | null
   reportUrl: string | null
+  /**
+   * When the report was removed to keep storage bounded, or null while it is
+   * stored. The run's result outlives it; the link does not.
+   */
+  reportRemovedAt: string | null
   workflowUrl: string | null
   /** The suite that produced this result — null until its callback arrives. */
   suiteVersion: string | null

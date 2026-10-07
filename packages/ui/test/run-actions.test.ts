@@ -73,4 +73,48 @@ describe('RunActions', () => {
     expect(sim).toContain('Sample report ↗')
     expect(render({ canDelete: false, confirming: false, reportUrl: null })).not.toContain('<a ')
   })
+
+  /**
+   * An old report is removed to keep storage bounded; the run stays. The detail
+   * row says so where the link was, rather than showing nothing, which reads as
+   * a run whose upload failed.
+   */
+  describe('a report that was removed', () => {
+    const renderRemoved = (props: { reportUrl: string | null; reportRemovedAt: string | null }) =>
+      renderToStaticMarkup(
+        createElement(RunActions, {
+          run: run(props),
+          canDelete: false,
+          confirming: false,
+          onAskDelete: noop,
+          onCancel: noop,
+          onConfirm: noop,
+        }),
+      )
+
+    it('says it was removed, and when, in place of the link', () => {
+      const html = renderRemoved({ reportUrl: null, reportRemovedAt: '2027-04-09T03:00:00.000Z' })
+      expect(html).toContain('Report removed 2027-04-09')
+      expect(html).not.toContain('<a ')
+    })
+
+    it('says nothing while the report is stored', () => {
+      const html = renderRemoved({ reportUrl: 'https://r.example/1', reportRemovedAt: null })
+      expect(html).toContain('Report ↗')
+      expect(html).not.toContain('removed')
+    })
+
+    it('shows the link, not the note, if a row were ever to carry both', () => {
+      const html = renderRemoved({
+        reportUrl: 'https://r.example/1',
+        reportRemovedAt: '2027-04-09T03:00:00.000Z',
+      })
+      expect(html).toContain('Report ↗')
+      expect(html).not.toContain('removed')
+    })
+
+    it('says nothing for a run that never had a report', () => {
+      expect(renderRemoved({ reportUrl: null, reportRemovedAt: null })).not.toContain('removed')
+    })
+  })
 })

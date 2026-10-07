@@ -16,6 +16,7 @@ import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
 import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent, sandboxKeyRetryAfter } from '../sandbox'
 import { secondsUntilRoom } from '../retry'
+import { deleteRunReport } from '../retention'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
 import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
@@ -625,54 +626,15 @@ runRoutes.get('/:id', async (c) => {
  * reusable. See decision 25.
  */
 runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async (c) => {
-  const id = c.req.param('id')
+  // The route is `/:id`, so there is always one.
+  const id = c.req.param('id') as string
 
   const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()
   if (result.meta.changes === 0) return c.json({ error: 'No such run' }, 404)
 
-  /*
-   * The report outlives the row otherwise, and R2 is billed by what it holds.
-   *
-   * Keyed on `runs/{id}/` — this run's own prefix — and never on the directory
-   * of its `report_path`. The two are the same for a real run and are not for
-   * a simulated one, which points `report_path` at the shared demo report that
-   * dozens of other rows also point at. Deleting "the report this row names"
-   * reads like the more correct rule and would wipe that shared report the
-   * first time an admin tidied a demo run away, surfacing later and elsewhere
-   * as a report that 404s for every other simulated run.
-   *
-   * Walked with a cursor rather than listed once, and the reason is narrower
-   * than it looks. Every report this system stores today is a *single* object:
-   * both suites build Allure with `--single-file`, and their workflows upload
-   * exactly `runs/{runId}/index.html`. One `list` would be enough, and it was.
-   *
-   * What it would not be is enough *by construction*. R2 returns at most 1000
-   * keys per call, so a single `list` is correct only while something outside
-   * this repository keeps choosing to inline the report — a flag in the suites
-   * (`SINGLE_FILE`), not a property of this code. The multi-file form is ~450
-   * objects, and nothing here would notice the day it arrived: the delete would
-   * silently keep whatever it did not see, and answer with a `deletedObjects`
-   * count that was really the page size.
-   *
-   * So this is not a fix for a leak that was happening. It is refusing to hold
-   * a correctness argument that depends on another repository's build flag.
-   *
-   * Deleted page by page rather than collecting every key first: if a report
-   * ever is large, accumulating its whole key list in memory to save a few
-   * round trips trades one unbounded thing for another.
-   */
-  let deletedObjects = 0
-  let cursor: string | undefined
-
-  for (;;) {
-    const listed = await c.env.REPORTS.list({ prefix: `runs/${id}/`, cursor })
-    if (listed.objects.length > 0) {
-      await Promise.all(listed.objects.map((object) => c.env.REPORTS.delete(object.key)))
-      deletedObjects += listed.objects.length
-    }
-    if (!listed.truncated) break
-    cursor = listed.cursor
-  }
+  // The report outlives the row otherwise, and R2 is billed by what it holds.
+  // Which objects, and why by the run's own prefix, is in retention.ts.
+  const deletedObjects = await deleteRunReport(c.env.REPORTS, id)
 
   return c.json({ ok: true, deletedObjects })
 })
