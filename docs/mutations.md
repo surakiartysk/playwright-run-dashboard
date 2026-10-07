@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 243 now — which was the one figure
+**ninety-nine** when this file was written, 262 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **189 mutations are
+This file is what that number can actually show. **208 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 189 and 243 is
+changed and what went red. The gap between 208 and 262 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -215,6 +215,25 @@ figure the prose states, so the two cannot drift apart.
 | 187 | `9ae9002` · 7 Oct  | The fail entry is labelled as a pass                                          | "offers the simulated result only where the run is simulated"                                                             |
 | 188 | `9ae9002` · 7 Oct  | The dropdown ignores the value the form holds                                 | "offers the simulated result only where the run is simulated"                                                             |
 | 189 | `9ae9002` · 7 Oct  | `submitRun` drops the outcome                                                 | "sends the service and the tag as two separate fields, as selected"                                                       |
+| 190 | `580c5b4` · 7 Oct  | The age limit is no longer required, only the count                           | "removes nothing younger than the minimum age, however many there are"                                                    |
+| 191 | `580c5b4` · 7 Oct  | The count is no longer required, only the age                                 | "removes nothing while there are no more than it keeps, however old they are"                                             |
+| 192 | `580c5b4` · 7 Oct  | The oldest are removed last instead of first                                  | "removes at most one batch per sweep, the oldest first"                                                                   |
+| 193 | `580c5b4` · 7 Oct  | The batch limit is ignored                                                    | "removes at most one batch per sweep, the oldest first"                                                                   |
+| 194 | `580c5b4` · 7 Oct  | The ranking counts the shared sample report too                               | "does not count the shared sample, or touch it"                                                                           |
+| 195 | `580c5b4` · 7 Oct  | The sample's runs are candidates for removal                                  | survived: they were too young to be candidates; now "does not count the shared sample, or touch it"                       |
+| 196 | `580c5b4` · 7 Oct  | The row keeps its `report_path` after the report is removed                   | "keeps the run, and says its report was removed"                                                                          |
+| 197 | `580c5b4` · 7 Oct  | The row is cleared but given no removal time                                  | "keeps the run, and says its report was removed"                                                                          |
+| 198 | `580c5b4` · 7 Oct  | The sweep updates the row and deletes no object                               | "removes the oldest beyond what it keeps, when they are old enough, and keeps the newest"                                 |
+| 199 | `580c5b4` · 7 Oct  | The delete prefix loses its trailing slash                                    | "removes only the objects under the run’s own prefix"                                                                     |
+| 200 | `580c5b4` · 7 Oct  | The sweep deletes the whole run instead of marking it                         | "keeps the run, and says its report was removed"                                                                          |
+| 201 | `580c5b4` · 7 Oct  | The cron never calls the sweep                                                | "removes the one report beyond the newest five hundred, and no other"                                                     |
+| 202 | `580c5b4` · 7 Oct  | The count kept is 400 instead of 500                                          | "removes the one report beyond the newest five hundred, and no other"                                                     |
+| 203 | `580c5b4` · 7 Oct  | A removed report's URL answers 404                                            | "answers 410 and says when, not \"no report\""                                                                            |
+| 204 | `580c5b4` · 7 Oct  | The report route ignores that it was removed                                  | "answers 410 and says when, not \"no report\""                                                                            |
+| 205 | `580c5b4` · 7 Oct  | The run view drops `reportRemovedAt`                                          | "keeps the run, and says its report was removed"                                                                          |
+| 206 | `580c5b4` · 7 Oct  | The note shows while the report is still stored                               | survived: a row never had both; now "shows the link, not the note, if a row were ever to carry both"                      |
+| 207 | `580c5b4` · 7 Oct  | The note is never shown                                                       | "says it was removed, and when, in place of the link"                                                                     |
+| 208 | `580c5b4` · 7 Oct  | The note drops the date                                                       | "says it was removed, and when, in place of the link"                                                                     |
 
 ---
 
@@ -227,12 +246,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **193**: 189 described, four
+So the commit history accounts for **212**: 208 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-243 mutations have been run. 193 are in the history. The other fifty
+262 mutations have been run. 212 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -241,14 +260,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-243 is also a floor rather than an exact count. The prose figure stood at
+262 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 189 are all from that period, and every future one belongs
+produced — rows 23 to 208 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 

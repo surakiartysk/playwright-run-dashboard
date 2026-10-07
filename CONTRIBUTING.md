@@ -111,7 +111,7 @@ cp /tmp/policy.bak src/policy.ts   # always restore
 pnpm exec vitest run               # confirm green again
 ```
 
-So far 243 mutations have been run against this repo, 189 of them
+So far 262 mutations have been run against this repo, 208 of them
 recorded one by one in [`docs/mutations.md`](docs/mutations.md). Any new one
 belongs in that table with the message it produced. The ones worth repeating
 after any change to authorisation or signing:
