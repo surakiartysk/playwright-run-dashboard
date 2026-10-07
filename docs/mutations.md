@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 236 now — which was the one figure
+**ninety-nine** when this file was written, 243 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **182 mutations are
+This file is what that number can actually show. **189 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 182 and 236 is
+changed and what went red. The gap between 189 and 243 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -208,6 +208,13 @@ figure the prose states, so the two cannot drift apart.
 | 180 | `70edad7` · 6 Oct  | The dropdown ignores the value the form holds                                 | "offers the simulated result only where the run is simulated"                                                             |
 | 181 | `70edad7` · 6 Oct  | Choosing a result changes nothing                                             | survived: the UI tests render to a string and cannot press a control, as for every select                                 |
 | 182 | `70edad7` · 6 Oct  | The wide layout drops the dropdown                                            | "offers the simulated result only where the run is simulated"                                                             |
+| 183 | `9ae9002` · 7 Oct  | A simulated form opens on `fail`                                              | "opens on `pass` for a simulated run, and holds no outcome for a real one"                                                |
+| 184 | `9ae9002` · 7 Oct  | A real run's form is given an outcome                                         | "opens on `pass` for a simulated run, and holds no outcome for a real one"                                                |
+| 185 | `9ae9002` · 7 Oct  | The dropdown offers `random` again                                            | "offers the simulated result only where the run is simulated"                                                             |
+| 186 | `9ae9002` · 7 Oct  | The script command always carries an outcome                                  | "carries the outcome the form holds, and none when it holds none"                                                         |
+| 187 | `9ae9002` · 7 Oct  | The fail entry is labelled as a pass                                          | "offers the simulated result only where the run is simulated"                                                             |
+| 188 | `9ae9002` · 7 Oct  | The dropdown ignores the value the form holds                                 | "offers the simulated result only where the run is simulated"                                                             |
+| 189 | `9ae9002` · 7 Oct  | `submitRun` drops the outcome                                                 | "sends the service and the tag as two separate fields, as selected"                                                       |
 
 ---
 
@@ -220,12 +227,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **186**: 182 described, four
+So the commit history accounts for **193**: 189 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-236 mutations have been run. 186 are in the history. The other fifty
+243 mutations have been run. 193 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -234,14 +241,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-236 is also a floor rather than an exact count. The prose figure stood at
+243 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 182 are all from that period, and every future one belongs
+produced — rows 23 to 189 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
