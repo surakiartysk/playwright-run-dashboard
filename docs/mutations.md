@@ -2,15 +2,15 @@
 
 Every test in this repository is supposed to have been watched going red for the
 right reason. Four documents say so, and they put a number on it —
-**ninety-nine** when this file was written, 262 now — which was the one figure
+**ninety-nine** when this file was written, 271 now — which was the one figure
 here with nothing downstream of it.
 `check:claims` said as much in its own comment: the mutation count "cannot be
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **208 mutations are
+This file is what that number can actually show. **217 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 208 and 262 is
+changed and what went red. The gap between 217 and 271 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -234,6 +234,15 @@ figure the prose states, so the two cannot drift apart.
 | 206 | `580c5b4` · 7 Oct  | The note shows while the report is still stored                               | survived: a row never had both; now "shows the link, not the note, if a row were ever to carry both"                      |
 | 207 | `580c5b4` · 7 Oct  | The note is never shown                                                       | "says it was removed, and when, in place of the link"                                                                     |
 | 208 | `580c5b4` · 7 Oct  | The note drops the date                                                       | "says it was removed, and when, in place of the link"                                                                     |
+| 209 | `af5c05b` · 7 Oct  | The rule is never applied, so a 0 of 0 `failed` stays `failed`                | "records `failed` with nothing counted as an error"                                                                       |
+| 210 | `af5c05b` · 7 Oct  | Only `failed` with no tests is converted                                      | "records `passed` with nothing counted as an error too"                                                                   |
+| 211 | `af5c05b` · 7 Oct  | Only `passed` with no tests is converted                                      | "records `failed` with nothing counted as an error"                                                                       |
+| 212 | `af5c05b` · 7 Oct  | A missing total is treated as zero                                            | "does not call a result an error just because it carries no total"                                                        |
+| 213 | `af5c05b` · 7 Oct  | Every status with a zero total is converted, `error` and `timeout` too        | "leaves an `error` and a `timeout` as they were reported"                                                                 |
+| 214 | `af5c05b` · 7 Oct  | Any total under two is converted                                              | "does not touch a result that counted tests, passed or failed"                                                            |
+| 215 | `af5c05b` · 7 Oct  | The converted status is computed and not stored                               | "records `failed` with nothing counted as an error"                                                                       |
+| 216 | `af5c05b` · 7 Oct  | A zero total is converted to `timeout`                                        | "records `failed` with nothing counted as an error"                                                                       |
+| 217 | `af5c05b` · 7 Oct  | The note for an error drops the scope and tag                                 | "says a scope and tag that match nothing can be why no tests ran"                                                         |
 
 ---
 
@@ -246,12 +255,12 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **212**: 208 described, four
+So the commit history accounts for **221**: 217 described, four
 counted.
 
 ## The gap, and why it is stated rather than closed
 
-262 mutations have been run. 212 are in the history. The other fifty
+271 mutations have been run. 221 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -260,14 +269,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-262 is also a floor rather than an exact count. The prose figure stood at
+271 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 208 are all from that period, and every future one belongs
+produced — rows 23 to 217 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
