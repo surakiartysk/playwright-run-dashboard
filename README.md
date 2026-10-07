@@ -12,11 +12,13 @@ trigger a real run, which is what makes its password safe to publish rather
 than hand out privately. The interesting part is not the Run button — it is
 _who may run what, and who may then see the result_.
 
-**Version 1.1.0.** 1.0.0 (4 September) was complete against its own scope:
+**Version 1.2.0.** 1.0.0 (4 September) was complete against its own scope:
 four roles, the run gate, signed callbacks and scoped report links, all
-deployed. 1.1.0 adds a second suite, API keys and a sandbox key for visitors,
+deployed. 1.1.0 added a second suite, API keys and a sandbox key for visitors,
 QA's release branches, a redesigned page, reports fenced off from the API, and
-the fixes from a five-way review — each in
+the fixes from a five-way review. 1.2.0 (7 October) lets a simulated run be
+asked to fail, removes the oldest stored reports while keeping the runs, and
+records a result that counted no tests as an error — each in
 [`docs/decisions.md`](docs/decisions.md) or its commit.
 The deployment reports its own version at `GET /health`, so "which one is
 running?" is answerable without signing in.
