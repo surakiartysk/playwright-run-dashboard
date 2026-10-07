@@ -53,6 +53,14 @@ describe('problemNote', () => {
     expect(note).not.toContain('failed')
   })
 
+  /**
+   * A scope and tag the form offers can match nothing, and that now arrives as an
+   * error; the sentence has to cover it, not only a run that died.
+   */
+  it('says a scope and tag that match nothing can be why no tests ran', () => {
+    expect(problemNote({ status: 'error', simulated: false })).toContain('matched no tests')
+  })
+
   it('says a timeout is the dashboard giving up, and that a real result would replace it', () => {
     const note = problemNote({ status: 'timeout', simulated: false })!
     expect(note).toContain('thirty minutes')

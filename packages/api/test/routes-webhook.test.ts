@@ -286,6 +286,69 @@ describe('POST /webhook — what it accepts', () => {
  * The callback now says which tests failed. Stored with the run, returned with
  * that one run, and never allowed to cost a run its totals.
  */
+/**
+ * A result that counted no tests is an error.
+ *
+ * Seen on a real run: Items with the tag @flow matches nothing, the workflow
+ * reported `failed` with 0 of 0, and the row said "This result did not say which
+ * tests failed" about a run that had none to fail.
+ */
+describe('POST /webhook — a result with no tests in it', () => {
+  const recorded = async (id: string) =>
+    env.DB.prepare('SELECT status, total FROM runs WHERE id = ?1')
+      .bind(id)
+      .first<{ status: string; total: number | null }>()
+
+  it('records `failed` with nothing counted as an error', async () => {
+    const id = await seedRun()
+
+    expect(
+      (await postWebhook({ runId: id, status: 'failed', total: 0, passed: 0, failed: 0 })).status,
+    ).toBe(200)
+
+    expect(await recorded(id)).toEqual({ status: 'error', total: 0 })
+  })
+
+  it('records `passed` with nothing counted as an error too', async () => {
+    const id = await seedRun()
+
+    await postWebhook({ runId: id, status: 'passed', total: 0, passed: 0, failed: 0 })
+
+    expect((await recorded(id))?.status).toBe('error')
+  })
+
+  it('leaves an `error` and a `timeout` as they were reported', async () => {
+    const errored = await seedRun()
+    const timedOut = await seedRun()
+
+    await postWebhook({ runId: errored, status: 'error', total: 0 })
+    await postWebhook({ runId: timedOut, status: 'timeout', total: 0 })
+
+    expect((await recorded(errored))?.status).toBe('error')
+    expect((await recorded(timedOut))?.status).toBe('timeout')
+  })
+
+  it('does not touch a result that counted tests, passed or failed', async () => {
+    const passed = await seedRun()
+    const failed = await seedRun()
+
+    await postWebhook({ runId: passed, status: 'passed', total: 5, passed: 5, failed: 0 })
+    await postWebhook({ runId: failed, status: 'failed', total: 5, passed: 4, failed: 1 })
+
+    expect((await recorded(passed))?.status).toBe('passed')
+    expect((await recorded(failed))?.status).toBe('failed')
+  })
+
+  /** A workflow older than the totals sends none, and that is not a run that counted nothing. */
+  it('does not call a result an error just because it carries no total', async () => {
+    const id = await seedRun()
+
+    await postWebhook({ runId: id, status: 'passed' })
+
+    expect(await recorded(id)).toEqual({ status: 'passed', total: null })
+  })
+})
+
 describe('POST /webhook — the failures it carries', () => {
   const failure = {
     title: 'should list items',

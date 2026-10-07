@@ -24,7 +24,7 @@ export const needsExplaining = (status: RunStatus): boolean =>
  */
 export function problemNote(run: Pick<Run, 'status' | 'simulated'>): string | null {
   if (run.status === 'error') {
-    return 'No tests ran. The run could not be dispatched, or it errored before it reported a result.'
+    return 'No tests ran. The run could not be dispatched, it errored before it reported a result, or its scope and tag matched no tests.'
   }
   if (run.status === 'timeout') {
     return 'No result was reported within thirty minutes, so the dashboard stopped waiting. The workflow may have been cancelled or lost its runner; if it did report, its result replaces this.'
