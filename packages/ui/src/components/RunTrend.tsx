@@ -390,8 +390,8 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
           <div style={s.latestLabel}>Newest run</div>
           {/*
             Themed text colours rather than the status literals: this is a figure
-            to read, 22px and not bold, and the literals are marks. #22c55e on
-            white was 2.27:1 and #ef4444 3.76:1, both short of 4.5.
+            to read, 22px and not bold, and the literals are marks, held to the 3:1 of a mark
+            and not the 4.5:1 of text.
           */}
           <div style={{ ...s.latest, color: latest.passed ? c.pass : c.danger }}>
             {Math.round(latest.rate)}%

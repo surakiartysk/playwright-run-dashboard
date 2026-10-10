@@ -132,6 +132,16 @@ describe('FailureList', () => {
     expect(out).toContain('2 failures')
   })
 
+  /*
+   * The heading is text, so it is the themed danger colour and its 4.5:1. It was the status red, a
+   * mark's colour; when that red was measured for 3:1 as a mark (decision 46), the heading would have
+   * fallen short of 4.5 as text.
+   */
+  it('writes its heading in the colour meant for text, not the status mark', () => {
+    const out = html({ state: 'ready', details: { failures: [failure()], omitted: 0 } })
+    expect(out).toMatch(/<h3 style="[^"]*color:var\(--c-danger\)/)
+  })
+
   it('does not draw an empty message or an empty style', () => {
     const out = html({
       state: 'ready',

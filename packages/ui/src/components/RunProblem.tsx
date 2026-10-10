@@ -82,7 +82,8 @@ export function FailureList({ run, loaded }: { run: Run; loaded: Loaded }) {
 const s: Record<string, CSSProperties> = {
   note: { margin: '14px 0 0', fontSize: 13, color: c.t3, lineHeight: 1.5 },
   wrap: { marginTop: 16 },
-  heading: { margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: sc.fail },
+  // Text, so the themed danger colour and its 4.5:1, not the status mark's 3:1.
+  heading: { margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: c.danger },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 },
   item: {
     padding: '9px 12px',

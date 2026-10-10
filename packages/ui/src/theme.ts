@@ -63,10 +63,13 @@ export const c = {
  * moves underneath them costs more than the consistency gains.
  */
 export const status = {
-  pass: '#22c55e',
-  passBg: 'rgba(34,197,94,0.12)',
-  fail: '#ef4444',
-  failBg: 'rgba(239,68,68,0.12)',
+  // Measured, not picked (decision 46): each clears 3:1 as a mark on every background of both
+  // themes, and the two stay apart under deuteranopia and protanopia (OKLab ΔE×100 11.6 and 11.7).
+  // #22c55e on white was 2.27:1 and the old pair's deuteranopia ΔE 7.4.
+  pass: '#288a63',
+  passBg: 'rgba(40,138,99,0.12)',
+  fail: '#ea2e22',
+  failBg: 'rgba(234,46,34,0.12)',
   pending: '#f59e0b',
   pendingBg: 'rgba(245,158,11,0.12)',
   neutral: '#94a3b8',
