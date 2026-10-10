@@ -12,6 +12,7 @@ import {
   type Mode,
 } from '../src/tokens'
 import { TOKENS_MARKER, tokensPlugin } from '../vite.config'
+import { status } from '../src/theme'
 
 /**
  * The palette, checked as a table.
@@ -28,6 +29,47 @@ import { TOKENS_MARKER, tokensPlugin } from '../vite.config'
  */
 
 const MODES: Mode[] = ['light', 'dark']
+
+/**
+ * How far apart two colours look to someone without one kind of cone: each is passed through
+ * Machado, Oliveira and Fernandes (2009) at full severity in linear RGB, and the distance taken in
+ * OKLab, ×100. The same method gives 7.4 for the old #22c55e and #ef4444 under deuteranopia, the
+ * figure decision 17 recorded.
+ */
+const DEUTERANOPIA = [
+  [0.367322, 0.860646, -0.227968],
+  [0.280085, 0.672501, 0.047413],
+  [-0.01182, 0.04294, 0.968881],
+]
+const PROTANOPIA = [
+  [0.152286, 1.052583, -0.204868],
+  [0.114503, 0.786281, 0.099216],
+  [-0.003882, -0.048116, 1.051998],
+]
+
+function separation(a: string, b: string, cones: number[][]): number {
+  const linear = (hex: string) =>
+    [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+  const seen = (rgb: number[]) =>
+    cones.map((row) =>
+      Math.min(1, Math.max(0, row[0]! * rgb[0]! + row[1]! * rgb[1]! + row[2]! * rgb[2]!)),
+    )
+  const oklab = ([r, g, b]: number[]) => {
+    const l = Math.cbrt(0.4122214708 * r! + 0.5363325363 * g! + 0.0514459929 * b!)
+    const m = Math.cbrt(0.2119034982 * r! + 0.6806995451 * g! + 0.1073969566 * b!)
+    const s = Math.cbrt(0.0883024619 * r! + 0.2817188376 * g! + 0.6299787005 * b!)
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ]
+  }
+  const [x, y] = [oklab(seen(linear(a))), oklab(seen(linear(b)))]
+  return 100 * Math.hypot(x[0]! - y[0]!, x[1]! - y[1]!, x[2]! - y[2]!)
+}
 
 function channel(hex: string, at: number): number {
   const c = parseInt(hex.slice(at, at + 2), 16) / 255
@@ -289,4 +331,36 @@ describe('results as text', () => {
       })
     }
   }
+})
+
+/**
+ * The status colours are marks — icons, bars, the trend's columns — and the same in both themes
+ * (decision 10). Found by the UX review of the live site: #22c55e on white was 2.27:1, under the 3:1
+ * SC 1.4.11 asks of a graphic that carries meaning. And green against red is the pair colour
+ * blindness flattens hardest (decision 17), so the replacement is held to both.
+ */
+describe('the status colours', () => {
+  const marks = { pass: status.pass, fail: status.fail }
+  for (const mode of MODES) {
+    for (const [name, colour] of Object.entries(marks)) {
+      it(`${mode}: ${name} clears 3:1 as a mark on every background`, () => {
+        for (const bg of BACKGROUNDS) {
+          const back = NEUTRALS[mode][bg]
+          expect(
+            contrast(colour, back),
+            `${name} ${colour} on ${bg} ${back}`,
+          ).toBeGreaterThanOrEqual(3)
+        }
+      })
+    }
+  }
+
+  it('are measured by the method decision 17 used: the old pair comes out at its recorded 7.4', () => {
+    expect(separation('#22c55e', '#ef4444', DEUTERANOPIA)).toBeCloseTo(7.4, 1)
+  })
+
+  it('stay apart for someone without red or green cones: ΔE over 8 in both simulations', () => {
+    expect(separation(status.pass, status.fail, DEUTERANOPIA)).toBeGreaterThan(8)
+    expect(separation(status.pass, status.fail, PROTANOPIA)).toBeGreaterThan(8)
+  })
 })
