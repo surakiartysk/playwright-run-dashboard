@@ -27,8 +27,8 @@ may then see the result_ — so anything touching `policy.ts`, `auth.ts` or
 
 ## Non-negotiables
 
-**1. Every test must be proven able to fail.** 291 deliberate mutations have
-been run, 235 of them recorded in [docs/mutations.md](docs/mutations.md)
+**1. Every test must be proven able to fail.** 293 deliberate mutations have
+been run, 237 of them recorded in [docs/mutations.md](docs/mutations.md)
 — add yours there, because no check will notice if you do not — and two real
 bugs came out of writing them — see
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found). A green

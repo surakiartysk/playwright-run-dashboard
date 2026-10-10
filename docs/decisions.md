@@ -301,7 +301,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 291 mutations were introduced
+**Every test here was proven able to fail.** In all, 293 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2494,6 +2494,10 @@ things to press, where a screen with one obvious task holds eight to fifteen. Fi
   is 11, 12, 13, 14, 15, 16, 20 and 22, and a test holds every `fontSize` to it. Measured in Chrome: eight sizes
   on the dashboard, no text clipped, no overflow at 390px. The one helper sentence with no full stop has one;
   the fragments ("main branch only") stay without.
+- **Done after, in a fourth change:** a locked branch said why only in its tooltip and its accessible name, and
+  a tooltip does not open on a touch screen. The reason is now a line under the row ("Suite branch: the branch
+  of the test code, not of the app under test. Only main is available to demo here."), drawn only when the
+  branch is locked. The line is below Run, so Run does not move.
 - **Not done:** checked in Chrome only; the owner chose not to test on a real phone or with a screen reader.
 - One mutation, the dark `pass` set to `#16a34a`, stayed green: that colour still clears 4.5:1 on the dark
   backgrounds, so the test was right not to fail. It was run again with `#166534`, which does not.
