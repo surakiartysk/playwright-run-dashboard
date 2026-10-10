@@ -300,7 +300,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 283 mutations were introduced
+**Every test here was proven able to fail.** In all, 285 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2481,9 +2481,14 @@ things to press, where a screen with one obvious task holds eight to fifteen. Fi
   purpose, and changing that is a larger question than this review.
 - **Density was reported, not reduced.** Thirty-five targets on the first screen is a choice this page makes
   for people who use it daily; nothing was removed.
-- **Not done:** "↓ 4 pts" still does not say what it measures, Started shows a date with no time, 14 font
-  sizes are in use, and helper text ends with a full stop half the time. Not checked on a real phone or with
-  a screen reader.
+- **Done after, in a second change:** the trend's change now reads "↓ 4 pts on the oldest run", which is
+  what it measures (the newest run's pass percentage against the oldest one's in the window). And the open
+  row gives the exact start ("6 Oct 2026, 14:03:09"). The review said the column had no time; that was
+  only half right, because the cell already carried it in a tooltip, but a tooltip on a table cell opens for a
+  mouse and not for a keyboard or a finger, so on a phone two runs on one date still could not be told
+  apart. The column keeps its date, which is what it is scanned for.
+- **Not done:** 14 font sizes are in use, and helper text ends with a full stop half the time. Not checked on
+  a real phone or with a screen reader.
 - One mutation, the dark `pass` set to `#16a34a`, stayed green: that colour still clears 4.5:1 on the dark
   backgrounds, so the test was right not to fail. It was run again with `#166534`, which does not.
 
