@@ -54,6 +54,7 @@ interviewer should press on hardest.
 43. [A report is kept by count and by age, and the run outlives it](#43-a-report-is-kept-by-count-and-by-age-and-the-run-outlives-it)
 44. [A result that counted no tests is an error](#44-a-result-that-counted-no-tests-is-an-error)
 45. [What a review of the live site found](#45-what-a-review-of-the-live-site-found)
+46. [Status colours measured as marks, and for colour blindness](#46-status-colours-measured-as-marks-and-for-colour-blindness)
 
 ---
 
@@ -300,7 +301,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 287 mutations were introduced
+**Every test here was proven able to fail.** In all, 291 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2476,7 +2477,7 @@ things to press, where a screen with one obvious task holds eight to fifteen. Fi
 
 **Trade-off.**
 
-- **The status marks are still the literals.** The run icons and bars keep `#22c55e` on white, about 2.3:1,
+- **The status marks were still the literals** (changed later: decision 46). The run icons and bars keep `#22c55e` on white, about 2.3:1,
   under the 3:1 SC 1.4.11 asks of graphics. Decision 10 keeps green and red identical across themes on
   purpose, and changing that is a larger question than this review.
 - **Density was reported, not reduced.** Thirty-five targets on the first screen is a choice this page makes
@@ -2496,6 +2497,33 @@ things to press, where a screen with one obvious task holds eight to fifteen. Fi
 - **Not done:** checked in Chrome only; the owner chose not to test on a real phone or with a screen reader.
 - One mutation, the dark `pass` set to `#16a34a`, stayed green: that colour still clears 4.5:1 on the dark
   backgrounds, so the test was right not to fail. It was run again with `#166534`, which does not.
+
+---
+
+## 46. Status colours measured as marks, and for colour blindness
+
+**Context.** The review of decision 45 left one thing for the owner to decide: the status icons, bars and trend
+columns used `#22c55e` and `#ef4444`, and the green was 2.27:1 on white, under the 3:1 SC 1.4.11 asks of a graphic
+that carries meaning. Decision 10 keeps one green and one red for both themes, on purpose. The first pair proposed,
+`#16a34a` and `#dc2626`, cleared 3:1 on every background, and was dropped once measured the way decision 17 measures:
+under deuteranopia its two colours were ΔE 5.0 apart, below the old pair's 7.4 and the target of 8.
+
+**Decision.** `#288a63` and `#ea2e22`, still one pair for both themes. Each clears 3:1 on every background of both
+(at least 3.56:1 and 3.57:1), and the two are ΔE 11.6 apart under deuteranopia and 11.7 under protanopia (OKLab ×100,
+Machado 2009 at full severity, the method that gives the old pair its recorded 7.4). They were found by a search over
+greens and reds rather than picked. The palette test holds the contrast on every background, the separation over 8
+in both simulations, and the method's agreement with decision 17's 7.4. The failures heading in an open row was
+the one piece of text in the status red; it is the themed `danger` now, since text needs 4.5:1 and a mark 3:1.
+
+**Trade-off.**
+
+- **The green is deeper and a little blue.** It reads as green, but not the bright green of most dashboards; on the
+  dark theme both colours are darker than they were.
+- **Protanopia separation fell,** from 24.2 to 11.7. It is still well above 8; deuteranopia, the commoner form, rose
+  from 7.4 to 11.6.
+- **A simulation is a model.** Machado's matrices are an average observer; nobody with the deficiency looked at it.
+- One mutation stayed green: the red set to `#dc2626` is still ΔE 9.4 from the new green, so the test was right not to
+  fail. It was run again with `#ce3b3b`, which clears 3:1 and is 7.0 apart, and that one fails.
 
 ---
 
