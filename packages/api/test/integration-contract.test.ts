@@ -271,7 +271,7 @@ describe('the dispatch the dashboard sends', () => {
   })
 
   /*
-   * Both workflows declare the same four inputs, and GitHub rejects a
+   * Both workflows declare the same five inputs, and GitHub rejects a
    * dispatch carrying one a workflow does not declare — so a body that
    * branched per suite would fail the whole request, not degrade quietly.
    */

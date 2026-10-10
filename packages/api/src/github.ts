@@ -143,11 +143,12 @@ export async function dispatchWorkflow(
           // rejected every dispatch: `style` accepts three package names and
           // nothing else. Neither repo could see the mismatch alone.
           //
-          // Both suites' workflows declare the same four inputs, so this body
-          // does not branch. GitHub rejects a dispatch carrying an input the
-          // workflow does not declare — a mismatch fails the whole request
-          // rather than being ignored — so "same inputs" is a contract between
-          // three repositories that cannot import each other.
+          // Both suites' workflows declare the same five inputs (`style`,
+          // `scope`, `tag`, `workers`, `run_id`), so this body does not
+          // branch. GitHub rejects a dispatch carrying an input the workflow
+          // does not declare — a mismatch fails the whole request rather than
+          // being ignored — so "same inputs" is a contract between three
+          // repositories that cannot import each other.
           //
           // Enforced by `integration-contract.test.ts` in this repo, which
           // holds both workflows' accepted values as a hand-copied list. There
