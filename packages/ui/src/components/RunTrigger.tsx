@@ -36,8 +36,9 @@ import { ApiSnippet } from './ApiSnippet'
  * Laid out as a command bar rather than a form: a row of choices that reads
  * left to right as the sentence it sends ("API, items, all, main, 2 workers")
  * and ends in the button. A choice that is not available stays on screen
- * locked, with the reason as its tooltip, rather than disappearing — the
- * form is the same shape whatever the role or the service.
+ * locked rather than disappearing — the form is the same shape whatever the
+ * role or the service — and the reason is said under the row, not only in a
+ * tooltip that a phone never shows.
  */
 
 const SUITE_ICON: Record<Suite, IconName> = { api: 'braces', ui: 'monitor' }
@@ -275,6 +276,15 @@ export function RunTrigger({
         <Icon name="info" size={14} />
         <span>{describeSelection(form)}</span>
       </p>
+
+      {/* Why the branch is locked. It was a tooltip and nothing else, so on a
+          touch screen a locked "main" said nothing about why. */}
+      {refIsLocked && (
+        <p style={s.fieldNote}>
+          <Icon name="lock" size={14} />
+          <span>{refLockedReason(role, refs)}</span>
+        </p>
+      )}
 
       {/* Built by `pausedReason` rather than inline, so what it says is
           testable without rendering — see gate-form.ts. */}
