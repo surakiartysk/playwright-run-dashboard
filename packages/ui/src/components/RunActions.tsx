@@ -134,7 +134,7 @@ const button: CSSProperties = {
   padding: '5px 11px',
   borderRadius: 7,
   font: 'inherit',
-  fontSize: 12.5,
+  fontSize: 13,
   cursor: 'pointer',
 }
 

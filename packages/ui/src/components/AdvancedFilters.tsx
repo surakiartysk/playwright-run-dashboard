@@ -211,7 +211,7 @@ const s: Record<string, CSSProperties> = {
     background: c.surface,
     border: `1px solid ${c.border}`,
     borderRadius: 999,
-    fontSize: 12.5,
+    fontSize: 13,
     color: c.t2,
   },
   remove: {
@@ -231,7 +231,7 @@ const s: Record<string, CSSProperties> = {
     padding: '0 4px',
     color: c.primary,
     font: 'inherit',
-    fontSize: 12.5,
+    fontSize: 13,
     cursor: 'pointer',
     textDecoration: 'underline',
   },
@@ -246,7 +246,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 12,
   },
   field: { display: 'flex', flexDirection: 'column', gap: 5 },
-  label: { fontSize: 11.5, color: c.t4 },
+  label: { fontSize: 12, color: c.t4 },
   select: {
     height: 38,
     padding: '0 10px',
@@ -255,6 +255,6 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 9,
     color: c.t1,
     font: 'inherit',
-    fontSize: 13.5,
+    fontSize: 14,
   },
 }

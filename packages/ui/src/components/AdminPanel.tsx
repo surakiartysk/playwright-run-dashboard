@@ -133,7 +133,7 @@ const s: Record<string, CSSProperties> = {
   },
   headerLeft: { display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', minWidth: 0 },
   badge: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: 700,
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
@@ -144,10 +144,10 @@ const s: Record<string, CSSProperties> = {
     padding: '2px 7px',
   },
   headerTitle: { fontSize: 14, fontWeight: 600, color: c.t1 },
-  headerHint: { fontSize: 12.5, color: c.t5 },
+  headerHint: { fontSize: 13, color: c.t5 },
   caret: {
     color: c.t5,
-    fontSize: 17,
+    fontSize: 16,
     transition: 'transform 0.15s ease',
     flexShrink: 0,
   },
@@ -165,7 +165,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 999,
     color: c.t4,
     fontFamily: 'inherit',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: 400,
     cursor: 'pointer',
   },
@@ -186,7 +186,7 @@ const s: Record<string, CSSProperties> = {
   previewTitle: { fontSize: 15, fontWeight: 650, margin: '0 0 10px' },
   previewText: {
     margin: '0 0 10px',
-    fontSize: 13.5,
+    fontSize: 14,
     color: c.t2,
     lineHeight: 1.55,
     maxWidth: '68ch',
@@ -195,7 +195,7 @@ const s: Record<string, CSSProperties> = {
     margin: '14px 0 0',
     paddingTop: 12,
     borderTop: `1px solid ${c.divider}`,
-    fontSize: 12.5,
+    fontSize: 13,
     color: c.t4,
   },
 }

@@ -133,7 +133,7 @@ const s: Record<string, CSSProperties> = {
   dot: { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
 
   count: {
-    fontSize: 11.5,
+    fontSize: 12,
     color: c.t5,
     fontVariantNumeric: 'tabular-nums',
   },

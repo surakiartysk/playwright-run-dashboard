@@ -208,7 +208,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 9,
     color: c.t3,
     font: 'inherit',
-    fontSize: 13.5,
+    fontSize: 14,
     cursor: 'pointer',
   },
   modeOn: {
@@ -237,7 +237,7 @@ const s: Record<string, CSSProperties> = {
     gap: 12,
     marginTop: 14,
   },
-  label: { display: 'block', fontSize: 11.5, color: c.t4, marginBottom: 6 },
+  label: { display: 'block', fontSize: 12, color: c.t4, marginBottom: 6 },
   control: {
     width: '100%',
     padding: '9px 11px',
@@ -266,7 +266,7 @@ const s: Record<string, CSSProperties> = {
     margin: '14px 0 0',
     paddingTop: 12,
     borderTop: `1px solid ${c.divider}`,
-    fontSize: 12.5,
+    fontSize: 13,
     color: c.t5,
   },
 }

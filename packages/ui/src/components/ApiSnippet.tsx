@@ -185,7 +185,7 @@ const s: Record<string, CSSProperties> = {
   box: { borderTop: `1px solid ${c.divider}`, paddingTop: 10 },
   summary: { cursor: 'pointer', fontSize: 13, fontWeight: 600, color: c.t3, padding: '2px 4px' },
   body: { display: 'grid', gap: 10, marginTop: 10 },
-  note: { margin: 0, fontSize: 12.5, color: c.t4, lineHeight: 1.5 },
+  note: { margin: 0, fontSize: 13, color: c.t4, lineHeight: 1.5 },
   mint: {
     padding: '3px 10px',
     background: 'transparent',
@@ -193,11 +193,11 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 7,
     color: c.t1,
     font: 'inherit',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
   },
-  error: { margin: 0, fontSize: 12.5, color: c.danger },
+  error: { margin: 0, fontSize: 13, color: c.danger },
   keyRow: { display: 'flex', alignItems: 'center', gap: 8 },
   keyLabel: { fontSize: 12, color: c.t4, flexShrink: 0 },
   keyInput: {
@@ -225,7 +225,7 @@ const s: Record<string, CSSProperties> = {
     padding: '6px 10px',
     borderBottom: `1px solid ${c.divider}`,
   },
-  commandTitle: { fontSize: 11.5, color: c.t4 },
+  commandTitle: { fontSize: 12, color: c.t4 },
   pre: {
     ...mono,
     margin: 0,

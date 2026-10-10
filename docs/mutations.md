@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **230 mutations are
+This file is what that number can actually show. **232 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 230 and 285 is
+changed and what went red. The gap between 232 and 287 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -256,6 +256,8 @@ figure the prose states, so the two cannot drift apart.
 | 228 | `bfc9f25` · 10 Oct | Outcome label back to "Passes, every test"                                    | "offers the simulated result only where the run is simulated"                                                             |
 | 229 | `8c01ef9` · 10 Oct | Drop the start time from the open row                                         | "gives the exact start in the open row, where a keyboard and a finger reach it"                                           |
 | 230 | `8c01ef9` · 10 Oct | The trend's change without what it is measured against                        | "says points in the singular and the plural"                                                                              |
+| 231 | `706c091` · 10 Oct | The page title back at 19px, between the scale's steps                        | "sets every size from the scale, and none between its steps"                                                              |
+| 232 | `706c091` · 10 Oct | Unsized controls back to the browser's 13.33px                                | "gives a control with no size of its own the scale's 13px, not the browser's 13.33px"                                     |
 
 ---
 
@@ -268,13 +270,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **235**: 230 described, four
+So the commit history accounts for **237**: 232 described, four
 counted, and one equivalent mutation described in decision 45 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-285 mutations have been run. 235 are in the history. The other fifty
+287 mutations have been run. 237 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -283,14 +285,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-285 is also a floor rather than an exact count. The prose figure stood at
+287 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 230 are all from that period, and every future one belongs
+produced — rows 23 to 232 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 

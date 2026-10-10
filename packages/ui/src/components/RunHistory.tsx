@@ -267,7 +267,7 @@ function ResultBar({ run }: { run: Run }) {
     // The moving bar says "in flight"; the words say for how long.
     return (
       <div style={{ minWidth: 130 }}>
-        <div style={{ ...s.resultNumbers, color: c.t4, fontSize: 12.5 }}>{pendingNote(run)}</div>
+        <div style={{ ...s.resultNumbers, color: c.t4, fontSize: 13 }}>{pendingNote(run)}</div>
         <div style={s.bar} role="progressbar" aria-label={`${run.status}, no progress figure yet`}>
           {run.status === 'running' && <div style={s.indeterminate} />}
         </div>
@@ -757,7 +757,7 @@ const s: Record<string, CSSProperties> = {
     gap: 12,
   },
   title: { fontSize: 15, fontWeight: 600, color: c.t1 },
-  scope: { fontSize: 12.5, color: c.t5 },
+  scope: { fontSize: 13, color: c.t5 },
   filters: { marginBottom: 12 },
   clearFilter: {
     background: 'none',
@@ -850,7 +850,7 @@ const s: Record<string, CSSProperties> = {
     verticalAlign: 'middle',
   },
   tdStatus: { width: 56, paddingLeft: 18, paddingRight: 4 },
-  tdRight: { textAlign: 'right', color: c.t4, fontSize: 12.5, whiteSpace: 'nowrap' },
+  tdRight: { textAlign: 'right', color: c.t4, fontSize: 13, whiteSpace: 'nowrap' },
   // Service is the identity of the row; the tag and branch qualify it, so they
   // are present but recede.
   // Wraps in the table too, not only in cards. Unwrapped, a long service with a
@@ -866,7 +866,7 @@ const s: Record<string, CSSProperties> = {
   },
   runSuite: {
     ...mono,
-    fontSize: 10.5,
+    fontSize: 11,
     letterSpacing: '0.04em',
     color: c.t4,
     background: c.surface,
@@ -874,9 +874,9 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 5,
     padding: '1px 5px',
   },
-  runService: { color: c.t1, fontWeight: 600, fontSize: 13.5 },
-  runTags: { ...mono, fontSize: 11.5, color: c.t4 },
-  runRef: { ...mono, fontSize: 11.5, color: c.t5 },
+  runService: { color: c.t1, fontWeight: 600, fontSize: 14 },
+  runTags: { ...mono, fontSize: 12, color: c.t4 },
+  runRef: { ...mono, fontSize: 12, color: c.t5 },
   // Dashed rather than filled: it qualifies the row, it is not a status.
   runSimulated: {
     fontSize: 11,
@@ -913,7 +913,7 @@ const s: Record<string, CSSProperties> = {
     gap: '14px 32px',
   },
   detailLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
@@ -930,7 +930,7 @@ const s: Record<string, CSSProperties> = {
     marginTop: 12,
     flexWrap: 'wrap',
   },
-  moreCount: { fontSize: 12.5, color: c.t5 },
+  moreCount: { fontSize: 13, color: c.t5 },
   moreButton: {
     padding: '7px 15px',
     background: 'transparent',

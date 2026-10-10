@@ -294,7 +294,7 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 800,
     color: c.t1,
     letterSpacing: '-0.02em',
