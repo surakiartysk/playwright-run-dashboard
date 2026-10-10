@@ -35,8 +35,8 @@ export interface RunForm {
 export type Outcome = 'pass' | 'fail'
 
 export const OUTCOME_CHOICES: readonly { value: Outcome; label: string }[] = [
-  { value: 'pass', label: 'Passes, every test' },
-  { value: 'fail', label: 'Fails, 1 to 3 tests' },
+  { value: 'pass', label: 'Simulate a pass' },
+  { value: 'fail', label: 'Simulate 1–3 failures' },
 ]
 
 /*

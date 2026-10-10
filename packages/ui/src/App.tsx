@@ -346,6 +346,9 @@ export function App() {
 
   return (
     <div style={wide ? { ...s.page, ...s.pageWide } : s.page}>
+      <a href="#main" className="skip-link">
+        Skip to the runs
+      </a>
       <header style={s.top}>
         <div>
           <h1 style={s.h1}>Test Run Dashboard</h1>
@@ -390,13 +393,17 @@ export function App() {
       */}
       {wide ? (
         <div style={s.columns}>
-          <div style={s.main}>{mainContent}</div>
+          <main id="main" style={s.main}>
+            {mainContent}
+          </main>
           <aside style={s.aside}>{asideContent}</aside>
         </div>
       ) : (
         <>
           {asideContent}
-          {mainContent}
+          <main id="main" style={s.main}>
+            {mainContent}
+          </main>
         </>
       )}
     </div>

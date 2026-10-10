@@ -7,7 +7,11 @@ import {
   domain,
   PLOT_WIDTH,
   PLOT_HEIGHT,
+  RunTrend,
+  unchartedRuns,
 } from '../src/components/RunTrend'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import type { Run, RunStatus } from '../src/api'
 import { resultShares } from '../src/components/RunHistory'
 import { point, run as fixture } from './fixtures'
@@ -370,5 +374,63 @@ describe('describe — what one bar says', () => {
 
     expect(describeBar(timedOut)).toContain('7/10')
     expect(describeBar(timedOut)).not.toContain('failed')
+  })
+})
+
+/**
+ * Found on the live site by the UX review: viewing as admin, the pass-rate card
+ * said "of 25 finished runs" and "FAILING 9" while the chart under it said "Last
+ * 23 finished runs" and "7 of the last 23 runs did not pass". `/runs?limit=25`
+ * held 25 finished runs, two of them with `total=0` (one `error`, one `failed`),
+ * which the chart cannot draw. Each line was true; side by side they disagreed.
+ */
+describe('the runs the chart does not draw', () => {
+  const noTotals = (status: RunStatus) => fixture({ status, total: 0, passed: 0 })
+
+  it('are counted when they finished without totals, and only those', () => {
+    expect(
+      unchartedRuns([run('passed'), noTotals('error'), run('failed'), noTotals('failed')]),
+    ).toBe(2)
+    expect(unchartedRuns([run('passed'), run('failed')])).toBe(0)
+    // Still in flight is not "finished without results": it is not finished.
+    expect(
+      unchartedRuns([fixture({ status: 'running', total: null, passed: null }), run('passed')]),
+    ).toBe(0)
+  })
+
+  it('stop at the edge of the window the chart draws', () => {
+    const drawn = Array.from({ length: MAX_TREND_POINTS }, () => run('passed'))
+    expect(unchartedRuns([...drawn, noTotals('error')])).toBe(0)
+    expect(unchartedRuns([noTotals('error'), ...drawn])).toBe(1)
+  })
+
+  it('are named beside the count, so it agrees with the pass-rate card', () => {
+    const runs = [
+      run('passed'),
+      noTotals('error'),
+      run('failed'),
+      noTotals('failed'),
+      run('passed'),
+    ]
+    const html = renderToStaticMarkup(createElement(RunTrend, { runs }))
+    expect(html).toContain('Last 3 finished runs, oldest first')
+    expect(html).toContain(' · 2 with no results not drawn')
+    const clean = renderToStaticMarkup(
+      createElement(RunTrend, { runs: [run('passed'), run('failed'), run('passed')] }),
+    )
+    expect(clean).not.toContain('not drawn')
+  })
+
+  it('leave the newest-run figure in a colour meant for text', () => {
+    const passed = renderToStaticMarkup(
+      createElement(RunTrend, { runs: [run('passed'), run('failed'), run('passed')] }),
+    )
+    const failed = renderToStaticMarkup(
+      createElement(RunTrend, {
+        runs: [run('failed', { passed: 8 }), run('passed'), run('passed')],
+      }),
+    )
+    expect(passed).toMatch(/color:var\(--c-pass\)[^>]*>100%/)
+    expect(failed).toMatch(/color:var\(--c-danger\)[^>]*>80%/)
   })
 })

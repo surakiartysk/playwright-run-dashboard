@@ -49,6 +49,8 @@ export const c = {
   danger: 'var(--c-danger)',
   dangerBg: 'var(--c-danger-bg)',
   dangerBorder: 'var(--c-danger-border)',
+  /** Green as text: a passed figure that has to be read, not only seen. */
+  pass: 'var(--c-pass)',
   /** Amber as text, which the `pending` status colour is too light to be on white. */
   warn: 'var(--c-warn)',
 } as const
