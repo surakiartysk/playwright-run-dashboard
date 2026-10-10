@@ -193,7 +193,7 @@ export function RunTrigger({
         <h2 style={s.title}>New run</h2>
         <span style={s.hint}>
           {options.simulated
-            ? 'Simulated here: no workflow runs, and Report opens a shared sample'
+            ? 'Simulated here: no workflow runs, and Report opens a shared sample.'
             : 'Runs the published suites on GitHub Actions'}
         </span>
       </header>
@@ -618,7 +618,7 @@ const s: Record<string, CSSProperties> = {
     fontWeight: 600,
     color: c.t1,
   },
-  workerMax: { fontSize: 11.5, color: c.t5, fontWeight: 500 },
+  workerMax: { fontSize: 12, color: c.t5, fontWeight: 500 },
 
   go: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   run: {
@@ -664,7 +664,7 @@ const s: Record<string, CSSProperties> = {
     gap: 10,
     padding: '10px 14px',
     borderRadius: 10,
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: 600,
     lineHeight: 1.4,
   },

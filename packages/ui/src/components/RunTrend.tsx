@@ -560,11 +560,11 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 12,
   },
   title: { fontSize: 15, fontWeight: 600, color: c.t1, margin: 0 },
-  sub: { margin: '3px 0 0', fontSize: 12.5, color: c.t5 },
+  sub: { margin: '3px 0 0', fontSize: 13, color: c.t5 },
   failureLine: { margin: '0 0 10px', fontSize: 13, fontWeight: 600 },
   latestWrap: { textAlign: 'right' },
   latestLabel: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: c.t5,
     textTransform: 'uppercase',
     letterSpacing: '0.07em',
@@ -605,7 +605,7 @@ const s: Record<string, CSSProperties> = {
   latestLine: {
     ...mono,
     margin: '8px 0 0',
-    fontSize: 11.5,
+    fontSize: 12,
     color: c.t5,
     lineHeight: 1.5,
   },

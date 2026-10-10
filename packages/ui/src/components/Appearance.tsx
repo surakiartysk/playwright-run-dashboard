@@ -271,7 +271,7 @@ const s: Record<string, CSSProperties> = {
     animation: 'pop-in var(--motion-fast) var(--ease)',
   },
   section: { display: 'flex', flexDirection: 'column', gap: 8 },
-  label: { fontSize: 12.5, fontWeight: 700, color: c.t4 },
+  label: { fontSize: 13, fontWeight: 700, color: c.t4 },
   hint: { fontSize: 12, color: c.t4, lineHeight: 1.4 },
   modes: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 },
   mode: {
@@ -301,5 +301,5 @@ const s: Record<string, CSSProperties> = {
     placeItems: 'center',
     outlineOffset: 2,
   },
-  swatchName: { fontSize: 11.5, color: c.t4, fontWeight: 600 },
+  swatchName: { fontSize: 12, color: c.t4, fontWeight: 600 },
 }

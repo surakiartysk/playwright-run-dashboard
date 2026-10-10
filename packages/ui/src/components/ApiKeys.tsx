@@ -370,7 +370,7 @@ const s: Record<string, CSSProperties> = {
     marginBottom: 14,
   },
   title: { fontSize: 14, fontWeight: 600, color: c.t1 },
-  sub: { margin: '4px 0 0', fontSize: 12.5, color: c.t5, maxWidth: '46ch', lineHeight: 1.5 },
+  sub: { margin: '4px 0 0', fontSize: 13, color: c.t5, maxWidth: '46ch', lineHeight: 1.5 },
   newKey: {
     padding: '7px 14px',
     background: 'transparent',
@@ -391,8 +391,8 @@ const s: Record<string, CSSProperties> = {
     padding: '14px 16px',
     marginBottom: 16,
   },
-  mintedTitle: { fontSize: 13.5, fontWeight: 600, color: c.t1 },
-  mintedNote: { margin: '5px 0 12px', fontSize: 12.5, color: c.t4, lineHeight: 1.5 },
+  mintedTitle: { fontSize: 14, fontWeight: 600, color: c.t1 },
+  mintedNote: { margin: '5px 0 12px', fontSize: 13, color: c.t4, lineHeight: 1.5 },
   secretRow: { display: 'flex', gap: 8, alignItems: 'stretch' },
   secret: {
     ...mono,
@@ -404,7 +404,7 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${c.border}`,
     borderRadius: 7,
     padding: '9px 11px',
-    fontSize: 12.5,
+    fontSize: 13,
     color: c.t1,
   },
   copy: {
@@ -414,7 +414,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 7,
     color: c.onPrimary,
     font: 'inherit',
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
     flexShrink: 0,
@@ -427,7 +427,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 8,
     color: c.t3,
     font: 'inherit',
-    fontSize: 12.5,
+    fontSize: 13,
     cursor: 'pointer',
   },
 
@@ -457,7 +457,7 @@ const s: Record<string, CSSProperties> = {
     font: 'inherit',
     fontSize: 13,
   },
-  hint: { margin: '6px 0 0', fontSize: 11.5, color: c.t5, lineHeight: 1.45 },
+  hint: { margin: '6px 0 0', fontSize: 12, color: c.t5, lineHeight: 1.45 },
   submit: {
     alignSelf: 'flex-start',
     padding: '9px 16px',
@@ -466,7 +466,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: 9,
     color: c.onPrimary,
     font: 'inherit',
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
   },
@@ -479,7 +479,7 @@ const s: Record<string, CSSProperties> = {
     padding: '10px 13px',
     marginBottom: 14,
     color: c.danger,
-    fontSize: 12.5,
+    fontSize: 13,
   },
   empty: {
     padding: '18px 0',
@@ -491,7 +491,7 @@ const s: Record<string, CSSProperties> = {
   table: { width: '100%', borderCollapse: 'collapse', minWidth: 560 },
   th: {
     textAlign: 'left',
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase',

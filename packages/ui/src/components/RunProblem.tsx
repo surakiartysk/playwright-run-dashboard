@@ -82,7 +82,7 @@ export function FailureList({ run, loaded }: { run: Run; loaded: Loaded }) {
 const s: Record<string, CSSProperties> = {
   note: { margin: '14px 0 0', fontSize: 13, color: c.t3, lineHeight: 1.5 },
   wrap: { marginTop: 16 },
-  heading: { margin: '0 0 8px', fontSize: 12.5, fontWeight: 600, color: sc.fail },
+  heading: { margin: '0 0 8px', fontSize: 13, fontWeight: 600, color: sc.fail },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 8 },
   item: {
     padding: '9px 12px',
@@ -98,7 +98,7 @@ const s: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: 6,
     marginTop: 4,
-    fontSize: 11.5,
+    fontSize: 12,
     color: c.t4,
   },
   chip: {

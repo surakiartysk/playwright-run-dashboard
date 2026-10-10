@@ -99,6 +99,16 @@
        * here covers every control, in whichever accent is chosen, and the
        * components no longer opt out of it.
        */
+      /* A control with no size of its own took the browser's, 13.33px, the one size on the page
+         that was not on the scale. It takes the page's face and the scale's 13px instead. */
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+        font-size: 13px;
+      }
+
       /* Off the page until a keyboard reaches it, then the first thing on it. */
       .skip-link {
         position: absolute;

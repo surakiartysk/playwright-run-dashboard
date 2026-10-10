@@ -262,7 +262,7 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${c.divider}`,
   },
   label: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: c.t5,
     textTransform: 'uppercase',
     letterSpacing: '0.07em',

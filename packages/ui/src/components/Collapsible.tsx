@@ -66,7 +66,7 @@ const s: Record<string, CSSProperties> = {
   hint: {
     flex: 1,
     minWidth: 0,
-    fontSize: 12.5,
+    fontSize: 13,
     color: c.t5,
     overflow: 'hidden',
     textOverflow: 'ellipsis',

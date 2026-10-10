@@ -430,8 +430,8 @@ const s: Record<string, CSSProperties> = {
     gap: 16,
     marginBottom: 22,
   },
-  h1: { fontSize: 19, fontWeight: 600, margin: 0, letterSpacing: '-0.015em' },
-  sub: { margin: '5px 0 0', color: c.t4, fontSize: 13.5 },
+  h1: { fontSize: 20, fontWeight: 600, margin: 0, letterSpacing: '-0.015em' },
+  sub: { margin: '5px 0 0', color: c.t4, fontSize: 14 },
   signOut: {
     padding: '7px 14px',
     background: 'transparent',
@@ -449,7 +449,7 @@ const s: Record<string, CSSProperties> = {
     padding: '18px 20px',
     marginBottom: 18,
     color: c.t4,
-    fontSize: 13.5,
+    fontSize: 14,
   },
   error: {
     background: c.card,
@@ -459,6 +459,6 @@ const s: Record<string, CSSProperties> = {
     padding: '12px 16px',
     marginBottom: 18,
     color: c.danger,
-    fontSize: 13.5,
+    fontSize: 14,
   },
 }
