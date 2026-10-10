@@ -58,6 +58,13 @@ const render = (p: Caller, simulates = true, initial?: Partial<RunForm>) =>
     }),
   )
 
+/** What a reader sees: the text between tags, with attributes (a tooltip, a label) left out. */
+const renderedText = (html: string) =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#x27;/g, "'")
+    .replace(/\s+/g, ' ')
+
 describe('the first render of the command bar', () => {
   it('starts on the API suite, with API chosen and UI not', () => {
     const html = render(policy())
@@ -89,8 +96,16 @@ describe('the first render of the command bar', () => {
     )
   })
 
+  it('says why the branch is locked under the row, not only in a tooltip a phone never shows', () => {
+    const text = renderedText(render(policy({ role: 'demo', allowedRefs: ['main'] })))
+    expect(text).toContain(
+      'Suite branch: the branch of the test code, not of the app under test. Only main is available to demo here.',
+    )
+  })
+
   it('leaves the branch open for a role with a choice', () => {
     const html = render(policy({ role: 'qa', allowedRefs: ['*'] }))
+    expect(renderedText(html)).not.toContain('branch of the test code')
     expect(html).not.toContain('Suite branch: main (locked)')
     expect(html).toContain('<option value="develop">develop</option>')
   })
