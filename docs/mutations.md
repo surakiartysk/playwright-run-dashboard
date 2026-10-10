@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **217 mutations are
+This file is what that number can actually show. **228 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 217 and 271 is
+changed and what went red. The gap between 228 and 283 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -243,6 +243,17 @@ figure the prose states, so the two cannot drift apart.
 | 215 | `af5c05b` · 7 Oct  | The converted status is computed and not stored                               | "records `failed` with nothing counted as an error"                                                                       |
 | 216 | `af5c05b` · 7 Oct  | A zero total is converted to `timeout`                                        | "records `failed` with nothing counted as an error"                                                                       |
 | 217 | `af5c05b` · 7 Oct  | The note for an error drops the scope and tag                                 | "says a scope and tag that match nothing can be why no tests ran"                                                         |
+| 218 | `bfc9f25` · 10 Oct | Drop the uncharted note from the chart's caption                              | "are named beside the count, so it agrees with the pass-rate card"                                                        |
+| 219 | `bfc9f25` · 10 Oct | Count uncharted runs past the chart's window                                  | "stop at the edge of the window the chart draws"                                                                          |
+| 220 | `bfc9f25` · 10 Oct | Count a run in flight as uncharted                                            | "are counted when they finished without totals, and only those"                                                           |
+| 221 | `bfc9f25` · 10 Oct | Put the newest-run figure back on the status literals                         | "leave the newest-run figure in a colour meant for text"                                                                  |
+| 222 | `bfc9f25` · 10 Oct | Light pass text at `#15803d`, 4.21:1 on surface                               | "light: pass clears 4.5:1 on every background"                                                                            |
+| 223 | `bfc9f25` · 10 Oct | Dark pass text at `#166534`                                                   | "dark: pass clears 4.5:1 on every background"                                                                             |
+| 224 | `bfc9f25` · 10 Oct | Focus the password before the credentials check answers                       | "focuses the password only once it knows there is no demo button"                                                         |
+| 225 | `bfc9f25` · 10 Oct | Put `autoFocus` back on the password field                                    | "does not ask the browser to focus anything on load"                                                                      |
+| 226 | `bfc9f25` · 10 Oct | A `div` instead of `main` in the wide layout                                  | "puts the runs in a main landmark, in both layouts, …"                                                                    |
+| 227 | `bfc9f25` · 10 Oct | Keep the skip link off screen when focused                                    | "has a skip link to it, off the page until a keyboard reaches it"                                                         |
+| 228 | `bfc9f25` · 10 Oct | Outcome label back to "Passes, every test"                                    | "offers the simulated result only where the run is simulated"                                                             |
 
 ---
 
@@ -255,12 +266,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **221**: 217 described, four
-counted.
+So the commit history accounts for **233**: 228 described, four
+counted, and one equivalent mutation described in decision 45 rather than here
+(a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-271 mutations have been run. 221 are in the history. The other fifty
+283 mutations have been run. 233 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -269,14 +281,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-271 is also a floor rather than an exact count. The prose figure stood at
+283 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 217 are all from that period, and every future one belongs
+produced — rows 23 to 228 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
