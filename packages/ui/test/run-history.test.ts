@@ -327,6 +327,25 @@ describe('the list marks a run a key started', () => {
     }
   })
 
+  /*
+   * The column shows "6 Oct" past a day and keeps the time in a tooltip, which
+   * only a mouse opens. Found by the review of the live site: two runs on the
+   * same date could not be told apart on a phone. The open row says it.
+   */
+  it('gives the exact start in the open row, where a keyboard and a finger reach it', () => {
+    vi.stubGlobal('window', {
+      location: { hash: '#run=a', origin: 'https://x.test', pathname: '/' },
+    })
+    try {
+      const startedAt = '2026-10-06T07:03:09Z'
+      const out = html([runRow({ id: 'a', startedAt })])
+      expect(out).toMatch(/>Started<\/div><div[^>]*><span[^>]*>[^<]*2026, \d\d:03:09<\/span>/)
+      expect(out).toContain(startedTitle(startedAt))
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('says nothing when no run came from a key', () => {
     expect(html([runRow({ id: 'a' })])).not.toContain('via key')
   })

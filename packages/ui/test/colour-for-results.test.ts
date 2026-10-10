@@ -19,8 +19,8 @@ const coloured = (html: string, text: RegExp) =>
 
 describe("the trend's change", () => {
   it('says points in the singular and the plural', () => {
-    expect(changeLabel(1)).toBe('↑ 1 pt')
-    expect(changeLabel(-3)).toBe('↓ 3 pts')
+    expect(changeLabel(1)).toBe('↑ 1 pt on the oldest run')
+    expect(changeLabel(-3)).toBe('↓ 3 pts on the oldest run')
   })
 
   it('is not coloured by its direction', () => {
