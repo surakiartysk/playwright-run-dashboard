@@ -17,7 +17,7 @@ import { RunHistory } from './components/RunHistory'
 import { EmptySummary, RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
-import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
+import { ASIDE_WIDTH, COLUMN_GAP, useCompact, useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { pollDelay, refreshOnReturn } from './poll'
 import { latestOnly } from './latest'
@@ -25,6 +25,7 @@ import { c } from './theme'
 
 export function App() {
   const wide = useWide()
+  const compact = useCompact()
   const [role, setRole] = useState<Role | null>(null)
   // Differs from `role` only while a demo session is previewing another
   // role's read view — mirrors the backend's role/viewAs split exactly, so
@@ -256,36 +257,39 @@ export function App() {
   const panelMode = adminPanelMode(role, viewingRole)
   const pending = runs.filter((run) => isPending(run.status)).length
 
+  const roleSwitcher = canPreview && policies.length > 0 && (
+    <RoleSwitcher
+      collapsible={!wide}
+      role={viewingRole}
+      realRole={role}
+      policies={policies}
+      onSwitched={async (next) => {
+        // Handled like every other request here. It used to be the one
+        // that was not: a refused preview rejected into nothing, and the
+        // buttons simply did not respond.
+        try {
+          if (next === role) {
+            await api.stopPreview()
+          } else {
+            await api.previewRole(next)
+          }
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 401) {
+            endSession()
+            return
+          }
+          setError(e instanceof Error ? e.message : 'Could not switch the preview')
+          return
+        }
+        await refresh()
+      }}
+    />
+  )
+
   const asideContent = (
     <>
-      {canPreview && policies.length > 0 && (
-        <RoleSwitcher
-          collapsible={!wide}
-          role={viewingRole}
-          realRole={role}
-          policies={policies}
-          onSwitched={async (next) => {
-            // Handled like every other request here. It used to be the one
-            // that was not: a refused preview rejected into nothing, and the
-            // buttons simply did not respond.
-            try {
-              if (next === role) {
-                await api.stopPreview()
-              } else {
-                await api.previewRole(next)
-              }
-            } catch (e) {
-              if (e instanceof ApiError && e.status === 401) {
-                endSession()
-                return
-              }
-              setError(e instanceof Error ? e.message : 'Could not switch the preview')
-              return
-            }
-            await refresh()
-          }}
-        />
-      )}
+      {/* On a phone the preview goes under the run form instead (below). */}
+      {!compact && roleSwitcher}
 
       <RunStats runs={runs} total={total} collapsible={!wide} />
 
@@ -326,6 +330,13 @@ export function App() {
           {optionsError ?? 'Loading what you can run…'}
         </section>
       )}
+
+      {/*
+        On a phone, "View as another role" comes after the run form. Above it,
+        with the two summaries, it put Run at 632–676px of a 667px screen; the
+        preview is for looking around, and Run is what the page is for.
+      */}
+      {compact && roleSwitcher}
 
       <RunHistory
         runs={runs}
