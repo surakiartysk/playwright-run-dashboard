@@ -74,6 +74,8 @@ export interface Neutrals {
   t5: string
   t6: string
   danger: string
+  /** Green as text, which the `pass` status colour is too light to be on white. */
+  pass: string
   'danger-bg': string
   'danger-border': string
   warn: string
@@ -97,6 +99,7 @@ export const NEUTRALS: Record<Mode, Neutrals> = {
     // #dc2626 measured 4.45:1 here and 3.9:1 on the dark background, both
     // short of AA for 13px text.
     danger: '#b91c1c',
+    pass: '#166534',
     'danger-bg': '#fff5f5',
     'danger-border': '#fca5a5',
     warn: '#b45309',
@@ -116,6 +119,7 @@ export const NEUTRALS: Record<Mode, Neutrals> = {
     t5: '#8794a6',
     t6: '#3a424d',
     danger: '#f87171',
+    pass: '#4ade80',
     'danger-bg': 'rgba(239, 68, 68, 0.1)',
     'danger-border': 'rgba(248, 113, 113, 0.55)',
     warn: '#f59e0b',

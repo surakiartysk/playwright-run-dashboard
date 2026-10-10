@@ -99,6 +99,22 @@
        * here covers every control, in whichever accent is chosen, and the
        * components no longer opt out of it.
        */
+      /* Off the page until a keyboard reaches it, then the first thing on it. */
+      .skip-link {
+        position: absolute;
+        left: 12px;
+        top: -48px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: var(--c-card);
+        color: var(--c-t1);
+        border: 1px solid var(--c-border);
+        z-index: 10;
+      }
+      .skip-link:focus {
+        top: 12px;
+      }
+
       :where(button, input, select, textarea, a, summary):focus-visible {
         outline: 2px solid var(--c-primary);
         outline-offset: 2px;

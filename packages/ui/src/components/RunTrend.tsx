@@ -293,6 +293,28 @@ export function bars(points: TrendPoint[]): Bar[] {
 }
 
 /**
+ * Finished runs inside the chart's window that it does not draw, because they
+ * reported no totals — a run that errored before a test ran, or failed with
+ * none counted. The pass-rate card counts them and the chart cannot, so beside
+ * each other they read as two answers to one question ("25 finished" above,
+ * "Last 23" below) unless the chart says what it left out.
+ */
+export function unchartedRuns(runs: Run[]): number {
+  let drawn = 0
+  let left = 0
+  for (const run of runs) {
+    if (isPending(run.status)) continue
+    if (run.total !== null && run.total > 0) {
+      drawn += 1
+      if (drawn >= MAX_TREND_POINTS) break
+    } else {
+      left += 1
+    }
+  }
+  return left
+}
+
+/**
  * How many of the charted runs did not pass, in words.
  *
  * The one thing someone looking at a run history wants, said outright rather
@@ -334,6 +356,7 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
   const first = points[0]!
   const change = Math.round(latest.rate - first.rate)
   const failing = points.filter((p) => !p.passed).length
+  const uncharted = unchartedRuns(runs)
 
   const card = (
     <section style={s.wrap}>
@@ -342,6 +365,7 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
           {!collapsible && <h2 style={s.title}>Run by run</h2>}
           <p style={s.sub}>
             Last {points.length} finished runs, oldest first
+            {uncharted > 0 && ` · ${uncharted} with no results not drawn`}
             {change !== 0 && (
               <>
                 {' · '}
@@ -358,7 +382,12 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
         */}
         <div style={s.latestWrap}>
           <div style={s.latestLabel}>Newest run</div>
-          <div style={{ ...s.latest, color: latest.passed ? sc.pass : sc.fail }}>
+          {/*
+            Themed text colours rather than the status literals: this is a figure
+            to read, 22px and not bold, and the literals are marks. #22c55e on
+            white was 2.27:1 and #ef4444 3.76:1, both short of 4.5.
+          */}
+          <div style={{ ...s.latest, color: latest.passed ? c.pass : c.danger }}>
             {Math.round(latest.rate)}%
           </div>
         </div>

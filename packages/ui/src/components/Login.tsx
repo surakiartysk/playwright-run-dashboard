@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { api, type Role } from '../api'
 import { c } from '../theme'
 import { ProjectLinks } from './ProjectLinks'
@@ -24,6 +24,17 @@ import { ProjectLinks } from './ProjectLinks'
  * deployment — the README lists the local ones, and a real deployment's are
  * not the visitor's to know.
  */
+/**
+ * Whether the password field should take the focus once the page knows what it
+ * offers. Only where there is no demo button: there the field is the way in,
+ * and where there is one the button is, and a focused field put the caret, and
+ * on a phone the keyboard, in front of a visitor who came to press it. Not
+ * before the check has answered, because until then the page does not know.
+ */
+export function focusesPassword(checked: boolean, demoPassword: string | null): boolean {
+  return checked && demoPassword === null
+}
+
 export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -33,12 +44,15 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
   const [hints, setHints] = useState<{
     passwords: Record<string, string>
   } | null>(null)
+  const [checked, setChecked] = useState(false)
+  const passwordField = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     api
       .devCredentials()
       .then((r) => setHints({ passwords: r.passwords }))
       .catch(() => setHints(null))
+      .finally(() => setChecked(true))
   }, [])
 
   async function signIn(secret: string, who?: string) {
@@ -68,6 +82,10 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
    * that has a password of its own.
    */
   const demoPassword = hints?.passwords.demo ?? null
+
+  useEffect(() => {
+    if (focusesPassword(checked, demoPassword)) passwordField.current?.focus()
+  }, [checked, demoPassword])
 
   return (
     <main style={s.page}>
@@ -136,7 +154,7 @@ export function Login({ onSignedIn }: { onSignedIn: (role: Role) => void }) {
               id="password"
               type={reveal ? 'text' : 'password'}
               value={password}
-              autoFocus
+              ref={passwordField}
               /*
                 Names who the field is for, rather than hinting `demo`.
 

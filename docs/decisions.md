@@ -53,6 +53,7 @@ interviewer should press on hardest.
 42. [A simulated run can be asked to fail](#42-a-simulated-run-can-be-asked-to-fail)
 43. [A report is kept by count and by age, and the run outlives it](#43-a-report-is-kept-by-count-and-by-age-and-the-run-outlives-it)
 44. [A result that counted no tests is an error](#44-a-result-that-counted-no-tests-is-an-error)
+45. [What a review of the live site found](#45-what-a-review-of-the-live-site-found)
 
 ---
 
@@ -299,7 +300,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 271 mutations were introduced
+**Every test here was proven able to fail.** In all, 283 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2442,6 +2443,49 @@ sends it today.
   `total: 0`. The sentence says "or it errored", and the workflow run link is what tells them apart.
 - **The workflows still send `failed`.** Their own job is red, correctly. Only the
   dashboard's recording changes.
+
+---
+
+## 45. What a review of the live site found
+
+**Context.** The owner asked whether the dashboard had too little on it, and for a UX review. It was run
+against runs.testbydesign.dev as `demo`, in Chrome at 1,280 and 390px in both themes, with a probe set that
+measures contrast, target sizes, names, landmarks and type, with axe, and by reading every visible string
+against the data the page fetched. It does not have too little: the first screen at 1,280px holds 35
+things to press, where a screen with one obvious task holds eight to fifteen. Five things were wrong.
+
+**Decision.**
+
+- **The chart says what it leaves out.** Viewing as admin, the pass-rate card read "of 25 finished runs" and
+  "FAILING 9", and the chart under it "Last 23 finished runs" and "7 of the last 23 runs did not pass".
+  `/runs?limit=25` held 25 finished runs, two with `total=0` (one `error`, one `failed`), which a bar cannot
+  be drawn for. Both were true and they disagreed on sight. The caption now adds "2 with no results not
+  drawn", counted inside the window the chart draws (`unchartedRuns`).
+- **The password is focused only where it is the way in.** The sign-in page put the focus in the password
+  field on load while the visitor's way in is the demo button above it; on a phone a focused field brings up
+  the keyboard. It is focused once the credentials check has answered and only when there is no demo button.
+- **The simulated result says it is one.** The control showed "Passes, every test" with nothing visible to
+  say what it set; "Simulated result" was only its accessible name. The choices are "Simulate a pass" and
+  "Simulate 1–3 failures". Decision 42 named the old labels; this replaces them.
+- **The newest-run figure is a colour meant for text.** It was the status literal, 22px at weight 650: green
+  `#22c55e` on white 2.27:1, red `#ef4444` 3.76:1 (SC 1.4.3 wants 4.5). It now uses the themed `danger` and a
+  new themed `pass` (`#166534` light, `#4ade80` dark), which a test holds to 4.5:1 on every background. The
+  first light green tried, `#15803d`, was 4.21:1 on `surface` and the test refused it.
+- **The runs are in a `main` landmark, with a skip link to them.** The signed-in page had none; the summary
+  stays an `aside` beside it rather than inside it.
+
+**Trade-off.**
+
+- **The status marks are still the literals.** The run icons and bars keep `#22c55e` on white, about 2.3:1,
+  under the 3:1 SC 1.4.11 asks of graphics. Decision 10 keeps green and red identical across themes on
+  purpose, and changing that is a larger question than this review.
+- **Density was reported, not reduced.** Thirty-five targets on the first screen is a choice this page makes
+  for people who use it daily; nothing was removed.
+- **Not done:** "↓ 4 pts" still does not say what it measures, Started shows a date with no time, 14 font
+  sizes are in use, and helper text ends with a full stop half the time. Not checked on a real phone or with
+  a screen reader.
+- One mutation, the dark `pass` set to `#16a34a`, stayed green: that colour still clears 4.5:1 on the dark
+  backgrounds, so the test was right not to fail. It was run again with `#166534`, which does not.
 
 ---
 

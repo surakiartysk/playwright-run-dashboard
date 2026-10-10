@@ -272,3 +272,21 @@ describe('mode and accent', () => {
     }
   })
 })
+
+/**
+ * The two results written as text rather than drawn as marks: the trend's
+ * newest-run figure was the status green on white, 2.27:1. Both themed colours
+ * have to be read on every background the page puts them on.
+ */
+describe('results as text', () => {
+  for (const mode of MODES) {
+    for (const text of ['pass', 'danger'] as const) {
+      it(`${mode}: ${text} clears 4.5:1 on every background`, () => {
+        for (const bg of BACKGROUNDS) {
+          const [fg, back] = [NEUTRALS[mode][text], NEUTRALS[mode][bg]]
+          expect(contrast(fg, back), `${text} ${fg} on ${bg} ${back}`).toBeGreaterThanOrEqual(4.5)
+        }
+      })
+    }
+  }
+})
