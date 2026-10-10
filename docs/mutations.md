@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **237 mutations are
+This file is what that number can actually show. **246 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 237 and 293 is
+changed and what went red. The gap between 246 and 302 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -263,6 +263,15 @@ figure the prose states, so the two cannot drift apart.
 | 235 | `1b79796` · 10 Oct | The failures heading back on the status red                                   | "writes its heading in the colour meant for text, not the status mark"                                                    |
 | 236 | `4e7e2c5` · 10 Oct | The branch's lock reason never drawn under the row                            | "says why the branch is locked under the row, not only in a tooltip a phone never shows"                                  |
 | 237 | `4e7e2c5` · 10 Oct | The lock reason drawn for a role with a choice of branch                      | "leaves the branch open for a role with a choice"                                                                         |
+| 238 | `410447e` · 11 Oct | Workers and Run back on the first row                                         | "puts Workers and Run on the second row, after the simulated result"                                                      |
+| 239 | `410447e` · 11 Oct | Workers and Run before the simulated result                                   | "puts Workers and Run on the second row, after the simulated result"                                                      |
+| 240 | `410447e` · 11 Oct | A choice shrinks below its basis again                                        | "never shrinks service or tag below the width of their longest names"                                                     |
+| 241 | `410447e` · 11 Oct | Tag half a row on a phone                                                     | "gives service, tag and the simulated result a whole row each, the full width of it"                                      |
+| 242 | `410447e` · 11 Oct | A full row capped at 220px                                                    | "gives service, tag and the simulated result a whole row each, the full width of it"                                      |
+| 243 | `410447e` · 11 Oct | The simulated result half a row on a phone                                    | "gives service, tag and the simulated result a whole row each, the full width of it"                                      |
+| 244 | `410447e` · 11 Oct | The role preview above the form on a phone too                                | "comes after the run form, and before the runs, so it does not push Run down"                                             |
+| 245 | `410447e` · 11 Oct | No role preview under the form                                                | "comes after the run form, and before the runs, so it does not push Run down"                                             |
+| 246 | `410447e` · 11 Oct | Service asks for 124px again                                                  | "never shrinks service or tag below the width of their longest names"                                                     |
 
 ---
 
@@ -275,13 +284,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **243**: 237 described, four
+So the commit history accounts for **252**: 246 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-293 mutations have been run. 243 are in the history. The other fifty
+302 mutations have been run. 252 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -290,14 +299,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-293 is also a floor rather than an exact count. The prose figure stood at
+302 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 237 are all from that period, and every future one belongs
+produced — rows 23 to 246 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
