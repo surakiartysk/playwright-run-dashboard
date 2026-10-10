@@ -227,7 +227,8 @@ describe('the first render of the command bar', () => {
 /*
  * Apart, the six controls needed 903px of a 794px row at every desktop width,
  * and Run wrapped onto a row of its own with nothing beside it. Found by the
- * design review; the pair now wraps together, at the end of the row.
+ * design review; the pair now goes together, at the end of the second row
+ * (run-form-fit.test.ts).
  */
 describe('the end of the command bar', () => {
   it('keeps the worker count and Run together, Run last', () => {

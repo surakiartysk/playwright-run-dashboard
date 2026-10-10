@@ -157,6 +157,7 @@ export function RunTrigger({
       label="Simulated result"
       basis={220}
       fill={compact}
+      fullRow
       value={outcome ?? 'pass'}
       options={OUTCOME_CHOICES}
       onChange={(next) => set({ outcome: next as RunForm['outcome'] })}
@@ -209,8 +210,9 @@ export function RunTrigger({
         <PillSelect
           icon="box"
           label={serviceFieldLabel(suite)}
-          basis={124}
+          basis={180}
           fill={compact}
+          fullRow
           value={service}
           options={serviceChoices(suite, options.suites)}
           onChange={(service) => set({ service })}
@@ -219,9 +221,10 @@ export function RunTrigger({
         <PillSelect
           icon="tag"
           label="Tag"
-          basis={136}
+          basis={180}
           mono
           fill={compact}
+          fullRow
           value={tags}
           options={scopeChoices(suite, options.suites)}
           onChange={(tags) => set({ tags })}
@@ -240,31 +243,33 @@ export function RunTrigger({
           lockedReason={refLockedReason(role, refs)}
         />
 
-        {/*
-          How many workers and Run go together, at the end of the row. Apart, the
-          six controls needed 903px of a 794px row at every desktop width, and
-          Run wrapped onto a row of its own with nothing beside it. Together,
-          they wrap as a pair and stay right-aligned. The narrow layout lays the
-          two out on its own, so it keeps them apart.
-        */}
-        {compact ? (
+        {compact && (
           <>
             {workersControl}
             {/* Above Run on a phone: the choice is made before the button
-                that acts on it, and Run still fits the first screen. */}
+                that acts on it. */}
             {outcomeControl}
             {runButton}
           </>
-        ) : (
+        )}
+      </div>
+
+      {/*
+        Wide: how many workers and Run go together, at the end of the second
+        row, after the simulated result where there is one. They were at the
+        end of the first row, and the four choices before them were left 65 to
+        77px for their text, so "Maintenance logs" read "Mainten…" at every
+        desktop width. On the second row they take nothing from the choices.
+      */}
+      {!compact && (
+        <div style={s.row}>
+          {outcomeControl}
           <div style={s.go} role="group" aria-label="Workers and run">
             {workersControl}
             {runButton}
           </div>
-        )}
-      </div>
-
-      {/* Wide: a row of its own, since the main row is already full. */}
-      {!compact && outcomeControl && <div style={s.row}>{outcomeControl}</div>}
+        </div>
+      )}
 
       {/*
         What pressing Run will run, said in words. Two dropdowns that combine
@@ -390,6 +395,7 @@ function PillSelect({
   lockedReason,
   mono: useMono = false,
   fill = false,
+  fullRow = false,
   basis,
 }: {
   icon: IconName
@@ -401,7 +407,17 @@ function PillSelect({
   lockedReason?: string
   mono?: boolean
   fill?: boolean
-  /** The width the option asks for before the row has to wrap, in px. */
+  /**
+   * On a phone, a row of its own rather than half of one. Service and tag
+   * hold the longest names ("Maintenance logs", "@cross-service"), which half
+   * a 320px row cut to "Mainte…".
+   */
+  fullRow?: boolean
+  /**
+   * The width the option asks for before the row has to wrap, in px: enough
+   * for its longest name. Service and tag ask 180, for "Maintenance logs" and
+   * "@cross-service" (119px of text and 59 of icon and padding).
+   */
   basis: number
 }) {
   const shown = options.find((o) => o.value === value)?.label ?? value
@@ -410,10 +426,12 @@ function PillSelect({
     <span
       style={{
         ...s.pill,
-        flex: `1 1 ${basis}px`,
+        // Grows, but never below its basis: a choice that would have to
+        // shrink past its longest name wraps to the next row instead.
+        flex: `1 0 ${basis}px`,
         maxWidth: 220,
         ...(locked ? s.pillLocked : null),
-        ...(fill ? s.fillHalf : null),
+        ...(fill ? (fullRow ? s.fillWide : s.fillHalf) : null),
       }}
       title={locked ? lockedReason : label}
     >
@@ -651,7 +669,8 @@ const s: Record<string, CSSProperties> = {
   // thing easiest to hit.
   // Narrow: each choice takes a share of the row instead of its own width, so
   // the rows come out even rather than ragged.
-  fillWide: { flex: '1 1 100%' },
+  // A row of its own on a phone spans it: the 220px cap is for a shared row.
+  fillWide: { flex: '1 1 100%', maxWidth: 'none' },
   fillHalf: { flex: '1 1 calc(50% - 4px)', minWidth: 0 },
   suiteOptionFill: { flex: 1, justifyContent: 'center' },
   selectFill: { width: '100%' },
