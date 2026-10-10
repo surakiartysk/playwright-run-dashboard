@@ -131,10 +131,16 @@ export interface TrendPoint {
  * Neutral, not green for up and red for down: a drop is not a failure, and the
  * colours are kept for results (decision 10). Coloured by direction it showed a
  * green "↑" while the newest run had failed. "1 pt", not "1 pts".
+ *
+ * Says what it is measured against. "↓ 4 pts" alone, beside "Last 11 finished
+ * runs", left a reader to guess between the newest run and the pass rate, and
+ * between the oldest run and the one before; the review of the live site found
+ * it unexplained. It is the newest run's pass percentage against the oldest
+ * run's in the window, so it says that.
  */
 export function changeLabel(change: number): string {
   const size = Math.abs(change)
-  return `${change > 0 ? '↑' : '↓'} ${size} ${size === 1 ? 'pt' : 'pts'}`
+  return `${change > 0 ? '↑' : '↓'} ${size} ${size === 1 ? 'pt' : 'pts'} on the oldest run`
 }
 
 export const MAX_TREND_POINTS = 30

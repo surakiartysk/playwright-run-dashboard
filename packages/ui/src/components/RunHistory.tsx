@@ -633,6 +633,17 @@ export function RunHistory({
                             */}
                             <Detail label="Triggered by">{triggeredLabel(run)}</Detail>
 
+                            {/*
+                              The exact time, where a keyboard and a finger can
+                              reach it. The column shows "6 Oct" past a day and
+                              keeps the time in a tooltip, which only a mouse
+                              opens — so two runs on the same date could not be
+                              told apart on a phone.
+                            */}
+                            <Detail label="Started">
+                              <span style={mono}>{startedTitle(run.startedAt)}</span>
+                            </Detail>
+
                             {run.workers !== null && run.workers !== undefined && (
                               <Detail label="Workers">
                                 <span style={mono}>{run.workers}</span>
