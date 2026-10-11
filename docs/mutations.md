@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **252 mutations are
+This file is what that number can actually show. **267 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 252 and 308 is
+changed and what went red. The gap between 267 and 323 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -278,6 +278,21 @@ figure the prose states, so the two cannot drift apart.
 | 250 | `072065f` · 11 Oct | Opens not tied to its field                                                   | "are each named by their label"                                                                                           |
 | 251 | `072065f` · 11 Oct | Closes field without the id its label names                                   | "are each named by their label"                                                                                           |
 | 252 | `072065f` · 11 Oct | The command box without min-width: 0                                          | "sit in a box that does not clip what reaches past it"                                                                    |
+| 253 | `175b4e3` · 11 Oct | The chosen option not said                                                    | "is a radio group that says which is chosen"                                                                              |
+| 254 | `175b4e3` · 11 Oct | Every option a Tab stop                                                       | "is a radio group that says which is chosen"                                                                              |
+| 255 | `175b4e3` · 11 Oct | Tabs drawn as radios                                                          | "is tabs, saying what each one shows, where choosing changes what is below"                                               |
+| 256 | `175b4e3` · 11 Oct | A tab not naming what it shows                                                | "is tabs, saying what each one shows, where choosing changes what is below"                                               |
+| 257 | `175b4e3` · 11 Oct | Busy disables the options again                                               | "disables every option while disabled, and while busy says so without moving the focus"                                   |
+| 258 | `175b4e3` · 11 Oct | Busy not said                                                                 | "disables every option while disabled, and while busy says so without moving the focus"                                   |
+| 259 | `175b4e3` · 11 Oct | Every key moves the choice                                                    | "step over what cannot be chosen, starting from the first that can when the chosen one cannot"                            |
+| 260 | `175b4e3` · 11 Oct | Moving from a disabled chosen option                                          | "step over what cannot be chosen, starting from the first that can when the chosen one cannot"                            |
+| 261 | `175b4e3` · 11 Oct | A move that lands in place reported as a move                                 | "leave every other key, and a move that lands where it is, alone"                                                         |
+| 262 | `175b4e3` · 11 Oct | A read-only group drawn faint                                                 | "is faint for an option with nothing behind it, and legible in a group that is only read-only"                            |
+| 263 | `175b4e3` · 11 Oct | The role preview marks the signed-in role, not the viewed one                 | "the role preview says which role is being viewed"                                                                        |
+| 264 | `175b4e3` · 11 Oct | An empty status can be chosen                                                 | "the status filter is a radio group, with nothing to choose disabled"                                                     |
+| 265 | `175b4e3` · 11 Oct | The gate preview can be changed                                               | "the gate’s mode is a radio group, every option disabled in a preview"                                                    |
+| 266 | `175b4e3` · 11 Oct | The admin panel as radios                                                     | "the admin panel’s tabs and the appearance’s rows are drawn by it too"                                                    |
+| 267 | `175b4e3` · 11 Oct | No tab panel                                                                  | "the admin panel’s tabs and the appearance’s rows are drawn by it too"                                                    |
 
 ---
 
@@ -290,13 +305,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **258**: 252 described, four
+So the commit history accounts for **273**: 267 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-308 mutations have been run. 258 are in the history. The other fifty
+323 mutations have been run. 273 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -305,14 +320,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-308 is also a floor rather than an exact count. The prose figure stood at
+323 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 252 are all from that period, and every future one belongs
+produced — rows 23 to 267 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
