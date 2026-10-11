@@ -116,28 +116,13 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
       <p style={s.modeHint}>{MODES.find((m) => m.value === mode)?.hint}</p>
 
       {mode === 'window' && (
-        <div style={s.window}>
-          <div>
-            <label style={s.label}>Opens</label>
-            <input
-              type="datetime-local"
-              value={opensAt}
-              onChange={(e) => setOpensAt(e.target.value)}
-              disabled={readOnly}
-              style={s.control}
-            />
-          </div>
-          <div>
-            <label style={s.label}>Closes</label>
-            <input
-              type="datetime-local"
-              value={closesAt}
-              onChange={(e) => setClosesAt(e.target.value)}
-              disabled={readOnly}
-              style={s.control}
-            />
-          </div>
-        </div>
+        <GateWindow
+          opensAt={opensAt}
+          closesAt={closesAt}
+          onOpens={setOpensAt}
+          onCloses={setClosesAt}
+          readOnly={readOnly}
+        />
       )}
 
       {readOnly ? (
@@ -165,6 +150,58 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
         QA and admin are never gated — a release freeze is when release verification happens.
       </p>
     </section>
+  )
+}
+
+/**
+ * The two times of a scheduled gate.
+ *
+ * Each is named by its label: they were drawn one above the other but not tied
+ * together, so a screen reader announced two unnamed date fields (axe: label,
+ * 2, at every width). One gate is drawn at a time, so the ids are fixed.
+ */
+export function GateWindow({
+  opensAt,
+  closesAt,
+  onOpens,
+  onCloses,
+  readOnly,
+}: {
+  opensAt: string
+  closesAt: string
+  onOpens: (value: string) => void
+  onCloses: (value: string) => void
+  readOnly: boolean
+}) {
+  return (
+    <div style={s.window}>
+      <div>
+        <label htmlFor="gate-opens" style={s.label}>
+          Opens
+        </label>
+        <input
+          id="gate-opens"
+          type="datetime-local"
+          value={opensAt}
+          onChange={(e) => onOpens(e.target.value)}
+          disabled={readOnly}
+          style={s.control}
+        />
+      </div>
+      <div>
+        <label htmlFor="gate-closes" style={s.label}>
+          Closes
+        </label>
+        <input
+          id="gate-closes"
+          type="datetime-local"
+          value={closesAt}
+          onChange={(e) => onCloses(e.target.value)}
+          disabled={readOnly}
+          style={s.control}
+        />
+      </div>
+    </div>
   )
 }
 

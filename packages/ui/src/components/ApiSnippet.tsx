@@ -212,11 +212,15 @@ const s: Record<string, CSSProperties> = {
     fontSize: 12,
     textOverflow: 'ellipsis',
   },
+  // Not `overflow: hidden`: it clipped the top of the Copy button's 44px tap
+  // area on a touch screen. It was also what let the box shrink below its
+  // longest command line; `minWidth: 0` does that now, and the command scrolls
+  // inside its own `pre`.
   command: {
     background: c.input,
     border: `1px solid ${c.border}`,
     borderRadius: 9,
-    overflow: 'hidden',
+    minWidth: 0,
   },
   commandHead: {
     display: 'flex',
