@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
 import { c, status as sc } from '../theme'
+import { useMedia } from '../use-compact'
 
 /**
  * Narrowing the run list, client-side.
@@ -63,9 +64,14 @@ export function RunFilters({
   onChange: (next: StatusFilter) => void
 }) {
   const n = counts(runs)
+  const coarse = useMedia('(pointer: coarse)')
 
   return (
-    <div style={s.wrap} role="group" aria-label="Filter runs by status">
+    <div
+      style={{ ...s.wrap, ...(coarse ? s.wrapCoarse : null) }}
+      role="group"
+      aria-label="Filter runs by status"
+    >
       {OPTIONS.map((option) => {
         const active = option.value === value
         const count = n[option.value]
@@ -113,6 +119,13 @@ const s: Record<string, CSSProperties> = {
     border: `1px solid ${c.border}`,
     borderRadius: 9,
   },
+  /*
+    On a touch screen every button answers a 44px tap (index.html), 8px past a
+    28px tab above and below. When the tabs wrap, 3px between rows let the
+    second row's tap areas cover the first's: a tap on the bottom of "All" hit
+    "Running" instead, disabled at 0 and so doing nothing. 16px keeps them apart.
+  */
+  wrapCoarse: { rowGap: 16 },
   tab: {
     display: 'inline-flex',
     alignItems: 'center',
