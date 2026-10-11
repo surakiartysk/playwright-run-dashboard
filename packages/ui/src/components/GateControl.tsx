@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { api, type GateMode, type GateStatus } from '../api'
 import { modeFromStatus, toLocalInput } from '../gate-form'
 import { c, status } from '../theme'
+import { Segmented } from './Segmented'
 
 /**
  * The admin's control over the run gate.
@@ -92,26 +93,16 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
         </span>
       </header>
 
-      <div style={s.modes}>
-        {MODES.map((m) => (
-          <button
-            key={m.value}
-            disabled={readOnly}
-            aria-pressed={mode === m.value}
-            onClick={() => {
-              setMode(m.value)
-              setSaved(false)
-            }}
-            style={{
-              ...s.mode,
-              ...(mode === m.value ? s.modeOn : null),
-              ...(readOnly ? s.locked : null),
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="Run gate"
+        options={MODES.map((m) => ({ value: m.value, label: m.label }))}
+        value={mode}
+        onChange={(next) => {
+          setMode(next)
+          setSaved(false)
+        }}
+        disabled={readOnly}
+      />
 
       <p style={s.modeHint}>{MODES.find((m) => m.value === mode)?.hint}</p>
 
@@ -237,25 +228,6 @@ const s: Record<string, CSSProperties> = {
   pillOpen: { background: status.passBg, color: c.t2 },
   pillClosed: { background: status.pendingBg, color: status.pending },
 
-  modes: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  mode: {
-    padding: '8px 16px',
-    background: c.input,
-    border: `1px solid ${c.border}`,
-    borderRadius: 9,
-    color: c.t3,
-    font: 'inherit',
-    fontSize: 14,
-    cursor: 'pointer',
-  },
-  modeOn: {
-    background: c.primary,
-    borderColor: c.primary,
-    color: c.onPrimary,
-    fontWeight: 600,
-  },
-  // Selected-but-locked reads as a state, not a broken button.
-  locked: { cursor: 'default' },
   modeHint: { margin: '10px 0 0', fontSize: 13, color: c.t4 },
   readOnly: {
     margin: '16px 0 0',

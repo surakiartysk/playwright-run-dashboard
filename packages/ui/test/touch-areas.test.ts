@@ -60,14 +60,17 @@ describe('the status tabs', () => {
     )
   }
   const group = (html: string) =>
-    /<div style="([^"]*)" role="group" aria-label="Filter runs by status">/.exec(html)?.[1] ?? ''
+    /<div role="radiogroup" aria-label="Filter runs by status" style="([^"]*)">/.exec(html)?.[1] ??
+    'not drawn'
 
   it('leave 16px between wrapped rows on a touch screen, so one tab’s 44px does not cover another’s', () => {
     expect(group(render(true))).toContain('row-gap:16px')
   })
 
   it('stay close together for a mouse', () => {
-    expect(group(render(false))).not.toContain('row-gap')
+    const style = group(render(false))
+    expect(style).toContain('gap:3px')
+    expect(style).not.toContain('row-gap')
   })
 })
 

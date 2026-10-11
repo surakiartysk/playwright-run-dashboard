@@ -3,6 +3,7 @@ import type { Role, RolePolicy } from '../api'
 import { c } from '../theme'
 import { ProjectLinks } from './ProjectLinks'
 import { Collapsible } from './Collapsible'
+import { Segmented } from './Segmented'
 
 /**
  * Previews another role's read view without signing out — for a genuinely
@@ -98,25 +99,13 @@ export function RoleSwitcher({
     <div style={s.wrap}>
       <div style={s.head}>
         <span style={s.label}>Viewing as</span>
-        <div style={s.tabs}>
-          {policies.map((policy) => {
-            const active = policy.role === role
-            return (
-              <button
-                key={policy.role}
-                onClick={() => void pick(policy.role)}
-                disabled={switching}
-                aria-busy={switching && !active}
-                style={{
-                  ...s.tab,
-                  ...(active ? s.tabActive : null),
-                }}
-              >
-                {policy.role}
-              </button>
-            )
-          })}
-        </div>
+        <Segmented
+          label="Viewing as"
+          options={policies.map((policy) => ({ value: policy.role, label: policy.role }))}
+          value={role}
+          onChange={(next) => void pick(next)}
+          busy={switching}
+        />
       </div>
 
       {current && (
@@ -167,26 +156,6 @@ const s: Record<string, CSSProperties> = {
   },
   head: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' },
   label: { fontSize: 13, color: c.t4, fontWeight: 500 },
-  tabs: {
-    display: 'inline-flex',
-    background: c.input,
-    border: `1px solid ${c.border}`,
-    borderRadius: 8,
-    padding: 3,
-    gap: 3,
-  },
-  tab: {
-    padding: '5px 14px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 6,
-    color: c.t4,
-    font: 'inherit',
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
-  tabActive: { background: c.primary, color: c.onPrimary, fontWeight: 600 },
 
   lines: {
     margin: '12px 0 0',

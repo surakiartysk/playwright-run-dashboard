@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { ACCENT_OPTIONS, MODE_HINT, MODE_OPTIONS, stepOption, triggerLabel } from '../appearance'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { ACCENT_OPTIONS, MODE_HINT, MODE_OPTIONS, triggerLabel } from '../appearance'
 import { accentTokens, type Accent } from '../tokens'
+import { Segmented } from './Segmented'
 import {
   c,
   currentAccent,
@@ -69,55 +70,6 @@ const Check = () => (
   </svg>
 )
 
-/** One row of mutually exclusive choices, with the arrow-key behaviour of a radio group. */
-function Choices<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-  render,
-  style,
-}: {
-  label: string
-  options: readonly T[]
-  value: T
-  onChange: (next: T) => void
-  render: (id: T, checked: boolean) => JSX.Element
-  style: CSSProperties | undefined
-}) {
-  const refs = useRef(new Map<T, HTMLButtonElement>())
-
-  function onKeyDown(e: KeyboardEvent) {
-    const next = stepOption(options, value, e.key)
-    if (next === value) return
-    e.preventDefault()
-    onChange(next)
-    refs.current.get(next)?.focus()
-  }
-
-  return (
-    <div role="radiogroup" aria-label={label} style={style} onKeyDown={onKeyDown}>
-      {options.map((id) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={id === value}
-          tabIndex={id === value ? 0 : -1}
-          ref={(el) => {
-            if (el) refs.current.set(id, el)
-            else refs.current.delete(id)
-          }}
-          onClick={() => onChange(id)}
-          style={s.choice}
-        >
-          {render(id, id === value)}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export function Appearance() {
   const [open, setOpen] = useState(false)
   const [mode, setModeState] = useState<ThemeMode>(currentMode)
@@ -167,57 +119,59 @@ export function Appearance() {
         <div role="group" aria-label="Appearance" style={s.panel}>
           <div style={s.section}>
             <span style={s.label}>Mode</span>
-            <Choices
+            <Segmented
               label="Mode"
-              options={MODE_OPTIONS.map((m) => m.id)}
+              fill
+              options={MODE_OPTIONS.map((m) => ({
+                value: m.id,
+                title: m.description,
+                label: (
+                  <>
+                    {MODE_ICON[m.id]}
+                    {m.label}
+                  </>
+                ),
+              }))}
               value={mode}
               onChange={(next) => {
                 setMode(next)
                 setModeState(next)
               }}
-              style={s.modes}
-              render={(id, checked) => (
-                <span
-                  style={{ ...s.mode, ...(checked ? s.modeOn : null) }}
-                  title={MODE_OPTIONS.find((m) => m.id === id)?.description}
-                >
-                  {MODE_ICON[id]}
-                  {MODE_OPTIONS.find((m) => m.id === id)?.label}
-                </span>
-              )}
             />
             <span style={s.hint}>{MODE_HINT}</span>
           </div>
 
           <div style={s.section}>
             <span style={s.label}>Accent</span>
-            <Choices
+            <Segmented
               label="Accent"
-              options={ACCENT_OPTIONS.map((a) => a.id)}
+              look="bare"
+              options={ACCENT_OPTIONS.map((a) => {
+                const t = accentTokens(a.id, shown)
+                const checked = a.id === accent
+                return {
+                  value: a.id,
+                  label: (
+                    <span style={s.swatchCell}>
+                      <span
+                        style={{
+                          ...s.swatch,
+                          background: t.primary,
+                          color: t['on-primary'],
+                          outline: checked ? `2px solid ${c.t1}` : '2px solid transparent',
+                        }}
+                      >
+                        {checked && <Check />}
+                      </span>
+                      <span style={s.swatchName}>{a.label}</span>
+                    </span>
+                  ),
+                }
+              })}
               value={accent}
               onChange={(next) => {
                 setAccent(next)
                 setAccentState(next)
-              }}
-              style={s.swatches}
-              render={(id, checked) => {
-                const t = accentTokens(id, shown)
-                const name = ACCENT_OPTIONS.find((a) => a.id === id)?.label ?? id
-                return (
-                  <span style={s.swatchCell}>
-                    <span
-                      style={{
-                        ...s.swatch,
-                        background: t.primary,
-                        color: t['on-primary'],
-                        outline: checked ? `2px solid ${c.t1}` : '2px solid transparent',
-                      }}
-                    >
-                      {checked && <Check />}
-                    </span>
-                    <span style={s.swatchName}>{name}</span>
-                  </span>
-                )
               }}
             />
           </div>
@@ -229,18 +183,6 @@ export function Appearance() {
 
 const s: Record<string, CSSProperties> = {
   wrap: { position: 'relative' },
-  // The button is the focus target and the hit area; what it looks like is
-  // drawn inside it, so its own chrome is switched off.
-  choice: {
-    background: 'transparent',
-    border: 'none',
-    padding: 0,
-    margin: 0,
-    font: 'inherit',
-    color: 'inherit',
-    cursor: 'pointer',
-    display: 'block',
-  },
   trigger: {
     padding: '7px 10px',
     background: 'transparent',
@@ -273,25 +215,6 @@ const s: Record<string, CSSProperties> = {
   section: { display: 'flex', flexDirection: 'column', gap: 8 },
   label: { fontSize: 13, fontWeight: 700, color: c.t4 },
   hint: { fontSize: 12, color: c.t4, lineHeight: 1.4 },
-  modes: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 },
-  mode: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minHeight: 40,
-    borderRadius: 9,
-    border: `1px solid ${c.border}`,
-    color: c.t3,
-    fontSize: 13,
-    fontWeight: 700,
-  },
-  modeOn: {
-    borderColor: c.primary,
-    background: c.primaryLight,
-    color: c.primary,
-  },
-  swatches: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   swatchCell: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 52 },
   swatch: {
     width: 32,

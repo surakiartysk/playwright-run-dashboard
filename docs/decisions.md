@@ -55,6 +55,7 @@ interviewer should press on hardest.
 44. [A result that counted no tests is an error](#44-a-result-that-counted-no-tests-is-an-error)
 45. [What a review of the live site found](#45-what-a-review-of-the-live-site-found)
 46. [Status colours measured as marks, and for colour blindness](#46-status-colours-measured-as-marks-and-for-colour-blindness)
+47. [One way to choose one of a few things](#47-one-way-to-choose-one-of-a-few-things)
 
 ---
 
@@ -301,7 +302,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 308 mutations were introduced
+**Every test here was proven able to fail.** In all, 323 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2553,3 +2554,42 @@ the one piece of text in the status red; it is the themed `danger` now, since te
 Write it when the reasoning is still fresh, and include the cost. If the
 trade-off section reads as "no real downside", the decision has not been
 examined hard enough yet — go back and find who it makes life worse for.
+
+---
+
+## 47. One way to choose one of a few things
+
+**Context.** The design review counted six controls that choose one of a few options, and they were six different
+controls. The suite and the appearance's mode and accent were radio groups with arrow keys, the same code written
+twice. The status filter and the gate's mode were buttons with `aria-pressed`: each option its own Tab stop, no arrow
+keys. The role preview's buttons did not say which role was chosen at all, so a screen reader heard four equal buttons.
+The admin panel's two tabs had `role="tab"` but no arrow keys and no panel. And they looked like a track, a row of
+filled buttons, and a row of outlined pills.
+
+**Decision.** One component, `Segmented`, draws every one of them:
+
+- **One Tab stop per group.** The chosen option has `tabindex="0"`; the arrow keys, Home and End move the choice and
+  skip what is disabled (`nextChoice`, tested on its own).
+- **It says what is chosen.** `radiogroup` and `aria-checked`; for the admin panel, which changes what is shown below
+  it, `tablist`, `aria-selected` and `aria-controls`, and the panel is a `tabpanel`.
+- **One look.** The suite's track and its chosen state, at 44px beside the run form's controls and smaller elsewhere.
+  The accent swatches keep their own drawing (`look="bare"`) and the same behaviour.
+- **Busy is not disabled.** Checked in Chrome: an arrow key in the role preview switched the role and dropped the
+  focus to the page, because the options were disabled until the switch landed and a disabled button cannot hold the
+  focus. While busy they are `aria-disabled` and ignore presses, and the focus stays on the option chosen.
+- **Faint only where there is nothing behind it.** An empty status ("Running 0") is faint; a read-only group, the gate
+  in a preview, stays legible, since it is there to be read.
+
+Measured in Chrome at 1,280 light and 375 dark: every group is one Tab stop; ArrowRight moves the suite, the filter
+(over "Running 0", disabled), the admin tab and the role preview; End chooses Scheduled and shows its times; axe 0 with
+the panels open. Fifteen mutations, all red; the one that first survived (any key moving the choice from a chosen
+option that is disabled) has a test.
+
+**Trade-off.**
+
+- **The gate's mode and the role preview look quieter.** They were filled with the primary colour when chosen; now
+  the chosen option is the track's raised card, like every other choice. The gate's state is still said in its chip.
+- **Six call sites depend on one component.** A change to it changes all of them, which is the point, and the reason
+  its tests describe the behaviour rather than any one use.
+- **The status filter is a radio group, not toggle buttons.** It always had exactly one chosen, so radio is what it
+  was; a reader who expected to switch a filter off chooses All.

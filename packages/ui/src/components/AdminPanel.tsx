@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { ApiKeys } from './ApiKeys'
 import { GateControl } from './GateControl'
+import { Segmented } from './Segmented'
 import { c } from '../theme'
 
 /**
@@ -53,22 +54,22 @@ export function AdminPanel({ readOnly = false }: { readOnly?: boolean }) {
 
       {open && (
         <div style={s.body}>
-          <div style={s.tabs} role="tablist">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                style={{ ...s.tab, ...(tab === t.id ? s.tabActive : null) }}
-                title={t.hint}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            kind="tab"
+            label="Admin controls"
+            options={TABS.map((t) => ({ value: t.id, label: t.label, title: t.hint }))}
+            value={tab}
+            onChange={setTab}
+            panelId={(id) => `admin-panel-${id}`}
+            style={s.tabs}
+          />
 
-          <div style={s.tabBody}>
+          <div
+            style={s.tabBody}
+            role="tabpanel"
+            id={`admin-panel-${tab}`}
+            aria-label={TABS.find((t) => t.id === tab)?.label}
+          >
             {tab === 'gate' ? (
               <GateControl readOnly={readOnly} />
             ) : readOnly ? (
@@ -153,28 +154,7 @@ const s: Record<string, CSSProperties> = {
   },
 
   body: { borderTop: `1px solid ${c.border}`, padding: 16 },
-  tabs: { display: 'flex', gap: 6, marginBottom: 18, flexWrap: 'wrap' },
-  // Same reason as `panel`: `tabActive` changes borderColor and fontWeight, so
-  // neither may be set here through the `border` or `font` shorthand.
-  tab: {
-    padding: '6px 13px',
-    background: 'transparent',
-    borderWidth: 1,
-    borderStyle: 'solid',
-    borderColor: c.border,
-    borderRadius: 999,
-    color: c.t4,
-    fontFamily: 'inherit',
-    fontSize: 13,
-    fontWeight: 400,
-    cursor: 'pointer',
-  },
-  tabActive: {
-    background: c.primaryLight,
-    borderColor: c.primaryBorder,
-    color: c.primary,
-    fontWeight: 600,
-  },
+  tabs: { marginBottom: 18 },
   tabBody: { minWidth: 0 },
 
   preview: {
