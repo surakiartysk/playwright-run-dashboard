@@ -301,7 +301,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 302 mutations were introduced
+**Every test here was proven able to fail.** In all, 308 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2507,6 +2507,14 @@ things to press, where a screen with one obvious task holds eight to fifteen. Fi
   comes after the form. Measured in Chrome from 320 to 1,440px, both suites: no option cut, axe 0, no overflow, and
   Run at 618–662px of 667 (still below the first screen at 320×568, as it was). The cost: on a phone the role preview
   is further down, under the form, and the form is one row taller.
+- **Done after, in a sixth change:** the last two items of the mobile review were measured as an admin would see
+  them, on a local copy, and with touch. A tap 2px inside each edge of a button's 44px area showed the Copy buttons of
+  "Run this from a script" losing the top of theirs to the command box's `overflow: hidden`, and "All" losing the
+  bottom of its own to "Running" when the status tabs wrapped (disabled at 0, it did nothing). The box no longer clips
+  (`min-width: 0` keeps it from growing past the card, which the clipping had also done), and on a touch screen the
+  wrapped tabs are 16px apart. The gate's "Closes" field no longer breaks at 320px, as the review had found; but axe
+  found Opens and Closes unnamed at every width, because their labels were not tied to them, and now they are. The
+  cost: on a touch screen the status tabs take 13px more when they wrap.
 - **Not done:** checked in Chrome only; the owner chose not to test on a real phone or with a screen reader.
 - One mutation, the dark `pass` set to `#16a34a`, stayed green: that colour still clears 4.5:1 on the dark
   backgrounds, so the test was right not to fail. It was run again with `#166534`, which does not.
