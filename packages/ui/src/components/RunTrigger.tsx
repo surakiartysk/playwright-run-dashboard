@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { api, SUITES, SUITE_LABELS, type Role, type RunOptions, type Suite } from '../api'
 import { c, mono, status } from '../theme'
 import { pausedReason, recheckDelay } from '../gate-form'
-import { stepOption } from '../appearance'
 import {
   OUTCOME_CHOICES,
   clampWorkers,
@@ -22,6 +21,7 @@ import {
 import { useCompact } from '../use-compact'
 import { Icon, type IconName } from './Icon'
 import { ApiSnippet } from './ApiSnippet'
+import { Segmented } from './Segmented'
 
 /**
  * The form that starts a run.
@@ -201,8 +201,21 @@ export function RunTrigger({
       </header>
 
       <div style={s.row}>
-        <SuiteChoice
+        {/* API or UI: two options need no menu. Both are visible, one press
+            chooses, and the arrow keys move between them. */}
+        <Segmented
+          label="Suite"
+          size="lg"
           fill={compact}
+          options={SUITES.map((id) => ({
+            value: id,
+            label: (
+              <>
+                <Icon name={SUITE_ICON[id]} size={17} />
+                {SUITE_LABELS[id]}
+              </>
+            ),
+          }))}
           value={suite}
           onChange={(next) => setForm((f) => withSuite(f, next, options.suites))}
         />
@@ -311,69 +324,6 @@ export function RunTrigger({
 
       <ApiSnippet form={form} role={role} />
     </section>
-  )
-}
-
-/**
- * API or UI, as two buttons that behave as one control.
- *
- * Two options do not need a menu: both are visible, one press chooses, and the
- * arrow keys move between them the way they do in a radio group — one stop for
- * Tab, which is what a keyboard reader expects of a pair of mutually exclusive
- * choices.
- */
-function SuiteChoice({
-  value,
-  onChange,
-  fill,
-}: {
-  value: Suite
-  onChange: (next: Suite) => void
-  fill: boolean
-}) {
-  const refs = useRef(new Map<Suite, HTMLButtonElement>())
-
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    const next = stepOption(SUITES, value, e.key)
-    if (next === value) return
-    e.preventDefault()
-    onChange(next)
-    refs.current.get(next)?.focus()
-  }
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Suite"
-      style={{ ...s.suite, ...(fill ? s.fillWide : null) }}
-      onKeyDown={onKeyDown}
-    >
-      {SUITES.map((id) => {
-        const on = id === value
-        return (
-          <button
-            key={id}
-            type="button"
-            role="radio"
-            aria-checked={on}
-            tabIndex={on ? 0 : -1}
-            ref={(el) => {
-              if (el) refs.current.set(id, el)
-              else refs.current.delete(id)
-            }}
-            onClick={() => onChange(id)}
-            style={{
-              ...s.suiteOption,
-              ...(on ? s.suiteOptionOn : null),
-              ...(fill ? s.suiteOptionFill : null),
-            }}
-          >
-            <Icon name={SUITE_ICON[id]} size={17} />
-            {SUITE_LABELS[id]}
-          </button>
-        )
-      })}
-    </div>
   )
 }
 
@@ -563,30 +513,6 @@ const s: Record<string, CSSProperties> = {
   hint: { fontSize: 12, color: c.t5 },
   row: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
 
-  suite: {
-    ...control,
-    display: 'inline-flex',
-    alignItems: 'stretch',
-    padding: 3,
-    gap: 3,
-    background: c.input,
-  },
-  suiteOption: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 7,
-    padding: '0 12px',
-    border: 'none',
-    borderRadius: 7,
-    background: 'transparent',
-    color: c.t4,
-    font: 'inherit',
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  suiteOptionOn: { background: c.card, color: c.t1, boxShadow: `0 0 0 1px ${c.border}` },
-
   pill: {
     ...control,
     position: 'relative',
@@ -672,7 +598,6 @@ const s: Record<string, CSSProperties> = {
   // A row of its own on a phone spans it: the 220px cap is for a shared row.
   fillWide: { flex: '1 1 100%', maxWidth: 'none' },
   fillHalf: { flex: '1 1 calc(50% - 4px)', minWidth: 0 },
-  suiteOptionFill: { flex: 1, justifyContent: 'center' },
   selectFill: { width: '100%' },
   runCompact: { flex: '1 1 100%' },
   runDisabled: { background: c.surface, color: c.t4, cursor: 'not-allowed' },

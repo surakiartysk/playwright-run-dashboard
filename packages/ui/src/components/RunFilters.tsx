@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { isPending, type Run } from '../api'
 import { c, status as sc } from '../theme'
 import { useMedia } from '../use-compact'
+import { Segmented } from './Segmented'
 
 /**
  * Narrowing the run list, client-side.
@@ -67,58 +68,43 @@ export function RunFilters({
   const coarse = useMedia('(pointer: coarse)')
 
   return (
-    <div
-      style={{ ...s.wrap, ...(coarse ? s.wrapCoarse : null) }}
-      role="group"
-      aria-label="Filter runs by status"
-    >
-      {OPTIONS.map((option) => {
+    <Segmented
+      label="Filter runs by status"
+      options={OPTIONS.map((option) => {
         const active = option.value === value
         const count = n[option.value]
-
-        return (
-          <button
-            key={option.value}
-            onClick={() => onChange(option.value)}
-            aria-pressed={active}
-            // Nothing to show and nothing to learn from pressing it.
-            disabled={count === 0 && !active}
-            style={{
-              ...s.tab,
-              ...(active ? s.tabActive : null),
-              ...(count === 0 && !active ? s.tabEmpty : null),
-            }}
-          >
-            {option.tone && (
-              <span
-                style={{
-                  ...s.dot,
-                  background: option.tone,
-                  // Dimmed rather than hidden: the row keeps its shape, so the
-                  // tabs do not shift as counts change under a poll.
-                  opacity: count === 0 && !active ? 0.35 : 1,
-                }}
-              />
-            )}
-            {option.label}
-            <span style={{ ...s.count, ...(active ? s.countActive : null) }}>{count}</span>
-          </button>
-        )
+        // Nothing to show and nothing to learn from choosing it.
+        const empty = count === 0 && !active
+        return {
+          value: option.value,
+          disabled: empty,
+          label: (
+            <>
+              {option.tone && (
+                <span
+                  style={{
+                    ...s.dot,
+                    background: option.tone,
+                    // Dimmed rather than hidden: the row keeps its shape, so the
+                    // tabs do not shift as counts change under a poll.
+                    opacity: empty ? 0.35 : 1,
+                  }}
+                />
+              )}
+              {option.label}
+              <span style={{ ...s.count, ...(active ? s.countActive : null) }}>{count}</span>
+            </>
+          ),
+        }
       })}
-    </div>
+      value={value}
+      onChange={onChange}
+      style={coarse ? s.wrapCoarse : undefined}
+    />
   )
 }
 
 const s: Record<string, CSSProperties> = {
-  wrap: {
-    display: 'inline-flex',
-    flexWrap: 'wrap',
-    gap: 3,
-    padding: 3,
-    background: c.input,
-    border: `1px solid ${c.border}`,
-    borderRadius: 9,
-  },
   /*
     On a touch screen every button answers a 44px tap (index.html), 8px past a
     28px tab above and below. When the tabs wrap, 3px between rows let the
@@ -126,22 +112,6 @@ const s: Record<string, CSSProperties> = {
     "Running" instead, disabled at 0 and so doing nothing. 16px keeps them apart.
   */
   wrapCoarse: { rowGap: 16 },
-  tab: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '5px 11px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: 6,
-    color: c.t4,
-    font: 'inherit',
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: 'pointer',
-  },
-  tabActive: { background: c.card, color: c.t1, fontWeight: 600 },
-  tabEmpty: { cursor: 'default', color: c.t6 },
 
   dot: { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
 
