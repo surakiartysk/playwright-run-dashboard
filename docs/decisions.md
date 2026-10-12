@@ -56,6 +56,7 @@ interviewer should press on hardest.
 45. [What a review of the live site found](#45-what-a-review-of-the-live-site-found)
 46. [Status colours measured as marks, and for colour blindness](#46-status-colours-measured-as-marks-and-for-colour-blindness)
 47. [One way to choose one of a few things](#47-one-way-to-choose-one-of-a-few-things)
+48. [The UI says which scripts may run](#48-the-ui-says-which-scripts-may-run)
 
 ---
 
@@ -302,7 +303,7 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 323 mutations were introduced
+**Every test here was proven able to fail.** In all, 338 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
@@ -2271,6 +2272,7 @@ fenced rather than open.
   and loads Google Fonts, so a policy would need the script's hash built in or
   the script moved out. React escapes what it renders and nothing in the UI
   writes HTML, so the gain is a second line behind the first. Not done.
+  _Later:_ done, by moving the script out (decision 48).
 - **The opener policy takes `window.opener` away from the UI.** Nothing uses
   it today; a sign-in popup from another site, if one were ever added, would
   need it.
@@ -2593,3 +2595,47 @@ option that is disabled) has a test.
   its tests describe the behaviour rather than any one use.
 - **The status filter is a radio group, not toggle buttons.** It always had exactly one chosen, so radio is what it
   was; a reader who expected to switch a filter off chooses All.
+
+---
+
+## 48. The UI says which scripts may run
+
+**Context.** Decision 40 left the dashboard's own page with a policy of one directive, `frame-ancestors 'none'`: it
+had an inline theme script, so a script policy would have needed the script's hash built in or the script moved out,
+and React escapes what it renders, so the gain was a second line behind the first. A review of what was still open
+picked it up as the one item that was cheap to make true.
+
+**Decision.**
+
+- **The theme script is a file.** `public/theme-init.js` is the same eight lines, loaded from the head as a plain
+  blocking script, so it still runs before first paint and a dark-mode visitor still sees no white flash. A module
+  would wait for the page, and the test that holds its place in the head fails for one (a mutation).
+- **The policy is a whole one**, on every page of the UI in `public/_headers`: `default-src 'self'`; `script-src 'self'`,
+  so no inline script, no `eval` and no other host; `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`;
+  `font-src https://fonts.gstatic.com`; `img-src 'self' data:` (the tab icon is a data URI); `connect-src 'self'`
+  (the one `fetch` in the UI takes a path); `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'` and
+  `object-src 'none'`. The Worker's own paths, and the reports under decision 40, keep the headers the Worker sets.
+- **What the tests hold:** each directive as written, the page having no inline script and no event handler, the theme
+  script's place, and the script itself run as a browser would run it (a stored dark or light is stamped; a stored
+  accent is stamped only if it is a lower-case word; an unknown theme is not).
+
+**Checked in Chrome,** with a small server standing in for Pages: it serves the build with the `/*` headers of
+`_headers`, falls back to `index.html`, and sends the API's paths to the local Worker. The signed-out page, a stored
+dark theme with a teal accent (on the document at `DOMContentLoaded`, before the app drew), and the demo through the
+table, the appearance panel and the script snippet: no violation and no console error, 22 rows, the theme changing,
+both fonts loaded. An inline script and a script from another host were both refused. The only violation seen was
+`connect-src` for the fonts stylesheet when axe ran: axe fetches cross-origin stylesheets to read them, which the
+policy refuses; the same appeared on the hub and the page is fine without axe. `eval` was not measured: Playwright's
+`evaluate` runs outside the page's policy, so its answer says nothing about it, and the policy's lack of
+`'unsafe-eval'` is what the test holds.
+
+**Trade-off.**
+
+- **`style-src` keeps `'unsafe-inline'`.** The UI sets every style through React's style attribute and its palette
+  lives in a `<style>` block; hashing or nonces would mean a different way to style the whole page. Styles can be
+  injected where scripts cannot.
+- **One more request before first paint,** the small blocking script, where it was inline. Not measured.
+- **A page that has to talk to another origin,** a hosted font, an analytics script, a second API, is refused until
+  this line changes. That is the policy working, and the first thing to look at when something external stops loading.
+- **It is a second line, not the first.** React still escapes what it renders and nothing writes HTML; the policy is
+  what stops a script that gets in anyway from running or reporting anywhere.

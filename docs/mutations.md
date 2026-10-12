@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **267 mutations are
+This file is what that number can actually show. **282 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 267 and 323 is
+changed and what went red. The gap between 282 and 338 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -293,6 +293,21 @@ figure the prose states, so the two cannot drift apart.
 | 265 | `175b4e3` · 11 Oct | The gate preview can be changed                                               | "the gate’s mode is a radio group, every option disabled in a preview"                                                    |
 | 266 | `175b4e3` · 11 Oct | The admin panel as radios                                                     | "the admin panel’s tabs and the appearance’s rows are drawn by it too"                                                    |
 | 267 | `175b4e3` · 11 Oct | No tab panel                                                                  | "the admin panel’s tabs and the appearance’s rows are drawn by it too"                                                    |
+| 268 | `24df639` · 12 Oct | Inline scripts allowed again                                                  | "lets scripts come from this origin only: no inline script, no eval, no other host"                                       |
+| 269 | `24df639` · 12 Oct | Any script host allowed                                                       | "lets scripts come from this origin only: no inline script, no eval, no other host"                                       |
+| 270 | `24df639` · 12 Oct | The fonts stylesheet host not named                                           | "names the fonts host it needs and nothing wider"                                                                         |
+| 271 | `24df639` · 12 Oct | The fonts file host not named                                                 | "names the fonts host it needs and nothing wider"                                                                         |
+| 272 | `24df639` · 12 Oct | Fetches allowed from anywhere                                                 | "fetches only from this origin, takes images from it and from data, and loads no plugin"                                  |
+| 273 | `24df639` · 12 Oct | A plugin allowed                                                              | "fetches only from this origin, takes images from it and from data, and loads no plugin"                                  |
+| 274 | `24df639` · 12 Oct | The page may be framed                                                        | "may not be framed by any site"                                                                                           |
+| 275 | `24df639` · 12 Oct | An inline script back in the page                                             | "is met by the page: every script has a src, and no element carries an event handler"                                     |
+| 276 | `24df639` · 12 Oct | An inline event handler in the page                                           | "is met by the page: every script has a src, and no element carries an event handler"                                     |
+| 277 | `24df639` · 12 Oct | Any stored accent stamped                                                     | "stamps a stored accent that is a lower-case word, and nothing that is not"                                               |
+| 278 | `24df639` · 12 Oct | Any stored theme stamped                                                      | "stamps nothing for an unknown theme or an empty store"                                                                   |
+| 279 | `24df639` · 12 Oct | A stored light not stamped                                                    | "stamps a stored dark or light, so a stored light beats a dark system"                                                    |
+| 280 | `24df639` · 12 Oct | The theme script left out of the page                                         | "runs the theme script before the app, as a plain script in the head"                                                     |
+| 281 | `24df639` · 12 Oct | The theme script made a module, so it waits for the page                      | "runs the theme script before the app, as a plain script in the head"                                                     |
+| 282 | `24df639` · 12 Oct | The theme script moved from the head to after the app                         | "runs the theme script before the app, as a plain script in the head"                                                     |
 
 ---
 
@@ -305,13 +320,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **273**: 267 described, four
+So the commit history accounts for **288**: 282 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-323 mutations have been run. 273 are in the history. The other fifty
+338 mutations have been run. 288 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -320,14 +335,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-323 is also a floor rather than an exact count. The prose figure stood at
+338 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 267 are all from that period, and every future one belongs
+produced — rows 23 to 282 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 

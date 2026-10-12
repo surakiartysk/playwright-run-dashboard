@@ -251,8 +251,10 @@ describe('index.html', () => {
     expect(hook(`<style>${TOKENS_MARKER}</style>`)).toContain('--c-primary:')
   })
 
-  it('stamps a stored accent before first paint', () => {
-    expect(html).toContain("localStorage.getItem('rd_accent')")
+  it('stamps a stored accent before first paint, from a script file the page loads', () => {
+    const script = readFileSync(new URL('../public/theme-init.js', import.meta.url), 'utf8')
+    expect(script).toContain("localStorage.getItem('rd_accent')")
+    expect(html).toContain('<script src="/theme-init.js"></script>')
   })
 })
 
