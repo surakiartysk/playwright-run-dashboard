@@ -7,7 +7,12 @@
 #
 # frame-ancestors: no other site may frame the dashboard. SameSite=Lax already
 # means a framed copy is signed out; this means it does not render at all.
+#
+# The rest of the policy (decision 48): scripts only from this origin, so the page
+# has no inline script and no eval; styles may be inline, because the UI sets every
+# style through React's style attribute and its palette lives in a <style> block;
+# the fonts are Google's, and nothing else is fetched from anywhere but here.
 
 /*
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

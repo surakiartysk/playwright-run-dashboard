@@ -40,18 +40,10 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400..800&family=JetBrains+Mono:wght@400..600&display=swap"
       rel="stylesheet"
     />
-    <script>
-      // Applied before first paint so a dark-mode user never sees a white flash.
-      ;(function () {
-        // Both directions are stamped: a stored 'light' has to beat a dark OS,
-        // or the media query below overrides the viewer's own choice.
-        var t = localStorage.getItem('rd_theme')
-        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t)
-        // An unknown name matches no rule, which leaves the default accent.
-        var a = localStorage.getItem('rd_accent')
-        if (a && /^[a-z]+$/.test(a)) document.documentElement.setAttribute('data-accent', a)
-      })()
-    </script>
+    <!-- Applied before first paint so a dark-mode user never sees a white flash, so it is
+         a plain blocking script in the head. It is a file, not inline, so that the page's
+         policy can say script-src 'self' (see public/_headers and decision 48). -->
+    <script src="/theme-init.js"></script>
     <style>
       /*
        * The palette, as CSS variables, is generated from src/tokens.ts when
