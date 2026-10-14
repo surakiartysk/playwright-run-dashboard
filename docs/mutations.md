@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **282 mutations are
+This file is what that number can actually show. **288 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 282 and 338 is
+changed and what went red. The gap between 288 and 344 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -308,6 +308,12 @@ figure the prose states, so the two cannot drift apart.
 | 280 | `24df639` · 12 Oct | The theme script left out of the page                                         | "runs the theme script before the app, as a plain script in the head"                                                     |
 | 281 | `24df639` · 12 Oct | The theme script made a module, so it waits for the page                      | "runs the theme script before the app, as a plain script in the head"                                                     |
 | 282 | `24df639` · 12 Oct | The theme script moved from the head to after the app                         | "runs the theme script before the app, as a plain script in the head"                                                     |
+| 283 | `750cfac` · 14 Oct | IPv6 sign-ins counted per address, not per /64                                | "counts every address in one /64 as one client"                                                                           |
+| 284 | `750cfac` · 14 Oct | The /64 taken from the address as written, not written out                    | "reads one /64 however it is written"                                                                                     |
+| 285 | `750cfac` · 14 Oct | `refuseKeys` taken off `POST /demo/preview-role`                              | "POST /demo/preview-role refuses a sandbox key"                                                                           |
+| 286 | `750cfac` · 14 Oct | A preview honoured when the request has no session (expiry 0)                 | "a preview signed for no session is not honoured"                                                                         |
+| 287 | `750cfac` · 14 Oct | `updatedBy` returned to `demo`                                                | "does not name them to demo, whose password is published"                                                                 |
+| 288 | `750cfac` · 14 Oct | Omitted `workers` defaulted to 4 whatever the caller may use                  | "gives a run that names no workers the default, lowered to what the caller may use"                                       |
 
 ---
 
@@ -320,13 +326,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **288**: 282 described, four
+So the commit history accounts for **294**: 288 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-338 mutations have been run. 288 are in the history. The other fifty
+344 mutations have been run. 294 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -335,14 +341,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-338 is also a floor rather than an exact count. The prose figure stood at
+344 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 282 are all from that period, and every future one belongs
+produced — rows 23 to 288 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 
