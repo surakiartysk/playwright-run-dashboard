@@ -57,6 +57,7 @@ interviewer should press on hardest.
 46. [Status colours measured as marks, and for colour blindness](#46-status-colours-measured-as-marks-and-for-colour-blindness)
 47. [One way to choose one of a few things](#47-one-way-to-choose-one-of-a-few-things)
 48. [The UI says which scripts may run](#48-the-ui-says-which-scripts-may-run)
+49. [Four lows from a security review, and the one left as it was](#49-four-lows-from-a-security-review-and-the-one-left-as-it-was)
 
 ---
 
@@ -303,13 +304,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 338 mutations were introduced
+**Every test here was proven able to fail.** In all, 344 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-217 of those are recorded individually in
+288 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -2639,3 +2640,52 @@ policy refuses; the same appeared on the hub and the page is fine without axe. `
   this line changes. That is the policy working, and the first thing to look at when something external stops loading.
 - **It is a second line, not the first.** React still escapes what it renders and nothing writes HTML; the policy is
   what stops a script that gets in anyway from running or reporting anywhere.
+
+---
+
+## 49. Four lows from a security review, and the one left as it was
+
+**Context.** A review of the Worker on 14 October, by reading the code and probing the deployed site without writing
+to it, found nothing high. It found five things worth a decision:
+
+- **The sign-in limit counted each IPv6 address on its own.** A home line or a cloud VM is routinely given a whole
+  /64, so one machine could send every guess from a new address and never reach the limit of decision 28.
+- **A sandbox key could call `POST /demo/preview-role`.** The route checked the role, and a sandbox key carries
+  `demo`. A key's request has no session, so its expiry reads 0. The cookie it got back was signed for that 0, a value
+  every key request shares.
+- **`GET /gate` named whoever last changed the gate to `demo`.** That is a name an admin signed in with, or a key's
+  label, shown to anyone with the published password.
+- **A run that named no `workers` got 4, whatever the caller's limit.** The ceiling was checked only when a number was
+  sent; the dispatch filled in 4 afterwards. `demo` may use 2, a sandbox key 2.
+- **A signed callback can overwrite a run that already has a result.** The webhook updates by id with no condition on
+  the run's status.
+
+**Decision.**
+
+- **An IPv6 address is counted by its /64**, written out in full first, so `2001:db8::1` and `2001:0db8:0:0::2` are
+  one bucket. The /64 is the smallest block an ISP assigns, which makes it the nearest thing to "one client" an IPv6
+  address says. An IPv4 address is counted as it is, and a header that is not an address joins the shared `unknown`
+  bucket.
+- **Preview refuses keys** (`refuseKeys`, as decision 25 refuses them minting keys), **and a preview is never honoured
+  on a request with no session.** Either alone would have closed it. The second also covers a cookie minted some other
+  way.
+- **`updatedBy` is null for `demo`.** `updatedAt` stays, because it answers "since when" without naming anyone. The
+  role the column was for, a blocked developer, still sees the name.
+- **An omitted `workers` is the suites' default lowered to the caller's ceiling**, and the number used is stored on the
+  run, where it was null before.
+- **The webhook is left as it was.** Refusing a callback for a run that has a result would refuse two callbacks that
+  are right. One is a re-run from the Actions tab, which reuses the run id. The other is a real result arriving after
+  the sweep of decision 31 has guessed `timeout`. That decision already says a real result outranks a guess. Sending a
+  callback at all needs the webhook secret, and whoever holds it can already write any result to a run that has none.
+  So the guard would cost both of those and would not keep out anyone it is meant for.
+
+Six mutations, each failing its own new test (rows 283 to 288 in `mutations.md`).
+
+**Trade-off.**
+
+- **Everyone in one /64 shares ten wrong passwords.** A household, an office, or a provider that puts many customers
+  in one /64 is one client to this limit. A correct password is never charged, so this costs only people who mistype
+  together.
+- **A blocked `demo` visitor is told to ask "an admin"**, not a name. The visitor cannot reach that person anyway.
+- **The two webhook secrets stay one.** One secret is shared by both suites' repositories, so a leak in either can write
+  results for both. Splitting it is a change to the repositories' secrets, which this repository cannot make.

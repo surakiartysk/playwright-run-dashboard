@@ -163,6 +163,27 @@ describe('POST /runs — policy enforcement', () => {
     expect(await runCount()).toBe(before)
   })
 
+  it('gives a run that names no workers the default, lowered to what the caller may use', async () => {
+    // It used to dispatch 4 whatever the caller's limit: demo may use 2.
+    const workersOf = async (response: Response) => {
+      const { runId } = (await response.json()) as { runId: string }
+      return (
+        await env.DB.prepare(`SELECT workers FROM runs WHERE id = ?1`)
+          .bind(runId)
+          .first<{ workers: number | null }>()
+      )?.workers
+    }
+
+    // `demo` is not in this file's Role, which the policy tests above keep to the three that dispatch.
+    const asDemo = await as('demo', '/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
+    })
+    expect(await workersOf(asDemo)).toBe(2)
+    expect(await workersOf(await create('qa', { service: 'items', tags: 'all' }))).toBe(4)
+  })
+
   it('allows qa the worker count it refuses dev', async () => {
     expect((await create('dev', { service: 'items', tags: 'all', workers: 8 })).status).toBe(403)
     expect((await create('qa', { service: 'items', tags: 'all', workers: 8 })).status).toBe(201)

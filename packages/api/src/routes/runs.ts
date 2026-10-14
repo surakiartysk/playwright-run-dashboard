@@ -10,7 +10,7 @@ import {
   isOutcomeMode,
   OUTCOME_MODES,
 } from '../types'
-import { dispatchWorkflow, simulates } from '../github'
+import { DEFAULT_WORKERS, dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
 import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
@@ -137,7 +137,13 @@ runRoutes.post('/', async (c) => {
   const body = (await c.req.json().catch(() => null)) as CreateRunRequest | null
   if (!body) return c.json({ error: 'Body must be JSON' }, 400)
 
-  const { service, tags, workers } = body
+  const { service, tags } = body
+  /*
+   * Omitted means the suites' default, lowered to what this caller may use.
+   * It used to be checked only when it was sent: leave it out and the
+   * dispatch filled in 4 — past `demo`'s 2 and past any key limited below 4.
+   */
+  const workers = body.workers ?? Math.min(DEFAULT_WORKERS, policy.maxWorkers)
   const ref = body.ref ?? 'main'
 
   // Defaulted rather than required: a client written before the second suite
@@ -296,20 +302,18 @@ runRoutes.post('/', async (c) => {
     )
   }
 
-  if (workers !== undefined) {
-    if (!Number.isInteger(workers) || workers < 1) {
-      return c.json({ error: 'workers must be a positive integer' }, 422)
-    }
-    if (workers > policy.maxWorkers) {
-      return c.json(
-        {
-          error: apiKey
-            ? `This key may use at most ${policy.maxWorkers} workers`
-            : `Role '${role}' may use at most ${policy.maxWorkers} workers`,
-        },
-        403,
-      )
-    }
+  if (!Number.isInteger(workers) || workers < 1) {
+    return c.json({ error: 'workers must be a positive integer' }, 422)
+  }
+  if (workers > policy.maxWorkers) {
+    return c.json(
+      {
+        error: apiKey
+          ? `This key may use at most ${policy.maxWorkers} workers`
+          : `Role '${role}' may use at most ${policy.maxWorkers} workers`,
+      },
+      403,
+    )
   }
 
   const id = makeRunId(service)

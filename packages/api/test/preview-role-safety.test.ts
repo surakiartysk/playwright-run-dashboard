@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { as, migrate, request, sessionFor, seedRun } from './helpers'
 import { DEV_TOKEN_SECRET } from '../src/config'
+import { signPreviewRole, verifyPreviewRole } from '../src/auth'
 import worker from '../src/index'
 
 beforeAll(migrate)
@@ -209,5 +210,33 @@ describe('what a previewing demo session is not shown', () => {
       runs: { id: string; startedBy: string | null }[]
     }
     expect(list.runs.find((r) => r.id === id)?.startedBy).toBe('Somchai')
+  })
+})
+
+/**
+ * A key may not preview.
+ *
+ * A sandbox key carries the `demo` role, and the route checked only the role.
+ * A key's request has no session, so its expiry reads 0 — and the cookie it
+ * got back was signed for that 0, which every key request shares.
+ */
+describe('a key and the preview cookie', () => {
+  it('POST /demo/preview-role refuses a sandbox key', async () => {
+    const minted = (await (await as('demo', '/demo/keys', { method: 'POST' })).json()) as {
+      key: string
+    }
+    const response = await request('/demo/preview-role', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${minted.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'admin' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  it('a preview signed for no session is not honoured', async () => {
+    const token = await signPreviewRole(DEV_TOKEN_SECRET, 'admin', 0)
+    expect(await verifyPreviewRole(DEV_TOKEN_SECRET, `preview-role=${token}`, 0)).toBeNull()
   })
 })

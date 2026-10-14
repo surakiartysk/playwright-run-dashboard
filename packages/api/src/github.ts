@@ -37,6 +37,12 @@ import type { Bindings, Role, Suite } from './types'
  * they choose. See decision 12.
  */
 
+/**
+ * Workers a run gets when the request names none — the suites' own default.
+ * `POST /runs` lowers it to the caller's ceiling before it gets here.
+ */
+export const DEFAULT_WORKERS = 4
+
 export interface DispatchResult {
   ok: boolean
   simulated: boolean
@@ -166,7 +172,7 @@ export async function dispatchWorkflow(
           scope: inputs.service === 'all' ? inputs.tags : inputs.service,
           ...(inputs.service !== 'all' && inputs.tags !== 'all' ? { tag: inputs.tags } : {}),
           style: 'both',
-          workers: String(inputs.workers ?? 4),
+          workers: String(inputs.workers ?? DEFAULT_WORKERS),
         },
       }),
     },
