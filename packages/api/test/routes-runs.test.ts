@@ -174,7 +174,13 @@ describe('POST /runs — policy enforcement', () => {
       )?.workers
     }
 
-    expect(await workersOf(await create('demo', { service: 'items', tags: 'all' }))).toBe(2)
+    // `demo` is not in this file's Role, which the policy tests above keep to the three that dispatch.
+    const asDemo = await as('demo', '/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: 'items', tags: 'all' }),
+    })
+    expect(await workersOf(asDemo)).toBe(2)
     expect(await workersOf(await create('qa', { service: 'items', tags: 'all' }))).toBe(4)
   })
 
