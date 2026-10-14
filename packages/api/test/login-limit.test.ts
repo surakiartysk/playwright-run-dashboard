@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import { env } from 'cloudflare:test'
 import { migrate, request } from './helpers'
 import { DEV_PASSWORDS } from '../src/config'
-import { LOGIN_ATTEMPTS_ALLOWED, LOGIN_WINDOW_MINUTES } from '../src/loginLimit'
+import { LOGIN_ATTEMPTS_ALLOWED, LOGIN_WINDOW_MINUTES, ipv6Prefix64 } from '../src/loginLimit'
 
 beforeAll(migrate)
 
@@ -92,5 +92,42 @@ describe('sign-in limit', () => {
       .run()
 
     expect((await login(address, DEV_PASSWORDS.admin)).status).toBe(200)
+  })
+})
+
+/**
+ * An IPv6 client is counted by its /64.
+ *
+ * Counted per address, the limit was per address in a range the client picks
+ * from: a home line or a cloud VM is handed a whole /64, so one machine could
+ * send every guess from a new address and never be refused.
+ */
+describe('sign-in limit over IPv6', () => {
+  let nextNetwork = 1
+  const freshNetwork = () => `2001:db8:${(nextNetwork++).toString(16)}:1`
+
+  it('counts every address in one /64 as one client', async () => {
+    const network = freshNetwork()
+    for (let i = 0; i < LOGIN_ATTEMPTS_ALLOWED; i++) {
+      expect((await login(`${network}::${(i + 1).toString(16)}`, `wrong-${i}`)).status).toBe(401)
+    }
+
+    expect((await login(`${network}::ffff`, DEV_PASSWORDS.admin)).status).toBe(429)
+  })
+
+  it('counts another /64 separately', async () => {
+    const network = freshNetwork()
+    for (let i = 0; i < LOGIN_ATTEMPTS_ALLOWED; i++) await login(`${network}::1`, `wrong-${i}`)
+
+    expect((await login(`${freshNetwork()}::1`, DEV_PASSWORDS.qa)).status).toBe(200)
+  })
+
+  it('reads one /64 however it is written', () => {
+    expect(ipv6Prefix64('2001:db8::1')).toBe('2001:0db8:0000:0000')
+    expect(ipv6Prefix64('2001:0DB8:0:0::2')).toBe('2001:0db8:0000:0000')
+    expect(ipv6Prefix64('2001:db8:a:b:c:d:e:f')).toBe('2001:0db8:000a:000b')
+    expect(ipv6Prefix64('::ffff:192.0.2.1')).toBe('0000:0000:0000:0000')
+    expect(ipv6Prefix64('2001:db8::1::2')).toBeNull()
+    expect(ipv6Prefix64('not:an:address')).toBeNull()
   })
 })

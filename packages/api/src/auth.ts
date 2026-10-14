@@ -284,6 +284,9 @@ export async function verifyPreviewRole(
   if (parts.length !== 3) return null
 
   const [roleRaw, expRaw, signature] = parts as [string, string, string]
+  // A key's request has no session, and its expiry reads 0. A preview rides on
+  // a session, so there is nothing for one to ride on here.
+  if (sessionExpiresAt <= 0) return null
   if (Number.parseInt(expRaw, 10) !== sessionExpiresAt) return null
   if (!(await verifyHmac(secret, `${roleRaw}.${expRaw}`, signature))) return null
   if (!isRole(roleRaw)) return null

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { HonoEnv, Role } from '../types'
 import {
   ROLES,
+  refuseKeys,
   requireSession,
   signPreviewRole,
   previewRoleCookie,
@@ -38,7 +39,11 @@ export const demoRoutes = new Hono<HonoEnv>()
  */
 demoRoutes.use('*', requireSession)
 
-demoRoutes.post('/preview-role', async (c) => {
+// Refused to keys as well as to every role but `demo`. A sandbox key carries
+// the `demo` role, and a key's request has no session expiry to bind the
+// preview to (it is 0), so the cookie it got back was signed for "a session
+// that expires at 0" — a value every key request shares.
+demoRoutes.post('/preview-role', refuseKeys('preview another role'), async (c) => {
   const role = c.get('role')
   if (role !== 'demo') {
     return c.json({ error: 'Only the demo role may preview another role' }, 403)

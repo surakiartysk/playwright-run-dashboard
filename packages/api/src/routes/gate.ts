@@ -31,8 +31,13 @@ gateRoutes.get('/', async (c) => {
      * answer existed in the database and nowhere a blocked developer could
      * reach it. Null on a database nobody has touched since the migration
      * seeded it.
+     *
+     * Withheld from `demo`, whose password is published: the column holds the
+     * name an admin signed in with, or a key's label, and a stranger has no
+     * use for either. The time stays — it answers "since when" without naming
+     * anyone.
      */
-    updatedBy: row?.updated_by ?? null,
+    updatedBy: role === 'demo' ? null : (row?.updated_by ?? null),
     updatedAt: row?.updated_at ?? null,
   })
 })

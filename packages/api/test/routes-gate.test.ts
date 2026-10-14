@@ -216,4 +216,16 @@ describe('PUT /gate — who changed it', () => {
     expect(body.updatedBy).toContain('Nok')
     expect(body.updatedAt).toBeTruthy()
   })
+
+  it('does not name them to demo, whose password is published', async () => {
+    await putGate('Nok')
+
+    const body = (await (await as('demo', '/gate')).json()) as {
+      updatedBy: string | null
+      updatedAt: string | null
+    }
+
+    expect(body.updatedBy).toBeNull()
+    expect(body.updatedAt).toBeTruthy()
+  })
 })
