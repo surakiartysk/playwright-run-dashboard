@@ -62,6 +62,10 @@ export interface Bindings {
 
   GITHUB_TOKEN?: string
   WEBHOOK_SECRET?: string
+  /** Signs the result callback of the `api` suite only. See decision 50. */
+  WEBHOOK_SECRET_API?: string
+  /** Signs the result callback of the `ui` suite only. See decision 50. */
+  WEBHOOK_SECRET_UI?: string
   TOKEN_SECRET?: string
   DEMO_PASSWORD?: string
   DEV_PASSWORD?: string

@@ -140,6 +140,7 @@ export async function seedRun(
     tags: string
     ref: string
     status: RunStatus
+    suite: 'api' | 'ui'
     triggeredBy: Role
     reportPath: string | null
     startedAt: string
@@ -151,6 +152,7 @@ export async function seedRun(
     tags: 'smoke',
     ref: 'main',
     status: 'queued' as RunStatus,
+    suite: 'api' as 'api' | 'ui',
     triggeredBy: 'qa' as Role,
     reportPath: null,
     startedAt: new Date().toISOString(),
@@ -158,8 +160,8 @@ export async function seedRun(
   }
 
   await env.DB.prepare(
-    `INSERT INTO runs (id, service, tags, triggered_by, status, ref, started_at, report_path)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    `INSERT INTO runs (id, service, tags, triggered_by, status, ref, started_at, report_path, suite)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
   )
     .bind(
       row.id,
@@ -170,6 +172,7 @@ export async function seedRun(
       row.ref,
       row.startedAt,
       row.reportPath,
+      row.suite,
     )
     .run()
 

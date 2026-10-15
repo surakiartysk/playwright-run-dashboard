@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { HonoEnv, WebhookPayload } from '../types'
+import type { Bindings, HonoEnv, Suite, WebhookPayload } from '../types'
 import { REPORTABLE_STATUSES, isReportableStatus } from '../types'
 import { verifyHmac } from '../crypto'
 import { DEV_WEBHOOK_SECRET } from '../config'
@@ -9,6 +9,29 @@ export const webhookRoutes = new Hono<HonoEnv>()
 
 /** Requests older than this are refused, so a captured one cannot be replayed. */
 const MAX_AGE_SECONDS = 300
+
+/**
+ * The secrets a callback may be signed with, and the suite each may report for.
+ * `suite: null` is every suite.
+ *
+ * One secret per suite means a secret that leaks from one suite's repository
+ * can report only that suite's runs. Before, both repositories held the same
+ * one, so either could write a result for the other's runs.
+ *
+ * `WEBHOOK_SECRET`, the old shared one, still counts for every suite while it
+ * is set, so a deployment can move to the new pair without a moment in which
+ * a workflow's callback is signed with a secret the Worker does not know. When
+ * none of the three is set, the development default stands in, as it always
+ * has; once any is set, the default is not accepted.
+ */
+function webhookSecrets(env: Bindings): { secret: string; suite: Suite | null }[] {
+  const secrets: { secret: string; suite: Suite | null }[] = []
+  if (env.WEBHOOK_SECRET_API) secrets.push({ secret: env.WEBHOOK_SECRET_API, suite: 'api' })
+  if (env.WEBHOOK_SECRET_UI) secrets.push({ secret: env.WEBHOOK_SECRET_UI, suite: 'ui' })
+  if (env.WEBHOOK_SECRET) secrets.push({ secret: env.WEBHOOK_SECRET, suite: null })
+  if (secrets.length === 0) secrets.push({ secret: DEV_WEBHOOK_SECRET, suite: null })
+  return secrets
+}
 
 /**
  * POST /webhook — the workflow reporting its result.
@@ -39,10 +62,15 @@ webhookRoutes.post('/', async (c) => {
   // Read as text: the signature covers the exact bytes sent, and re-serialising
   // parsed JSON would not reproduce them.
   const raw = await c.req.text()
-  const secret = c.env.WEBHOOK_SECRET ?? DEV_WEBHOOK_SECRET
   const provided = signature.replace(/^sha256=/, '')
 
-  if (!(await verifyHmac(secret, `${timestamp}.${raw}`, provided))) {
+  // Every secret is tried, so the time taken does not say which one matched.
+  let allowedSuite: Suite | null | undefined
+  for (const candidate of webhookSecrets(c.env)) {
+    const ok = await verifyHmac(candidate.secret, `${timestamp}.${raw}`, provided)
+    if (ok && allowedSuite === undefined) allowedSuite = candidate.suite
+  }
+  if (allowedSuite === undefined) {
     return c.json({ error: 'Bad signature' }, 401)
   }
 
@@ -101,7 +129,7 @@ webhookRoutes.post('/', async (c) => {
             suite_version = COALESCE(?10, suite_version),
             suite_sha = COALESCE(?11, suite_sha),
             details = COALESCE(?12, details)
-      WHERE id = ?1`,
+      WHERE id = ?1 AND (?13 IS NULL OR suite = ?13)`,
   )
     .bind(
       payload.runId,
@@ -125,12 +153,26 @@ webhookRoutes.post('/', async (c) => {
         const details = sanitizeFailures(payload.failures, payload.failuresOmitted)
         return details ? JSON.stringify(details) : null
       })(),
+      allowedSuite,
     )
     .run()
 
-  // A signed callback for a run with no record here means the two sides
-  // disagree about what exists — worth a 404 rather than a silent no-op.
   if (result.meta.changes === 0) {
+    // A run of the other suite is a different answer from no run at all: the
+    // signature was good, and the secret that made it is not that suite's.
+    // Worth saying, because it is what a secret put in the wrong repository
+    // looks like.
+    const other = await c.env.DB.prepare(`SELECT suite FROM runs WHERE id = ?1`)
+      .bind(payload.runId)
+      .first<{ suite: string }>()
+    if (other) {
+      return c.json(
+        { error: `This secret may not report for runs of the ${other.suite} suite` },
+        403,
+      )
+    }
+    // A signed callback for a run with no record here means the two sides
+    // disagree about what exists — worth a 404 rather than a silent no-op.
     return c.json({ error: `No run with id ${payload.runId}` }, 404)
   }
 

@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **288 mutations are
+This file is what that number can actually show. **295 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 288 and 344 is
+changed and what went red. The gap between 295 and 351 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -314,6 +314,13 @@ figure the prose states, so the two cannot drift apart.
 | 286 | `750cfac` · 14 Oct | A preview honoured when the request has no session (expiry 0)                 | "a preview signed for no session is not honoured"                                                                         |
 | 287 | `750cfac` · 14 Oct | `updatedBy` returned to `demo`                                                | "does not name them to demo, whose password is published"                                                                 |
 | 288 | `750cfac` · 14 Oct | Omitted `workers` defaulted to 4 whatever the caller may use                  | "gives a run that names no workers the default, lowered to what the caller may use"                                       |
+| 289 | `fbf5db0` · 15 Oct | The run's suite not matched when a callback is applied                        | "a secret for each suite: refuses one suite's secret for the other suite's run, and leaves the run as it was"             |
+| 290 | `fbf5db0` · 15 Oct | Only the first configured secret tried                                        | "a secret for each suite: takes each suite's own secret for that suite's runs"                                            |
+| 291 | `fbf5db0` · 15 Oct | The old shared secret held to the `api` suite                                 | "a secret for each suite: takes the old shared secret for either suite while it is still set"                             |
+| 292 | `fbf5db0` · 15 Oct | The development default kept once any secret is set                           | "a secret for each suite: refuses a secret that is none of them, and the development default once any is set"             |
+| 293 | `fbf5db0` · 15 Oct | The old shared secret ignored                                                 | "a secret for each suite: takes the old shared secret for either suite while it is still set"                             |
+| 294 | `fbf5db0` · 15 Oct | A wrong-suite refusal answered 404                                            | "a secret for each suite: keeps the suites apart even while the old secret is set"                                        |
+| 295 | `fbf5db0` · 15 Oct | A real deployment with one suite's secret accepted                            | "what a real deployment must have set: refuses none, and refuses only one suite's"                                        |
 
 ---
 
@@ -326,13 +333,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **294**: 288 described, four
+So the commit history accounts for **301**: 295 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-344 mutations have been run. 294 are in the history. The other fifty
+351 mutations have been run. 301 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.
@@ -341,14 +348,14 @@ That is not recoverable now. Re-deriving them from the code would be inventing a
 record, not restoring one, and a fabricated provenance is worse than a stated
 gap: it would read as evidence while being a guess.
 
-344 is also a floor rather than an exact count. The prose figure stood at
+351 is also a floor rather than an exact count. The prose figure stood at
 ninety-nine from 7 to 24 September while rows 15 to 45 were being run — the
 mutations went into their commit messages, and the total was not moved with
 them — so the real number is higher by an amount the history cannot settle.
 
 What changed is the convention, not the past. Since the counting became
 explicit, every mutation has gone into its commit message with the message it
-produced — rows 23 to 288 are all from that period, and every future one belongs
+produced — rows 23 to 295 are all from that period, and every future one belongs
 in this table. The number in the prose is the number of mutations run; the
 number in this table is the number anyone else can check.
 

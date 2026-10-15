@@ -58,6 +58,7 @@ interviewer should press on hardest.
 47. [One way to choose one of a few things](#47-one-way-to-choose-one-of-a-few-things)
 48. [The UI says which scripts may run](#48-the-ui-says-which-scripts-may-run)
 49. [Four lows from a security review, and the one left as it was](#49-four-lows-from-a-security-review-and-the-one-left-as-it-was)
+50. [Each suite signs with a secret of its own](#50-each-suite-signs-with-a-secret-of-its-own)
 
 ---
 
@@ -304,13 +305,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 344 mutations were introduced
+**Every test here was proven able to fail.** In all, 351 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-288 of those are recorded individually in
+295 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -2552,14 +2553,6 @@ the one piece of text in the status red; it is the themed `danger` now, since te
 
 ---
 
-## How to add a decision
-
-Write it when the reasoning is still fresh, and include the cost. If the
-trade-off section reads as "no real downside", the decision has not been
-examined hard enough yet — go back and find who it makes life worse for.
-
----
-
 ## 47. One way to choose one of a few things
 
 **Context.** The design review counted six controls that choose one of a few options, and they were six different
@@ -2687,5 +2680,53 @@ Six mutations, each failing its own new test (rows 283 to 288 in `mutations.md`)
   in one /64 is one client to this limit. A correct password is never charged, so this costs only people who mistype
   together.
 - **A blocked `demo` visitor is told to ask "an admin"**, not a name. The visitor cannot reach that person anyway.
-- **The two webhook secrets stay one.** One secret is shared by both suites' repositories, so a leak in either can write
-  results for both. Splitting it is a change to the repositories' secrets, which this repository cannot make.
+- **The two webhook secrets stay one, for now.** One secret is shared by both suites' repositories, so a leak in either
+  can write results for both. The code to split it is decision 50; setting the secrets is a change to the
+  repositories' settings, which this repository cannot make.
+
+---
+
+## 50. Each suite signs with a secret of its own
+
+**Context.** Decision 49 left one finding as it was: both suites' repositories held the same webhook secret, so a leak
+from either could write a result for the other's runs. It said splitting the secret was a change to the
+repositories' settings. The code is the part this repository can do.
+
+**Decision.**
+
+- **Two secrets, one for each suite**: `WEBHOOK_SECRET_API` and `WEBHOOK_SECRET_UI`. A callback is accepted when its
+  signature matches any configured secret. The run it names is updated only if it belongs to the suite that secret
+  is for (`WHERE id = ? AND suite = ?`). So the API suite's secret can report the API suite's runs, and nothing else.
+- **A good signature on the wrong suite's run is `403`**, saying which suite it is, and not `404`. A secret put in the
+  wrong repository looks like this, and it should not look like a run that does not exist. A run that does not
+  exist is still `404`.
+- **`WEBHOOK_SECRET`, the old shared one, still counts for both suites while it is set.** A deployment moves in four
+  steps and never has a moment in which a workflow signs with a secret the Worker does not know: deploy this code;
+  set the two new secrets on the Worker and in each repository; see one real run of each suite report; delete
+  `WEBHOOK_SECRET`.
+- **The development default is accepted only when none of the three is set**, so a deployment that has moved to the
+  pair cannot be reached with the default.
+- **A real deployment needs `WEBHOOK_SECRET`, or both of the pair.** One of the two alone leaves the other suite
+  with nothing to sign with, and `assertDeployable` says so.
+- **Every secret is tried**, not only until one matches, so the time a request takes does not say which one it was.
+
+Seven mutations (rows 289 to 295), each failing its own test.
+
+**Trade-off.**
+
+- **Two secrets to rotate, not one.** And a secret in the wrong repository now fails loudly at the callback (`403`);
+  before, it could not go wrong that way, because both were the same.
+- **It narrows a small risk.** Sending a callback needs a secret, and both repositories are one owner's. What it
+  closes is a leak from one repository. What it does not touch is a leak of the Worker's own secrets.
+- **While the old secret is set, the split protects nothing**, because that one counts for both suites. The benefit
+  starts when it is deleted, which is the owner's step and not the code's.
+- **The suite is read from the run's row, not from the callback**, so a callback cannot claim a different suite than
+  the run has.
+
+---
+
+## How to add a decision
+
+Write it when the reasoning is still fresh, and include the cost. If the
+trade-off section reads as "no real downside", the decision has not been
+examined hard enough yet — go back and find who it makes life worse for.
