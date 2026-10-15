@@ -64,8 +64,11 @@ SIMULATE_DISPATCH = "true"
 #                    BOTH repositories above. Not checked by assertDeployable:
 #                    it is only read once SIMULATE_DISPATCH is false, and its
 #                    absence is reported by the dispatch that needed it.
-#   WEBHOOK_SECRET   signs the result callback — must match DASHBOARD_WEBHOOK_SECRET
-#                    on both suite repositories
+#   WEBHOOK_SECRET_API / WEBHOOK_SECRET_UI
+#                    sign the result callback of one suite each — each must match
+#                    DASHBOARD_WEBHOOK_SECRET in that suite's repository only
+#                    (decision 50). WEBHOOK_SECRET, the one both suites used to
+#                    share, still counts for both while it is set
 #   TOKEN_SECRET     signs report-access links
 #   DEV_PASSWORD     one login per role — see config.ts. `demo` is the exception:
 #   QA_PASSWORD      its password is meant to stay guessable, because what makes

@@ -84,7 +84,13 @@ export function assertDeployable(env: Bindings): string[] {
   if (env.SIMULATE_DISPATCH !== 'false') return []
 
   const problems: string[] = []
-  if (!env.WEBHOOK_SECRET) problems.push('WEBHOOK_SECRET is unset — the webhook would be forgeable')
+  // Either the one secret both suites share, or one for each. Having only one
+  // of the two leaves the other suite with nothing to sign with.
+  if (!env.WEBHOOK_SECRET && !(env.WEBHOOK_SECRET_API && env.WEBHOOK_SECRET_UI)) {
+    problems.push(
+      'WEBHOOK_SECRET is unset, and so is one of WEBHOOK_SECRET_API and WEBHOOK_SECRET_UI — the webhook would be forgeable',
+    )
+  }
   if (!env.TOKEN_SECRET) problems.push('TOKEN_SECRET is unset — report links would be forgeable')
   if (!env.ADMIN_PASSWORD) problems.push('ADMIN_PASSWORD is unset')
   if (!env.QA_PASSWORD) problems.push('QA_PASSWORD is unset')
