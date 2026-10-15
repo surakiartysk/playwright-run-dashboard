@@ -88,7 +88,7 @@ packages/ui     React + Vite
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1207 tests — 661 in the Worker, 546 in the UI
+pnpm test          # 1216 tests — 670 in the Worker, 546 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -97,12 +97,12 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 344 deliberate mutations — deleting
+Every test was proven able to fail. In all, 351 deliberate mutations — deleting
 the privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. 288 of them are written down one by one in
+behaviour. 295 of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 344 are _not_
+message it produced; that file also says plainly which of the 351 are _not_
 recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 
@@ -148,7 +148,8 @@ Every `wrangler` command below runs from `packages/api`, where `wrangler.toml`
 is (`pnpm exec wrangler …` if it is not on your PATH).
 
 ```bash
-wrangler secret put WEBHOOK_SECRET   # signs the result callback
+wrangler secret put WEBHOOK_SECRET_API   # signs the API suite's result callback
+wrangler secret put WEBHOOK_SECRET_UI    # signs the UI suite's
 wrangler secret put TOKEN_SECRET     # signs report links
 wrangler secret put ADMIN_PASSWORD
 wrangler secret put QA_PASSWORD
@@ -255,8 +256,10 @@ is not a secret being kept, since demo cannot dispatch anything real and hiding
 it would protect nothing.
 
 The suite side needs `DASHBOARD_WEBHOOK_URL` as a repository variable and
-`DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching `WEBHOOK_SECRET`
-here. Without them its callback step is skipped and runs stay `running`.
+`DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching
+`WEBHOOK_SECRET_API` here for the API suite's repository and `WEBHOOK_SECRET_UI`
+for the UI suite's (decision 50). A single `WEBHOOK_SECRET` shared by both still
+works. Without them its callback step is skipped and runs stay `running`.
 
 For a real run's **report** to appear as well, it also needs
 `CLOUDFLARE_API_TOKEN` (scoped to object-write on the reports bucket, nothing
