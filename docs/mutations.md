@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **295 mutations are
+This file is what that number can actually show. **297 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 295 and 351 is
+changed and what went red. The gap between 297 and 353 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -321,6 +321,8 @@ figure the prose states, so the two cannot drift apart.
 | 293 | `fbf5db0` · 15 Oct | The old shared secret ignored                                                 | "a secret for each suite: takes the old shared secret for either suite while it is still set"                             |
 | 294 | `fbf5db0` · 15 Oct | A wrong-suite refusal answered 404                                            | "a secret for each suite: keeps the suites apart even while the old secret is set"                                        |
 | 295 | `fbf5db0` · 15 Oct | A real deployment with one suite's secret accepted                            | "what a real deployment must have set: refuses none, and refuses only one suite's"                                        |
+| 296 | `e4a182b` · 23 Nov | The `Strict-Transport-Security` line removed from `_headers`                  | "asks the browser to come back over https only, for a year"                                                               |
+| 297 | `e4a182b` · 23 Nov | `camera=()` loosened to `camera=(self)` in `_headers`                         | "may not ask for the camera, microphone, location or payment"                                                             |
 
 ---
 
@@ -333,13 +335,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **301**: 295 described, four
+So the commit history accounts for **303**: 297 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-351 mutations have been run. 301 are in the history. The other fifty
+353 mutations have been run. 303 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.

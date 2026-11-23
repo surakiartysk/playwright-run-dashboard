@@ -41,6 +41,18 @@ describe('every page of the UI', () => {
   it('may not be framed by any site', () => {
     expect(policy()['frame-ancestors']).toEqual(["'none'"])
   })
+
+  // Decision 51. A year, and no includeSubDomains: no name lives under this one, so it
+  // would cover nothing.
+  it('asks the browser to come back over https only, for a year', () => {
+    expect(headersFor('/*').get('strict-transport-security')).toBe('max-age=31536000')
+  })
+
+  it('may not ask for the camera, microphone, location or payment', () => {
+    expect(headersFor('/*').get('permissions-policy')).toBe(
+      'geolocation=(), microphone=(), camera=(), payment=()',
+    )
+  })
 })
 
 /** The page's content-security-policy, by directive. */

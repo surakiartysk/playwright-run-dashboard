@@ -59,6 +59,7 @@ interviewer should press on hardest.
 48. [The UI says which scripts may run](#48-the-ui-says-which-scripts-may-run)
 49. [Four lows from a security review, and the one left as it was](#49-four-lows-from-a-security-review-and-the-one-left-as-it-was)
 50. [Each suite signs with a secret of its own](#50-each-suite-signs-with-a-secret-of-its-own)
+51. [The UI asks for https and for no device access](#51-the-ui-asks-for-https-and-for-no-device-access)
 
 ---
 
@@ -305,13 +306,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 351 mutations were introduced
+**Every test here was proven able to fail.** In all, 353 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-295 of those are recorded individually in
+297 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -2722,6 +2723,37 @@ Seven mutations (rows 289 to 295), each failing its own test.
   starts when it is deleted, which is the owner's step and not the code's.
 - **The suite is read from the run's row, not from the callback**, so a callback cannot claim a different suite than
   the run has.
+
+## 51. The UI asks for https and for no device access
+
+**Context.** A check of the live sites on 23 November found the hub sending `Strict-Transport-Security` and
+`Permissions-Policy` and the dashboard sending neither. Both sites are on Cloudflare and both answer only over https,
+so the gap was not a page served in the clear. It was the first request: a visitor who types `runs.testbydesign.dev`
+without a scheme is sent to http first and redirected, and that one request can be answered by anyone on the network
+between them.
+
+**Decision.**
+
+- **`Strict-Transport-Security: max-age=31536000`** on every UI page, in `_headers`. After one visit, the browser
+  goes straight to https for a year. No `includeSubDomains`: no name lives under this one, so it would cover nothing.
+  No `preload`: that is a request to the browsers' built-in list, which is slow to take back.
+- **`Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()`**, the hub's line. The UI uses none
+  of the four, so a script that ever got onto the page could not ask for them either.
+- **Two tests in `headers.test.ts`**, each seen to fail (rows 296 and 297): the HSTS line removed, and the camera
+  loosened to `self`.
+
+**Trade-off.**
+
+- **A year is hard to undo.** A browser that has seen the header refuses http for this name until it expires, and
+  nothing sent from the server reaches it sooner. If the dashboard ever had to be served without https, every
+  returning visitor would see an error instead.
+- **It protects returning visitors only.** The first visit is still the redirect; only `preload` closes that, and
+  it is the part this decision leaves out.
+- **The Worker's responses do not carry it.** Browsers take HSTS from any https response on the name, and the pages
+  are always fetched first, so the API paths do not need their own copy. A test here reads `_headers` and cannot
+  show what the edge actually sends; the live check after deploy does.
+- **Four features is a short list.** The policy names what the hub names, not everything a browser can grant. A
+  feature it does not name is still allowed by default.
 
 ---
 
