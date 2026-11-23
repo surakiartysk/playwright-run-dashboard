@@ -1,7 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, request, settle } from './helpers'
-import { createToken } from '../src/auth'
+import { emailFor, migrate, request, sessionFor, settle, sharedSandbox } from './helpers'
 import { mintKey } from '../src/apiKeys'
 import { DEV_TOKEN_SECRET } from '../src/config'
 import type { Role } from '../src/types'
@@ -10,8 +9,7 @@ beforeEach(migrate)
 
 /** A signed-in caller of the given role. */
 async function auth(role: Role): Promise<Record<string, string>> {
-  const { token } = await createToken(DEV_TOKEN_SECRET, role)
-  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+  return { Cookie: await sessionFor(role), 'Content-Type': 'application/json' }
 }
 
 /** Mints a key through the API, the way an admin would, and returns its plaintext. */
@@ -42,8 +40,9 @@ async function issuedBeforeTheRoleNarrowed(input: {
     ...input,
   })
   await env.DB.prepare(
-    `INSERT INTO api_keys (id, hash, label, role, allowed_refs, max_workers, created_by, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    `INSERT INTO api_keys (id, hash, label, role, allowed_refs, max_workers, created_by, created_at,
+                           sandbox_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
   )
     .bind(
       row.id,
@@ -54,6 +53,7 @@ async function issuedBeforeTheRoleNarrowed(input: {
       row.max_workers,
       row.created_by,
       row.created_at,
+      (await sharedSandbox()).id,
     )
     .run()
   return { plaintext }
@@ -65,7 +65,7 @@ const withKey = (plaintext: string) => ({
 })
 
 describe('who may issue a key', () => {
-  it.each(['dev', 'qa', 'demo'] as const)('refuses %s', async (role) => {
+  it.each(['dev', 'qa'] as const)('refuses %s', async (role) => {
     const response = await request('/keys', {
       method: 'POST',
       headers: await auth(role),
@@ -110,7 +110,7 @@ describe('who may issue a key', () => {
     expect(response.status).toBe(422)
   })
 
-  it('refuses a demo key, which could never dispatch anything', async () => {
+  it('refuses the retired demo role', async () => {
     const response = await request('/keys', {
       method: 'POST',
       headers: await auth('admin'),
@@ -363,7 +363,9 @@ describe('what a key may do', () => {
    * to it. A pipeline that must run during a freeze asks for a qa-level key.
    */
   it('is gated exactly as a developer is', async () => {
-    await env.DB.prepare(`UPDATE run_gate SET mode = 'closed' WHERE id = 1`).run()
+    await env.DB.prepare(`UPDATE sandbox_gate SET mode = 'closed' WHERE sandbox_id = ?1`)
+      .bind((await sharedSandbox()).id)
+      .run()
 
     const { plaintext } = await issue({ role: 'dev' })
 
@@ -377,7 +379,9 @@ describe('what a key may do', () => {
   })
 
   it('is not gated when it carries qa, as a person would not be', async () => {
-    await env.DB.prepare(`UPDATE run_gate SET mode = 'closed' WHERE id = 1`).run()
+    await env.DB.prepare(`UPDATE sandbox_gate SET mode = 'closed' WHERE sandbox_id = ?1`)
+      .bind((await sharedSandbox()).id)
+      .run()
 
     const { plaintext } = await issue({ role: 'qa' })
 
@@ -466,12 +470,14 @@ describe('listing and revoking', () => {
         'allowedRefs',
         'createdAt',
         'createdBy',
+        'expiresAt',
         'id',
         'label',
         'lastUsedAt',
         'maxWorkers',
         'revokedAt',
         'role',
+        'selfServe',
       ].sort(),
     )
   })
@@ -509,29 +515,16 @@ describe('listing and revoking', () => {
  * "who issued this?" is half of that decision.
  */
 describe('a key records who issued it', () => {
-  it('records the name the admin signed in with', async () => {
-    const { token } = await createToken(DEV_TOKEN_SECRET, 'admin', 'Nok')
-
-    const response = await request('/keys', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
-    })
-
-    expect(response.status).toBe(201)
-    const { key } = (await response.json()) as { key: { createdBy: string } }
-    expect(key.createdBy).toContain('Nok')
-  })
-
-  it('falls back to the role when the admin gave no name', async () => {
+  it('records the account the admin signed in as', async () => {
     const response = await request('/keys', {
       method: 'POST',
       headers: await auth('admin'),
       body: JSON.stringify({ label: 'deploy pipeline', role: 'qa' }),
     })
 
+    expect(response.status).toBe(201)
     const { key } = (await response.json()) as { key: { createdBy: string } }
-    expect(key.createdBy).toBe('admin')
+    expect(key.createdBy).toBe(emailFor('admin'))
   })
 })
 
@@ -631,9 +624,9 @@ describe('an API key may still work the run gate', () => {
 
     expect(response.status).toBe(200)
 
-    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
-      updated_by: string
-    }>()
+    const row = await env.DB.prepare('SELECT updated_by FROM sandbox_gate WHERE sandbox_id = ?1')
+      .bind((await sharedSandbox()).id)
+      .first<{ updated_by: string }>()
     expect(row?.updated_by).toBe('key:release pipeline')
   })
 })

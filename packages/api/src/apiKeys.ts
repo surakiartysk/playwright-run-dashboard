@@ -33,8 +33,10 @@ export interface ApiKeyRow {
   revoked_at: string | null
   /** Null for a key that does not expire. See migration 0012. */
   expires_at: string | null
-  /** 1 for a key the dashboard issued to a visitor, not one an admin issued. */
+  /** 1 for a key a visitor minted for themselves, 0 for one an admin issued. */
   sandbox: number
+  /** The sandbox the key acts in and dies with. Null only on keys from before sandboxes. */
+  sandbox_id: string | null
 }
 
 /**
@@ -90,6 +92,7 @@ export async function mintKey(
       revoked_at: null,
       expires_at: null,
       sandbox: 0,
+      sandbox_id: null,
     },
   }
 }

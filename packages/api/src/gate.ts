@@ -105,6 +105,9 @@ export function resolveGate(row: GateRow | null, now: Date): GateStatus {
 /** Whether the gate applies to this role at all. */
 export const gateApplies = (role: Role): boolean => role === 'dev'
 
-export async function loadGate(db: D1Database): Promise<GateRow | null> {
-  return db.prepare('SELECT * FROM run_gate WHERE id = 1').first<GateRow>()
+export async function loadGate(db: D1Database, sandboxId: string): Promise<GateRow | null> {
+  return db
+    .prepare('SELECT * FROM sandbox_gate WHERE sandbox_id = ?1')
+    .bind(sandboxId)
+    .first<GateRow>()
 }

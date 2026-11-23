@@ -1,16 +1,36 @@
 import { describe, expect, it, beforeAll, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, as, request, runCount } from './helpers'
-import { createToken } from '../src/auth'
-import { DEV_TOKEN_SECRET } from '../src/config'
+import {
+  migrate,
+  as,
+  emailFor,
+  makeTestSandbox,
+  request,
+  runCount,
+  sessionFor,
+  sharedSandbox,
+} from './helpers'
 
 beforeAll(migrate)
 
-// The gate is one shared row, so each test sets the state it needs.
-const setGate = (mode: string, opensAt: string | null = null, closesAt: string | null = null) =>
-  env.DB.prepare('UPDATE run_gate SET mode = ?1, opens_at = ?2, closes_at = ?3 WHERE id = 1')
-    .bind(mode, opensAt, closesAt)
+// The gate is the file's sandbox's one row, so each test sets the state it needs.
+const setGate = async (
+  mode: string,
+  opensAt: string | null = null,
+  closesAt: string | null = null,
+) =>
+  env.DB.prepare(
+    'UPDATE sandbox_gate SET mode = ?1, opens_at = ?2, closes_at = ?3 WHERE sandbox_id = ?4',
+  )
+    .bind(mode, opensAt, closesAt, (await sharedSandbox()).id)
     .run()
+
+const updatedBy = async () =>
+  (
+    await env.DB.prepare('SELECT updated_by FROM sandbox_gate WHERE sandbox_id = ?1')
+      .bind((await sharedSandbox()).id)
+      .first<{ updated_by: string }>()
+  )?.updated_by
 
 beforeEach(() => setGate('open'))
 
@@ -134,11 +154,7 @@ describe('PUT /gate', () => {
       body: JSON.stringify({ mode: 'closed' }),
     })
 
-    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
-      updated_by: string
-    }>()
-
-    expect(row?.updated_by).toBe('admin')
+    expect(await updatedBy()).toBe(emailFor('admin'))
   })
 
   /**
@@ -169,63 +185,53 @@ describe('PUT /gate', () => {
  * Who closed the gate, and whether anyone can find out.
  *
  * Migration 0003 gives `updated_by` its reason in one line: "Who last changed
- * it, so 'why can't I run anything?' has an answer." It was not answering.
- * The column was bound to the caller's *role*, and the admin password is
- * shared — so every row said 'admin', which is the same non-answer that
- * migration 0007 exists to fix for runs. And nothing read the column back:
- * GET /gate returned the resolved state and dropped it, so even the wrong
- * answer never reached anyone.
+ * it, so 'why can't I run anything?' has an answer." It records the account,
+ * and GET /gate hands it to the developer it blocks.
  */
 describe('PUT /gate — who changed it', () => {
-  const putGate = async (name: string | undefined, mode = 'closed') => {
-    const { token } = await createToken(DEV_TOKEN_SECRET, 'admin', name)
-    return request('/gate', {
+  const putGate = (mode = 'closed') =>
+    as('admin', '/gate', {
       method: 'PUT',
-      headers: { Cookie: `session=${token}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode }),
     })
-  }
-
-  it('records the name the admin signed in with, not just the role', async () => {
-    expect((await putGate('Nok')).status).toBe(200)
-
-    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
-      updated_by: string
-    }>()
-
-    expect(row?.updated_by).toContain('Nok')
-  })
-
-  it('falls back to the role when the admin gave no name', async () => {
-    expect((await putGate(undefined)).status).toBe(200)
-
-    const row = await env.DB.prepare('SELECT updated_by FROM run_gate WHERE id = 1').first<{
-      updated_by: string
-    }>()
-
-    expect(row?.updated_by).toBe('admin')
-  })
 
   it('shows a blocked dev who closed the gate and when', async () => {
-    await putGate('Nok')
-
-    const response = await as('dev', '/gate')
-    const body = (await response.json()) as { updatedBy: string | null; updatedAt: string | null }
-
-    // The developer who cannot run is precisely who this column was for.
-    expect(body.updatedBy).toContain('Nok')
-    expect(body.updatedAt).toBeTruthy()
-  })
-
-  it('does not name them to demo, whose password is published', async () => {
-    await putGate('Nok')
-
-    const body = (await (await as('demo', '/gate')).json()) as {
+    await putGate()
+    const body = (await (await as('dev', '/gate')).json()) as {
       updatedBy: string | null
       updatedAt: string | null
     }
-
-    expect(body.updatedBy).toBeNull()
+    // The developer who cannot run is precisely who this column was for.
+    expect(body.updatedBy).toBe(emailFor('admin'))
     expect(body.updatedAt).toBeTruthy()
+  })
+})
+
+/** Each sandbox has its own gate: closing one stops nobody else. */
+describe('the gate belongs to its sandbox', () => {
+  it('does not close another sandbox’s gate', async () => {
+    await setGate('closed')
+    const other = await makeTestSandbox()
+    const response = await request('/runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('dev', other) },
+      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
+    })
+    expect(response.status).toBe(201)
+  })
+
+  it('records a change in the sandbox’s activity', async () => {
+    await as('admin', '/gate', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'closed' }),
+    })
+    const row = await env.DB.prepare(
+      `SELECT detail FROM audit_log WHERE sandbox_id = ?1 AND action = 'gate-changed' ORDER BY id DESC`,
+    )
+      .bind((await sharedSandbox()).id)
+      .first<{ detail: string }>()
+    expect(row?.detail).toBe('closed')
   })
 })

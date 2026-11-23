@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { HonoEnv } from '../types'
 import { actorFor, requireRole, requireSession } from '../auth'
 import { gateApplies, loadGate, resolveGate, type GateMode } from '../gate'
+import { record } from '../audit'
 
 export const gateRoutes = new Hono<HonoEnv>()
 
@@ -16,7 +17,7 @@ gateRoutes.use('*', requireSession)
  */
 gateRoutes.get('/', async (c) => {
   const role = c.get('role')
-  const row = await loadGate(c.env.DB)
+  const row = await loadGate(c.env.DB, c.get('sandboxId'))
   const status = resolveGate(row, new Date())
 
   return c.json({
@@ -29,15 +30,10 @@ gateRoutes.get('/', async (c) => {
      * Migration 0003 gives the column exactly this purpose — "so 'why can't I
      * run anything?' has an answer" — and no endpoint read it back, so the
      * answer existed in the database and nowhere a blocked developer could
-     * reach it. Null on a database nobody has touched since the migration
-     * seeded it.
-     *
-     * Withheld from `demo`, whose password is published: the column holds the
-     * name an admin signed in with, or a key's label, and a stranger has no
-     * use for either. The time stays — it answers "since when" without naming
-     * anyone.
+     * reach it. Null on a sandbox whose gate nobody has changed. Shown to
+     * everyone in the sandbox: it names one of the sandbox's own accounts.
      */
-    updatedBy: role === 'demo' ? null : (row?.updated_by ?? null),
+    updatedBy: row?.updated_by ?? null,
     updatedAt: row?.updated_at ?? null,
   })
 })
@@ -79,9 +75,9 @@ gateRoutes.put('/', requireRole('admin'), async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE run_gate
+    `UPDATE sandbox_gate
         SET mode = ?1, opens_at = ?2, closes_at = ?3, updated_at = ?4, updated_by = ?5
-      WHERE id = 1`,
+      WHERE sandbox_id = ?6`,
   )
     .bind(
       mode,
@@ -91,8 +87,10 @@ gateRoutes.put('/', requireRole('admin'), async (c) => {
       // The person, not only the role — see actorFor. Every row said 'admin'
       // before this, which is what migration 0003 wrote the column to avoid.
       actorFor(c),
+      c.get('sandboxId'),
     )
     .run()
+  await record(c.env.DB, c.get('sandboxId'), actorFor(c), 'gate-changed', mode)
 
-  return c.json(resolveGate(await loadGate(c.env.DB), new Date()))
+  return c.json(resolveGate(await loadGate(c.env.DB, c.get('sandboxId')), new Date()))
 })

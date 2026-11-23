@@ -45,6 +45,25 @@ const FALLBACK_REFS = ['main', 'develop']
  */
 export const MAX_PATTERN_REFS = 10
 
+/**
+ * The branches the demo offers, as if read from a suite's repository.
+ *
+ * Made up, and said to be: nothing is dispatched, so there is no repository to
+ * ask. They exist so each role's list differs the way it would on a real
+ * deployment — `dev` gets `main`, `qa` adds `develop` and the release branches,
+ * `admin` gets every one.
+ */
+export const DEMO_BRANCHES: readonly string[] = [
+  'main',
+  'develop',
+  'release/1.0.0',
+  'release/1.1.0',
+  'feature/checkout-flow',
+]
+
+/** Workers a run gets when the request names none, lowered to the caller's ceiling. */
+export const DEFAULT_WORKERS = 4
+
 /** Version-aware, so `release/1.10.0` sorts above `release/1.9.0`. */
 const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true })
 

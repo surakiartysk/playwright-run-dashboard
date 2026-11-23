@@ -29,14 +29,6 @@ export interface RolePolicy {
 }
 
 export const POLICIES: Record<Role, RolePolicy> = {
-  // The public-facing tier. Its safety does not come from allowedRefs or
-  // maxWorkers here — those are the same courtesy limits every role gets. It
-  // comes from dispatchWorkflow refusing this role a real dispatch regardless
-  // of SIMULATE_DISPATCH, and from visibilityClause below scoping it to runs
-  // started as demo — every visitor's, since they share the role. See
-  // decision 12.
-  demo: { allowedRefs: ['main'], maxWorkers: 2, canDelete: false },
-
   // `ref` is a branch of the TEST SUITE, not of the product under test.
   //
   // That distinction is the whole reason these two rows differ, and reading it
@@ -96,55 +88,24 @@ export function mayUseRef(role: Role, ref: string): boolean {
 }
 
 /**
- * The SQL fragment restricting which runs a role may read, plus enough of the
- * decision to re-check a single already-fetched row without a second query.
+ * The SQL fragment restricting which runs a caller may read (decision 52).
  *
- * Returned as a fragment rather than applied by filtering in JavaScript: the
- * database must not hand over rows the caller may not see, because the moment
- * that filtering moves into the handler someone adds an endpoint that forgets
- * it. An empty `sql` means no restriction.
+ * Two questions, both answered in the query rather than by filtering in
+ * JavaScript, so a handler that forgets to filter still cannot be handed a row
+ * it should not see:
  *
- * `column` and `value` name what the fragment actually checks, so a caller
- * holding one row already (`GET /runs/:id`) can repeat the same test in
- * JavaScript instead of assuming — as an earlier version of this function
- * did — that visibility is always about `ref`. `demo` broke that assumption
- * on purpose: it is scoped by who triggered the run, not which branch.
+ * 1. Whose runs: the real ones, reported by the suites' own CI (no sandbox,
+ *    not simulated), and this caller's sandbox's. Never another sandbox's.
+ *    Simulated rows from before sandboxes existed have no sandbox either;
+ *    `simulated = 0` is what keeps them from passing as real.
+ * 2. Which of those the role may see: `dev` sees `main` only. The suites a
+ *    developer is told about are the ones that are themselves stable.
+ *
+ * Returned as a fragment with its parameters, applied with AND to whatever
+ * else a query asks.
  */
-export function visibilityClause(
-  role: Role,
-): { sql: string; params: string[] } & (
-  { column: null; value: null } | { column: string; value: string }
-) {
-  if (role === 'dev') return { sql: 'ref = ?', params: ['main'], column: 'ref', value: 'main' }
-  if (role === 'demo') {
-    return { sql: 'triggered_by = ?', params: ['demo'], column: 'triggered_by', value: 'demo' }
-  }
-  return { sql: '', params: [], column: null, value: null }
-}
-
-/**
- * What a previewing demo session is not shown of another role's runs.
- *
- * Previewing is deliberately wider than demo's own scope (decision 22): the
- * point is to show what dev, qa and admin see, and on this deployment the runs
- * are of public suites against public targets. But a run carries one thing a
- * person typed — the name they gave when they signed in — and that is not
- * public: it reached the page because a real colleague said who they were, not
- * because anyone chose to publish it. A visitor with the one-click demo button
- * could read every name anyone had ever signed in with.
- *
- * So the name is withheld unless the run is the demo's own. The role stays:
- * `triggeredBy` is a role, and showing that is the point of the preview.
- *
- * @param real - the authenticated role (never the previewed one)
- * @param viewing - the role whose view is being shown
- */
-export function redactForPreview<T extends { triggeredBy: string; startedBy: string | null }>(
-  real: Role,
-  viewing: Role,
-  view: T,
-): T {
-  if (real !== 'demo' || viewing === 'demo') return view
-  if (view.triggeredBy === 'demo') return view
-  return view.startedBy === null ? view : { ...view, startedBy: null }
+export function visibilityClause(role: Role, sandboxId: string): { sql: string; params: string[] } {
+  const whose = '((sandbox_id IS NULL AND simulated = 0) OR sandbox_id = ?)'
+  if (role === 'dev') return { sql: `${whose} AND ref = ?`, params: [sandboxId, 'main'] }
+  return { sql: whose, params: [sandboxId] }
 }

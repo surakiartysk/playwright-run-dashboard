@@ -11,7 +11,6 @@ import type { Role } from '../src/types'
  * `dev` to every branch by accident. The duplication is the test.
  */
 const EXPECTED: Record<Role, { refs: string[]; maxWorkers: number; canDelete: boolean }> = {
-  demo: { refs: ['main'], maxWorkers: 2, canDelete: false },
   dev: { refs: ['main'], maxWorkers: 4, canDelete: false },
   qa: { refs: ['main', 'develop', 'release/*'], maxWorkers: 8, canDelete: false },
   admin: { refs: ['*'], maxWorkers: 16, canDelete: true },
@@ -48,9 +47,8 @@ describe('mayUseRef', () => {
     expect(mayUseRef('qa', 'feature/anything')).toBe(false)
   })
 
-  it('does not give dev or demo a release branch', () => {
+  it('does not give dev a release branch', () => {
     expect(mayUseRef('dev', 'release/1.0.0')).toBe(false)
-    expect(mayUseRef('demo', 'release/1.0.0')).toBe(false)
   })
 
   it('lets admin use any ref, via the wildcard', () => {
@@ -123,34 +121,29 @@ describe('matchesRef', () => {
   })
 })
 
+/**
+ * Unit checks on the fragment's shape. What it lets through is checked against
+ * D1 in sandboxes.test.ts, where rows of two sandboxes and the real ones meet.
+ */
 describe('visibilityClause', () => {
-  it('restricts dev to main-branch runs', () => {
-    expect(visibilityClause('dev')).toMatchObject({ sql: 'ref = ?', params: ['main'] })
-  })
+  const SANDBOX = '0123456789abcdef0123456789abcdef'
+  const WHOSE = '((sandbox_id IS NULL AND simulated = 0) OR sandbox_id = ?)'
 
-  /**
-   * demo is scoped by who triggered the run, not by ref — a different column
-   * from dev's. That is exactly the assumption GET /runs/:id used to hardcode
-   * (`row.ref !== visibility.params[0]`), so this pins the column explicitly
-   * rather than only the SQL string.
-   */
-  it('restricts demo to runs it triggered itself', () => {
-    expect(visibilityClause('demo')).toMatchObject({
-      sql: 'triggered_by = ?',
-      params: ['demo'],
-      column: 'triggered_by',
-      value: 'demo',
+  it('restricts dev to main-branch runs, of the real ones and its own sandbox', () => {
+    expect(visibilityClause('dev', SANDBOX)).toEqual({
+      sql: `${WHOSE} AND ref = ?`,
+      params: [SANDBOX, 'main'],
     })
   })
 
-  it.each(['qa', 'admin'] as Role[])('does not restrict %s', (role) => {
-    expect(visibilityClause(role)).toMatchObject({ sql: '', params: [], column: null })
+  it.each(['qa', 'admin'] as Role[])('gives %s every branch, of the same runs', (role) => {
+    expect(visibilityClause(role, SANDBOX)).toEqual({ sql: WHOSE, params: [SANDBOX] })
   })
 
   // The clause is interpolated into SQL, so it must never carry a value.
-  it.each(['dev', 'demo'] as Role[])('parameterises %s rather than inlining the value', (role) => {
-    const clause = visibilityClause(role)
-    expect(clause.sql).not.toContain(clause.value)
+  it.each(['dev', 'qa', 'admin'] as Role[])('parameterises %s rather than inlining', (role) => {
+    const clause = visibilityClause(role, SANDBOX)
+    expect(clause.sql).not.toContain(SANDBOX)
     expect(clause.sql.match(/\?/g)).toHaveLength(clause.params.length)
   })
 })
