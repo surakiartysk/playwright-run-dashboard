@@ -12,7 +12,14 @@
 # has no inline script and no eval; styles may be inline, because the UI sets every
 # style through React's style attribute and its palette lives in a <style> block;
 # the fonts are Google's, and nothing else is fetched from anywhere but here.
+#
+# Strict-Transport-Security and Permissions-Policy (decision 51): the browser goes
+# straight to https for a year after its first visit, and the page may not ask for
+# the camera, microphone, location or payment, none of which it uses. The hub
+# sends the same pair.
 
 /*
   Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
