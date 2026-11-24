@@ -421,16 +421,19 @@ describe('the runs the chart does not draw', () => {
     expect(clean).not.toContain('not drawn')
   })
 
-  it('leave the newest-run figure in a colour meant for text', () => {
-    const passed = renderToStaticMarkup(
-      createElement(RunTrend, { runs: [run('passed'), run('failed'), run('passed')] }),
-    )
-    const failed = renderToStaticMarkup(
+  /*
+   * The card is the chart and its range, not a third headline figure. Its
+   * "Newest run 100%" sat beside the summary's pass rate over every run, and
+   * two percentages a few centimetres apart read as one disagreeing with the
+   * other.
+   */
+  it('leave the card without a headline percentage of its own', () => {
+    const html = renderToStaticMarkup(
       createElement(RunTrend, {
         runs: [run('failed', { passed: 8 }), run('passed'), run('passed')],
       }),
     )
-    expect(passed).toMatch(/color:var\(--c-pass\)[^>]*>100%/)
-    expect(failed).toMatch(/color:var\(--c-danger\)[^>]*>80%/)
+    expect(html).not.toContain('Newest run')
+    expect(html).not.toMatch(/>\d+%</)
   })
 })

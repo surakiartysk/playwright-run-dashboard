@@ -1,3 +1,5 @@
+import type { Run } from './api'
+
 /**
  * Which row of the run list is open, and whether its Delete is being asked about.
  *
@@ -82,4 +84,46 @@ export function linkNotice(
   return filtered
     ? `${which} is not in the list: the filters hide it.`
     : `${which} is further down the list than has been loaded.`
+}
+
+/**
+ * Where a run's numbers came from, as the chip on its row.
+ *
+ * Both kinds sit in one list (decision 52), and the real ones are the point of
+ * the demo: proof the dashboard is wired to suites that run. They used to carry
+ * nothing while the simulated ones carried "simulated", so a page of real runs
+ * looked exactly like a page of invented ones. Every row now says which it is.
+ *
+ * `ci` is a suite's own scheduled run reporting in. Any other real run is from
+ * before the dashboard stopped dispatching, when a person started it here.
+ */
+export interface Origin {
+  label: string
+  title: string
+  real: boolean
+}
+
+export function runOrigin(run: Pick<Run, 'simulated' | 'triggeredBy'>): Origin {
+  if (run.simulated) {
+    return {
+      label: 'simulated',
+      title:
+        'No workflow ran: these numbers come from the simulator, and Report opens a shared sample.',
+      real: false,
+    }
+  }
+  if (run.triggeredBy === 'ci') {
+    return {
+      label: 'real · CI',
+      title:
+        "The suite's own daily CI ran this on GitHub Actions and reported it here. Every visitor sees it; nobody can change it.",
+      real: true,
+    }
+  }
+  return {
+    label: 'real',
+    title:
+      'A real workflow on GitHub Actions, started here back when the dashboard still dispatched runs.',
+    real: true,
+  }
 }

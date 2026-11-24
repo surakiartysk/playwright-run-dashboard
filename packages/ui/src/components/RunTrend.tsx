@@ -380,28 +380,16 @@ export function RunTrend({ runs, collapsible = false }: { runs: Run[]; collapsib
             )}
           </p>
         </div>
-        {/*
-          Labelled, because the summary above also says "pass rate" and means
-          something else: that one is every run, this one is the newest. Two
-          unlabelled percentages a few centimetres apart, disagreeing, is a
-          reader's problem to solve rather than the page's to state.
-        */}
-        <div style={s.latestWrap}>
-          <div style={s.latestLabel}>Newest run</div>
-          {/*
-            Themed text colours rather than the status literals: this is a figure
-            to read, 22px and not bold, and the literals are marks, held to the 3:1 of a mark
-            and not the 4.5:1 of text.
-          */}
-          <div style={{ ...s.latest, color: latest.passed ? c.pass : c.danger }}>
-            {Math.round(latest.rate)}%
-          </div>
-        </div>
       </header>
 
-      <p style={{ ...s.failureLine, color: failing > 0 ? c.danger : c.t3 }}>
-        {failureSummary(points).text}
-      </p>
+      {/*
+        No headline figure here. This card used to carry the newest run's
+        percentage and "N of the last M runs did not pass" beside the summary's
+        pass rate and Failing count: four numbers over two different sets of
+        runs (the chart leaves out runs with no results), and a reader had to
+        work out why 6 failing and 4 not passing were both true. The summary
+        states the figures; this card is the shape of them.
+      */}
 
       <svg
         viewBox={`0 0 ${PLOT_WIDTH} ${CHART_HEIGHT}`}
@@ -561,23 +549,6 @@ const s: Record<string, CSSProperties> = {
   },
   title: { fontSize: 15, fontWeight: 600, color: c.t1, margin: 0 },
   sub: { margin: '3px 0 0', fontSize: 13, color: c.t5 },
-  failureLine: { margin: '0 0 10px', fontSize: 13, fontWeight: 600 },
-  latestWrap: { textAlign: 'right' },
-  latestLabel: {
-    fontSize: 11,
-    color: c.t5,
-    textTransform: 'uppercase',
-    letterSpacing: '0.07em',
-    fontWeight: 500,
-  },
-  latest: {
-    ...mono,
-    fontSize: 22,
-    fontWeight: 650,
-    letterSpacing: '-0.02em',
-    lineHeight: 1,
-  },
-
   /*
    * Fixed height, equal to CHART_HEIGHT (the viewBox), so the stretch is horizontal only.
    * Nothing is drawn outside the box any more — bars sit on

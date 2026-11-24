@@ -304,6 +304,23 @@ describe('the list marks a run a key started', () => {
       }),
     )
 
+  /*
+   * Every row says where its numbers came from. The real ones used to say
+   * nothing, so a page of them looked like a page of invented runs.
+   */
+  it('marks each run real or simulated, the real one solid and green', () => {
+    const out = html([
+      runRow({ id: 'a', simulated: false, triggeredBy: 'ci' }),
+      runRow({ id: 'b', simulated: true }),
+      runRow({ id: 'c', simulated: false, triggeredBy: 'qa' }),
+    ])
+    expect(out.match(/>real · CI</g)).toHaveLength(1)
+    expect(out.match(/>simulated</g)).toHaveLength(1)
+    expect(out.match(/>real</g)).toHaveLength(1)
+    expect(out).toMatch(/border:1px solid var\(--c-pass\)[^>]*>real · CI</)
+    expect(out).toMatch(/border:1px dashed[^>]*>simulated</)
+  })
+
   it('puts “via key” on that run and no other', () => {
     const out = html([
       runRow({ id: 'a', viaKey: true }),
