@@ -33,7 +33,7 @@ export const STALE_AFTER_MS = 30 * 60 * 1000
  * the cutoff: a run exactly at the limit still has its full time.
  *
  * Only `queued` and `running` are touched. A run that has a result keeps it,
- * and a run the dispatch already failed (`error`) keeps that.
+ * and a run that already ended in `error` keeps that.
  *
  * It does not forbid the real result arriving later. The webhook updates by id
  * with no condition on the current status, so a callback that turns up after

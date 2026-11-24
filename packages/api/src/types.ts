@@ -3,16 +3,14 @@
  *
  * Every secret has a development default. That is a deliberate trade: a repo
  * that cannot start without a handful of secrets is a repo nobody starts. The
- * defaults are obviously fake, and `assertDeployable` refuses to serve a
- * deployment that sets `SIMULATE_DISPATCH` to `false` while still on them. The
- * gap is the deployment that forgets the flag: it simulates, and quietly keeps
- * any default it was not given — the trap github.ts describes.
+ * defaults are obviously fake, and `assertDeployable` refuses to serve them on
+ * any host but a local one (decision 52).
  */
 
 export type Role = 'dev' | 'qa' | 'admin'
 
 /**
- * Which suite a run belongs to, and so which repository it is dispatched to.
+ * Which suite a run belongs to: which repository's tests it is, or would be.
  *
  * A closed union rather than a free string: these are the two repositories
  * this deployment knows how to reach, and a third would need its own

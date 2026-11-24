@@ -105,7 +105,7 @@ runRoutes.post('/', async (c) => {
   /*
    * Omitted means the suites' default, lowered to what this caller may use.
    * It used to be checked only when it was sent: leave it out and the
-   * dispatch filled in 4 — past `demo`'s 2 and past any key limited below 4.
+   * dispatch filled in 4 — past any key limited below 4.
    */
   const workers = body.workers ?? Math.min(DEFAULT_WORKERS, policy.maxWorkers)
   const ref = body.ref ?? 'main'
@@ -122,9 +122,10 @@ runRoutes.post('/', async (c) => {
    *
    * A pattern let through anything shaped like a name: the API suite's run of
    * `cart` (a UI-suite group) and a tag nobody defined were both accepted, and
-   * simulation reported each one green in everyone's history. Deployed, the
-   * workflow would refuse the dispatch for an input it does not accept. The
-   * names are in `SUITE_OPTIONS`, which is also what the form offers.
+   * simulation reported each one green in everyone's history. A real
+   * workflow would refuse an input it does not accept, and the simulator
+   * should not report green for one either. The names are in `SUITE_OPTIONS`,
+   * which is also what the form offers.
    */
   const offered = SUITE_OPTIONS[suite]
   if (!service || !offered.services.includes(service)) {
@@ -147,9 +148,9 @@ runRoutes.post('/', async (c) => {
    * This used to be refused. The suites' workflows took a single `scope` input
    * whose values were a union of tag names and service names, so a request
    * naming both could only be honoured by dropping one — and the run row went
-   * on recording the one that was dropped (decision 26). Both suites now take
-   * an optional second input, `tag`, and `dispatchWorkflow` sends it only when
-   * both are named, so the request is passed on whole instead of narrowed.
+   * on recording the one that was dropped (decision 26). Both suites came to
+   * take an optional second input, `tag`, so the pair is a request a suite can
+   * honour, and it is recorded whole.
    *
    * What is still not checked here is whether any test carries the pair. A
    * combination nothing matches (`items` with `flow`) is a run the suite fails

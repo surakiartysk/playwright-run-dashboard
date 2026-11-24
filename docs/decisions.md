@@ -60,6 +60,7 @@ interviewer should press on hardest.
 49. [Four lows from a security review, and the one left as it was](#49-four-lows-from-a-security-review-and-the-one-left-as-it-was)
 50. [Each suite signs with a secret of its own](#50-each-suite-signs-with-a-secret-of-its-own)
 51. [The UI asks for https and for no device access](#51-the-ui-asks-for-https-and-for-no-device-access)
+52. [A demo throughout: a sandbox for each visitor](#52-a-demo-throughout-a-sandbox-for-each-visitor)
 
 ---
 
@@ -306,13 +307,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 353 mutations were introduced
+**Every test here was proven able to fail.** In all, 379 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-297 of those are recorded individually in
+323 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -2754,6 +2755,64 @@ between them.
   show what the edge actually sends; the live check after deploy does.
 - **Four features is a short list.** The policy names what the hub names, not everything a browser can grant. A
   feature it does not name is still allowed by default.
+
+## 52. A demo throughout: a sandbox for each visitor
+
+**Context.** The dashboard was a real tool with a demo bolted on. Three roles signed in with passwords and dispatched
+real workflows; `demo` shared one run history with every visitor, could look at what the other roles saw (decision 22) and change nothing. So the parts with the most reasoning behind them — the gate, the keys, deleting — were shown
+to a visitor read-only or not at all, and the deployment held a GitHub token and three passwords that were the only
+things in it worth stealing. The owner asked for the opposite: everything a visitor can see should work, and nothing
+should be real except the evidence that it connects to real suites.
+
+**Decision.**
+
+- **Nothing is dispatched.** Every run started from the dashboard is simulated, whatever the role. `github.ts`,
+  `branches.ts`, `GITHUB_TOKEN`, the `GITHUB_*` vars and `SIMULATE_DISPATCH` are gone.
+- **A sandbox for each visitor.** "Log in to demo" makes one, for a day, with a gate, three accounts and an empty
+  activity log. Every table a visitor writes carries `sandbox_id`. `visibilityClause` returns
+  `((sandbox_id IS NULL AND simulated = 0) OR sandbox_id = ?)`, then dev's `ref = main`; every write names the
+  caller's sandbox in its `WHERE`. A cron removes an expired sandbox with everything it held.
+- **The real runs stay, and nobody can change them.** A run with no sandbox is a real one, reported by a suite's CI
+  through the webhook, and every sandbox sees it. The webhook records a run it has not seen as a new real run when the
+  callback says what ran, and it refuses to touch a sandbox's run. Old simulated rows have no sandbox either;
+  `simulated = 0` keeps them from passing as real until retention removes them.
+- **No passwords.** A session names a sandbox and an account, never a role; the role is read from the sandbox's member
+  list on every request. "Sign in with Google" is labelled a concept and is not connected to Google: it opens an
+  account chooser listing the sandbox's accounts and one on no list, and the list check behind it is the real one. An
+  account on no list is refused before a sandbox is made for it.
+- **Admin is two locks.** The account must be listed as admin, and it must give the sandbox's admin key, which buys an
+  hour in its own cookie, bound to the sandbox and the account. The key is derived per sandbox and **shown on the admin
+  page**, marked demo. Wrong keys are counted per account before they are compared, with decision 28's numbers.
+- **An admin page at `/admin`** with the gate, members (the last admin may not be removed or demoted), API keys,
+  activity and lockdown, which refuses every account and key in the sandbox but its admin. People only: keys are
+  refused there, as on `/keys` (decision 25).
+- **The deployment's secrets are decided by its host.** `assertDeployable` refuses to serve without them on any host
+  that is not a local name; with no flag, there is no `--var` to forget.
+
+Twenty-six mutations (rows 298 to 323), each failing its own test.
+
+**Trade-off.**
+
+- **Showing the admin key makes the second lock a demonstration.** The check is real and is tested, but anyone who can
+  sign in to a sandbox can read its key. In a sandbox that is the point; it means the admin page proves the mechanism
+  works, not that it keeps anyone out. A real deployment would hold the key as a secret and never serve it.
+- **The concept Google button is a picture of a sign-in.** It looks like an identity provider and is not one; the label
+  says so, and the only thing it decides is which of the sandbox's own made-up accounts is used. Someone skimming may
+  still take it for the real thing.
+- **No new real runs until the suites report on their own.** The suites' workflows post a callback only for a run
+  they were dispatched with, and nothing dispatches them now. Until their scheduled workflows send what ran, the
+  dashboard shows the real runs it already has and no more. That change is in the other two repositories.
+- **A sandbox lasts a day and then is gone.** A visitor who comes back the next day finds an empty one. Longer would
+  keep rows nobody returns to; shorter would lose a session mid-look.
+- **The limits are shared, not per visitor.** Sixty sandboxes an hour and five hundred alive, across everyone. A
+  script can use them up and turn the next visitor away for up to an hour. Per-address limits would be the usual
+  answer and are spoofable and shared behind a NAT (decision 22); Cloudflare's own rate limiting in front is the
+  place for that, and it is configuration, not code.
+- **Every request reads the member list.** One more D1 read on every call, so that a removal takes effect at once
+  rather than when a day-long session runs out.
+- **The decisions this one retires stay in this file.** 6, 12 and 22 describe a deployment that dispatched for real and
+  a role that no longer exists. They are left as they were written, because a record of why the dashboard was once
+  shaped that way is worth more than a tidy file.
 
 ---
 

@@ -241,90 +241,12 @@ if (distinct.size > 1) {
   }
 }
 
-// ── 3. What the dashboard offers and the contract test's copy of it ────────
+// ── 3. (retired) What the dashboard offered and the contract test's copy ──
 //
-// `integration-contract.test.ts` holds `DASHBOARD_OFFERS`, a hand-copied
-// duplicate of the lists the dashboard offers, which live in the API's
-// `options.ts` and reach the form through `GET /runs/options`. The duplication is
-// deliberate and explained there: importing the real lists would make that
-// test agree with the dashboard by construction, which is the one thing a
-// contract test must not do.
-//
-// The cost is that the copy can go stale. Add a service to the dropdown,
-// forget the copy, and the test still passes — it is comparing its own
-// snapshot against the workflow, not the list a user actually sees. The
-// dropdown then offers a slice the workflow rejects, and the run errors the
-// moment someone picks it.
-//
-// So a third party reads both files as text and compares them. That catches
-// drift without either side importing the other.
-
-const listOf = (text) => [...text.matchAll(/'([^']+)'/g)].map((m) => m[1])
-
-function dropdownLists() {
-  const src = readFileSync(join(ROOT, 'packages/api/src/options.ts'), 'utf8')
-  // One block, `SUITE_OPTIONS = { api: { services: [...], tags: [...] }, ui: {...} }`.
-  const block = src.match(/export const SUITE_OPTIONS[\s\S]*?\n\}/)?.[0]
-  const grab = (suite, kind) => {
-    if (!block) return undefined
-    const seg = block.match(new RegExp(`\\b${suite}:\\s*\\{([\\s\\S]*?)\\n  \\}`))?.[1]
-    const inner = seg?.match(new RegExp(`${kind}:\\s*\\[([^\\]]*)\\]`))?.[1]
-    return inner === undefined ? undefined : listOf(inner)
-  }
-  return {
-    api: { services: grab('api', 'services'), tags: grab('api', 'tags') },
-    ui: { services: grab('ui', 'services'), tags: grab('ui', 'tags') },
-  }
-}
-
-function contractCopy() {
-  const src = readFileSync(join(ROOT, 'packages/api/test/integration-contract.test.ts'), 'utf8')
-  const block = src.match(/const DASHBOARD_OFFERS[\s\S]*?\n {2}\}/)?.[0]
-  if (!block) return undefined
-  const grab = (suite) => {
-    const seg = block.match(new RegExp(`\\b${suite}:\\s*\\{([\\s\\S]*?)\\}`))?.[1]
-    if (seg === undefined) return undefined
-    const services = seg.match(/services:\s*\[([^\]]*)\]/)?.[1]
-    const tags = seg.match(/tags:\s*\[([^\]]*)\]/)?.[1]
-    if (services === undefined || tags === undefined) return undefined
-    return { services: listOf(services), tags: listOf(tags) }
-  }
-  return { api: grab('api'), ui: grab('ui') }
-}
-
-{
-  const offered = dropdownLists()
-  const copied = contractCopy()
-
-  // A check that cannot find what it reads must say so rather than pass. This
-  // is the failure the hub's own tripwire hit: a rewrite moved the wording it
-  // grepped for, and it correctly refused to report success it could not
-  // verify.
-  if (!copied) {
-    problems.push(
-      'integration-contract.test.ts: could not read DASHBOARD_OFFERS — this check cannot compare it to the dropdown',
-    )
-  }
-
-  for (const suite of ['api', 'ui']) {
-    for (const kind of ['services', 'tags']) {
-      const mine = offered[suite]?.[kind]
-      const theirs = copied?.[suite]?.[kind]
-      if (!mine) {
-        problems.push(
-          `options.ts: could not read the ${suite} ${kind} list — this check cannot compare it to the contract test`,
-        )
-        continue
-      }
-      if (!theirs) continue
-      if (mine.join() !== theirs.join()) {
-        problems.push(
-          `the ${suite} ${kind} dropdown offers [${mine.join(', ')}] but integration-contract.test.ts checks [${theirs.join(', ')}]`,
-        )
-      }
-    }
-  }
-}
+// This compared the run form's lists with a hand-copied list in the contract
+// test, so the dropdown could not offer a slice a suite's workflow would refuse
+// on dispatch. Nothing is dispatched since decision 52, so there is no workflow
+// to refuse it, and the copy went with the dispatch half of the test.
 
 // ── 4. The decisions document's own contents ───────────────────────────────
 //

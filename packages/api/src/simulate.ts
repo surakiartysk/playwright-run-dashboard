@@ -5,8 +5,8 @@ import { sampleFailures } from './details'
 /**
  * Walks a simulated run through the states a real one would pass through.
  *
- * Runs for any caller whose dispatch was simulated — `SIMULATE_DISPATCH` being
- * on, or the `demo` role, which always simulates (decision 12). It exists so
+ * Runs for every run started from the dashboard, since nothing is dispatched
+ * any more (decision 52). It exists so
  * the dashboard can be *used* — queued, then running, then a result and a
  * report — rather than demonstrated with a screenshot.
  *
@@ -82,8 +82,7 @@ export function outcome(
  * it eventually, but not for thirty minutes, and an error the simulator knows
  * about should be recorded as one now. CLAUDE.md names that symptom as
  * what the worst deployment failure here looked like from outside, and the
- * real dispatch path already records its own failures as `error`, so this is
- * the simulator catching up with the rule rather than a new one.
+ * dispatch path, while there was one, recorded its own failures as `error`.
  *
  * Guarded on `status IN ('queued', 'running')` for the same reason the
  * finishing write is: a webhook that landed while the simulator was failing

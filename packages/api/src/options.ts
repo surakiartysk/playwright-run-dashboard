@@ -76,8 +76,8 @@ const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric
  * each; picking either made GitHub refuse the dispatch, and the run was
  * recorded as an error for choosing something the form had offered.
  *
- * `existing` is null when the branches could not be read (no token, GitHub
- * unreachable, a simulated deployment). Then the policy's own list stands — and
+ * `existing` is null when the branches are not known — today it is always the
+ * fixed `DEMO_BRANCHES`, so this is the general rule. Then the policy's own list stands — and
  * for a role that may use any branch, which a list cannot enumerate, the common
  * ones. A pattern cannot be enumerated either, so with nothing to read it
  * contributes nothing rather than offering `release/*` as if it were a branch.
