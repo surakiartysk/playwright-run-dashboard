@@ -37,7 +37,7 @@ export interface HistoryFilters {
 
 export const NO_FILTERS: HistoryFilters = {}
 
-const ROLES: readonly Role[] = ['demo', 'dev', 'qa', 'admin']
+const ROLES: readonly Role[] = ['dev', 'qa', 'admin']
 const NAME = /^[a-z][a-z0-9-]*$/
 const REF = /^[a-zA-Z0-9._\-/]+$/
 
@@ -111,9 +111,9 @@ export function narrow(
 /**
  * Who a viewer may usefully filter by.
  *
- * Only the roles that see every run: for a developer (main only) or a demo
- * session (its own) the answer to "started by" is mostly one value, and a
- * control with one useful choice is clutter.
+ * Only the roles that see every branch: for a developer (main only) the
+ * answer to "started by" is mostly one value, and a control with one useful
+ * choice is clutter.
  */
 export const canFilterByStarter = (viewing: Role): boolean =>
   viewing === 'qa' || viewing === 'admin'

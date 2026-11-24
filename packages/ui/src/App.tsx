@@ -3,21 +3,21 @@ import {
   ApiError,
   api,
   isPending,
-  type Role,
+  type Me,
   type RolePolicy,
   type Run,
   type RunOptions,
 } from './api'
 import { Login } from './components/Login'
-import { RoleSwitcher } from './components/RoleSwitcher'
+import { AccountChooser } from './components/AccountChooser'
 import { RunTrigger } from './components/RunTrigger'
-import { AdminPanel } from './components/AdminPanel'
-import { adminPanelMode } from './admin-panel'
+import { AdminPage } from './components/AdminPage'
+import { onAdminPage, pathFor } from './route'
 import { RunHistory } from './components/RunHistory'
 import { EmptySummary, RunStats } from './components/RunStats'
 import { RunTrend } from './components/RunTrend'
 import { Appearance } from './components/Appearance'
-import { ASIDE_WIDTH, COLUMN_GAP, useCompact, useWide } from './use-compact'
+import { ASIDE_WIDTH, COLUMN_GAP, useWide } from './use-compact'
 import { fromSearch, toQuery, toSearch, type HistoryFilters } from './run-query'
 import { pollDelay, refreshOnReturn } from './poll'
 import { latestOnly } from './latest'
@@ -25,13 +25,16 @@ import { c } from './theme'
 
 export function App() {
   const wide = useWide()
-  const compact = useCompact()
-  const [role, setRole] = useState<Role | null>(null)
-  // Differs from `role` only while a demo session is previewing another
-  // role's read view — mirrors the backend's role/viewAs split exactly, so
-  // the write path (RunTrigger) always uses the real `role`, never this.
-  const [viewAs, setViewAs] = useState<Role | null>(null)
+  // Who is signed in, to which sandbox, and as what (decision 52).
+  const [me, setMe] = useState<Me | null>(null)
+  const role = me?.role ?? null
   const [checking, setChecking] = useState(true)
+  // The sandbox is locked down and this account is not its admin.
+  const [locked, setLocked] = useState(false)
+  const [choosing, setChoosing] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(() =>
+    typeof window === 'undefined' ? false : onAdminPage(window.location.pathname),
+  )
   const [runs, setRuns] = useState<Run[]>([])
   // Everything the caller may see, counted past the loaded pages — so the list
   // can say how much it is not showing rather than truncating in silence.
@@ -42,7 +45,6 @@ export function App() {
   const [loadedMore, setLoadedMore] = useState(false)
   const lastRefreshAt = useRef(0)
   const [policies, setPolicies] = useState<RolePolicy[]>([])
-  const [canPreview, setCanPreview] = useState(false)
   // Which runs the list is narrowed to. Kept in the address bar so a filtered
   // view can be linked and survives a reload; read once, here, from wherever
   // the page was opened.
@@ -80,25 +82,54 @@ export function App() {
     lists.forget()
     setListed(false)
     setFailures(0)
-    setRole(null)
-    setViewAs(null)
+    setMe(null)
+    setLocked(false)
     setRuns([])
     setTotal(0)
     setNextCursor(null)
     setPolicies([])
-    setCanPreview(false)
     setOptions(null)
     setOptionsError(null)
     setError(null)
   }, [lists])
 
-  // Restores an existing session on load, so a refresh is not a sign-out.
+  /**
+   * Who am I — on load, so a refresh is not a sign-out, and again after
+   * anything that changes the answer: a sign-in, the admin key, lockdown.
+   * A 403 that says `locked` is a signed-in account the sandbox refuses; it is
+   * shown as such, with a way to switch account, rather than as signed out.
+   */
+  const loadMe = useCallback(async () => {
+    try {
+      setMe(await api.me())
+      setLocked(false)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 403 && /locked down/.test(e.message)) {
+        setMe(null)
+        setLocked(true)
+      } else {
+        endSession()
+      }
+    } finally {
+      setChecking(false)
+    }
+  }, [endSession])
+
   useEffect(() => {
-    api
-      .me()
-      .then(({ role }) => setRole(role))
-      .catch(() => setRole(null))
-      .finally(() => setChecking(false))
+    void loadMe()
+  }, [loadMe])
+
+  // The address follows the admin page, so it can be linked and survives a reload.
+  useEffect(() => {
+    const { search, hash, pathname } = window.location
+    const next = pathFor(adminOpen)
+    if (pathname !== next) window.history.pushState(null, '', `${next}${search}${hash}`)
+  }, [adminOpen])
+
+  useEffect(() => {
+    const onPop = () => setAdminOpen(onAdminPage(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
   }, [])
 
   // Read once per sign-in: what the form offers is a fact about the caller, and
@@ -119,10 +150,7 @@ export function App() {
     if (!role) return
     api
       .roles()
-      .then((r) => {
-        setPolicies(r.roles)
-        setCanPreview(r.canPreview)
-      })
+      .then((r) => setPolicies(r.roles))
       .catch(() => setPolicies([]))
   }, [role])
 
@@ -148,7 +176,6 @@ export function App() {
       setRuns(page.runs)
       setTotal(page.total)
       setNextCursor(page.nextCursor)
-      setViewAs(page.viewAs)
       setError(null)
       setFailures(0)
     } catch (e) {
@@ -158,10 +185,15 @@ export function App() {
         endSession()
         return
       }
+      // Removed from the list or locked out since the page loaded: ask again.
+      if (e instanceof ApiError && e.status === 403) {
+        void loadMe()
+        return
+      }
       setFailures((n) => n + 1)
       setError(e instanceof Error ? e.message : 'Could not load runs')
     }
-  }, [role, endSession, filters, lists])
+  }, [role, endSession, filters, lists, loadMe])
 
   /** Appends the next page. The cursor makes this safe against new runs
    *  arriving at the top: it names a row, not an offset. */
@@ -247,50 +279,46 @@ export function App() {
         Checking whether you are signed in…
       </div>
     )
-  if (!role) return <Login onSignedIn={setRole} />
-
-  // The write path (RunTrigger) always uses the real, authenticated role —
-  // previewing another role only changes what runs are shown below, never
-  // what a new run may target or how many workers it may use.
-  const viewingRole = viewAs ?? role
-  const viewPolicy = policies.find((p) => p.role === viewingRole)
-  const panelMode = adminPanelMode(role, viewingRole)
-  const pending = runs.filter((run) => isPending(run.status)).length
-
-  const roleSwitcher = canPreview && policies.length > 0 && (
-    <RoleSwitcher
-      collapsible={!wide}
-      role={viewingRole}
-      realRole={role}
-      policies={policies}
-      onSwitched={async (next) => {
-        // Handled like every other request here. It used to be the one
-        // that was not: a refused preview rejected into nothing, and the
-        // buttons simply did not respond.
-        try {
-          if (next === role) {
-            await api.stopPreview()
-          } else {
-            await api.previewRole(next)
-          }
-        } catch (e) {
-          if (e instanceof ApiError && e.status === 401) {
-            endSession()
-            return
-          }
-          setError(e instanceof Error ? e.message : 'Could not switch the preview')
-          return
-        }
-        await refresh()
-      }}
-    />
+  const signedIn = () => {
+    setChoosing(false)
+    setChecking(true)
+    void loadMe()
+  }
+  const chooser = choosing && (
+    <AccountChooser onClose={() => setChoosing(false)} onSignedIn={signedIn} />
   )
+
+  if (locked)
+    return (
+      <div style={s.loading}>
+        <div style={s.lockedCard} role="alert">
+          <h1 style={s.h1}>This sandbox is locked down</h1>
+          <p style={s.sub}>
+            Its admin turned lockdown on, so only the admin account may use it. Switch to the
+            account listed as admin to lift it, or sign out for a new sandbox.
+          </p>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center' }}>
+            <button style={s.signOut} onClick={() => setChoosing(true)}>
+              Switch account
+            </button>
+            <button style={s.signOut} onClick={() => void api.logout().then(endSession)}>
+              Sign out
+            </button>
+          </div>
+        </div>
+        {chooser}
+      </div>
+    )
+  if (!me || !role) return <Login onSignedIn={signedIn} />
+
+  const viewPolicy = policies.find((p) => p.role === role)
+  const pending = runs.filter((run) => isPending(run.status)).length
+  const hoursLeft = me.sandbox.expiresAt
+    ? Math.max(0, Math.round((Date.parse(me.sandbox.expiresAt) - Date.now()) / 3_600_000))
+    : null
 
   const asideContent = (
     <>
-      {/* On a phone the preview goes under the run form instead (below). */}
-      {!compact && roleSwitcher}
-
       <RunStats runs={runs} total={total} collapsible={!wide} />
 
       {/* Only beside the list: stacked, an empty summary is simply absent. */}
@@ -302,21 +330,6 @@ export function App() {
 
   const mainContent = (
     <>
-      {/*
-        Decided on the REAL role, never `viewingRole` alone. A demo session
-        previewing admin gets the read-only panel — the live gate and what keys
-        are — and never the writable one the server would refuse; the same
-        real-role rule RunTrigger follows. See admin-panel.ts.
-
-        A gate change here used to remount RunTrigger, so that its "runs are
-        paused" notice would be re-read. That notice is only ever dev's, and
-        only admin can change the gate from this page, so the remount changed
-        nothing anyone saw except the admin's own form, which went back to
-        `items` after every Apply. It is gone; RunTrigger reads the gate on its
-        own (see recheckDelay).
-      */}
-      {panelMode && <AdminPanel readOnly={panelMode === 'readOnly'} />}
-
       {options ? (
         <RunTrigger
           key={role}
@@ -331,16 +344,9 @@ export function App() {
         </section>
       )}
 
-      {/*
-        On a phone, "View as another role" comes after the run form. Above it,
-        with the two summaries, it put Run at 632–676px of a 667px screen; the
-        preview is for looking around, and Run is what the page is for.
-      */}
-      {compact && roleSwitcher}
-
       <RunHistory
         runs={runs}
-        role={viewingRole}
+        role={role}
         canDelete={viewPolicy?.canDelete ?? false}
         onChanged={() => void refresh()}
         total={total}
@@ -364,10 +370,12 @@ export function App() {
         <div>
           <h1 style={s.h1}>Test Run Dashboard</h1>
           <p style={s.sub}>
-            Signed in as <strong style={{ color: c.t1 }}>{role}</strong>
-            {viewingRole !== role && (
-              <span style={{ color: c.t4 }}> · previewing {viewingRole}</span>
+            <strong style={{ color: c.t1, overflowWrap: 'anywhere' }}>{me.email}</strong> as{' '}
+            <strong style={{ color: c.t1 }}>{role}</strong>
+            {hoursLeft !== null && (
+              <span style={{ color: c.t4 }}> · sandbox resets in {hoursLeft} h</span>
             )}
+            {me.sandbox.lockdown && <span style={{ color: c.danger }}> · locked down</span>}
             {pending > 0 && (
               <span style={{ color: c.warn }}>
                 {' '}
@@ -376,7 +384,15 @@ export function App() {
             )}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={s.actions}>
+          {me.listedRole === 'admin' && !adminOpen && (
+            <button style={s.signOut} onClick={() => setAdminOpen(true)}>
+              Admin
+            </button>
+          )}
+          <button style={s.signOut} onClick={() => setChoosing(true)}>
+            Switch account
+          </button>
           <Appearance />
           <button
             onClick={() =>
@@ -394,6 +410,7 @@ export function App() {
       </header>
 
       {error && <div style={s.error}>{error}</div>}
+      {chooser}
 
       {/*
         Two columns when there is room: the form that feeds the run list and
@@ -402,7 +419,22 @@ export function App() {
         first. State before action: nobody opens a test dashboard to press a
         button, they open it to find out whether the last run passed.
       */}
-      {wide ? (
+      {/*
+        The admin page replaces the runs rather than sitting above them: it is
+        a separate place to go, and the address says so (route.ts).
+      */}
+      {adminOpen ? (
+        <main id="main" style={s.main}>
+          <AdminPage
+            me={me}
+            onChanged={() => {
+              void loadMe()
+              void refresh()
+            }}
+            onBack={() => setAdminOpen(false)}
+          />
+        </main>
+      ) : wide ? (
         <div style={s.columns}>
           <main id="main" style={s.main}>
             {mainContent}
@@ -423,6 +455,16 @@ export function App() {
 
 const s: Record<string, CSSProperties> = {
   loading: { minHeight: '100vh', display: 'grid', placeItems: 'center', color: c.t4, fontSize: 14 },
+  lockedCard: {
+    maxWidth: 420,
+    margin: '0 20px',
+    textAlign: 'center',
+    background: c.card,
+    border: `1px solid ${c.dangerBorder}`,
+    borderRadius: 14,
+    padding: 22,
+  },
+  actions: { display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' },
   page: { maxWidth: '62rem', margin: '0 auto', padding: '30px 24px 60px' },
   // Wide enough for the list (about 620px) beside a 320px column.
   pageWide: { maxWidth: '76rem' },

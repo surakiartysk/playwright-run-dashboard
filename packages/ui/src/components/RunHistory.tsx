@@ -171,20 +171,15 @@ export const rowMeta = (run: Pick<Run, 'startedAt' | 'durationMs'>) =>
   [startedLabel(run.startedAt), duration(run.durationMs)].filter(Boolean).join(' · ')
 
 /**
- * What the visibility scoping actually means for the signed-in role, in
- * words. Table-driven rather than a `role === 'dev' ? … : …` — that ternary
- * was silently wrong for `demo`, whose scope is neither "main only" nor
- * "every branch": it is the runs started as demo, by any visitor.
+ * What the visibility scoping means for the signed-in role, in words: the CI's
+ * real runs and this sandbox's, and for dev only the main branch of either.
+ * Table-driven rather than a ternary, so a role added to the type has to be
+ * given its words here.
  */
 const SCOPE_LABEL: Record<Role, string> = {
-  // Shared by every demo visitor: `triggered_by` holds the role, not the
-  // person, so "you" would promise a separation the query does not make.
-  demo: 'runs started as demo — main branch only',
-  // Named, not "your role's": a demo previewing dev is shown this, and dev is
-  // not their role.
-  dev: 'main branch only — dev’s scope',
-  qa: 'every branch',
-  admin: 'every branch',
+  dev: 'CI and this sandbox · main branch only',
+  qa: 'CI and this sandbox · every branch',
+  admin: 'CI and this sandbox · every branch',
 }
 
 /**
@@ -353,11 +348,9 @@ export function RunHistory({
   const { open, confirmingDelete } = rows
 
   /**
-   * The button is shown whenever the *previewed* role may delete, so a demo
-   * session previewing admin can see that the control exists — but the server
-   * still refuses it, because deleting is authorised by the real signed-in
-   * role. Surfacing that refusal is the point: silently swallowing it would
-   * make a working guard look like a broken button.
+   * The server is what authorises a delete, and it refuses a real run from CI
+   * and another sandbox's. Surfacing a refusal is the point: silently
+   * swallowing it would make a working guard look like a broken button.
    */
   async function remove(id: string) {
     setError(null)
@@ -626,10 +619,8 @@ export function RunHistory({
                             </Detail>
 
                             {/*
-                              The role always; the name only when someone gave
-                              one. A team sharing a password would otherwise see
-                              every row saying the same thing — which is the
-                              whole reason the name exists.
+                              The role always, and the account that started it
+                              when a person did — CI and a key have none.
                             */}
                             <Detail label="Triggered by">{triggeredLabel(run)}</Detail>
 

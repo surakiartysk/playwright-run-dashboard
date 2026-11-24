@@ -3,11 +3,9 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GateControl } from '../src/components/GateControl'
-import { RoleSwitcher } from '../src/components/RoleSwitcher'
 import { RunFilters } from '../src/components/RunFilters'
 import { Segmented, nextChoice } from '../src/components/Segmented'
 import { run } from './fixtures'
-import type { RolePolicy } from '../src/api'
 
 /**
  * One way to choose one of a few things (Segmented.tsx says what the six were).
@@ -96,28 +94,6 @@ describe('the arrow keys', () => {
 })
 
 describe('where the page chooses one of a few things', () => {
-  const policies: RolePolicy[] = (['demo', 'dev', 'qa', 'admin'] as const).map((role) => ({
-    role,
-    allowedRefs: ['main'],
-    maxWorkers: 2,
-    canDelete: role === 'admin',
-    sees: 'every run',
-  }))
-
-  it('the role preview says which role is being viewed', () => {
-    const html = renderToStaticMarkup(
-      createElement(RoleSwitcher, {
-        role: 'qa',
-        realRole: 'demo',
-        policies,
-        onSwitched: () => undefined,
-      }),
-    )
-    expect(html).toMatch(/role="radiogroup" aria-label="Viewing as"/)
-    expect(html).toMatch(/aria-checked="true"[^>]*>qa</)
-    expect(html.match(/aria-checked="true"/g)).toHaveLength(1)
-  })
-
   it('the status filter is a radio group, with nothing to choose disabled', () => {
     const html = renderToStaticMarkup(
       createElement(RunFilters, {
@@ -133,24 +109,23 @@ describe('where the page chooses one of a few things', () => {
     expect(html).not.toContain('aria-pressed')
   })
 
-  it('the gate’s mode is a radio group, every option disabled in a preview', () => {
-    const html = renderToStaticMarkup(createElement(GateControl, { readOnly: true }))
+  it('the gate’s mode is a radio group', () => {
+    const html = renderToStaticMarkup(createElement(GateControl))
     expect(html).toMatch(/role="radiogroup" aria-label="Run gate"/)
-    expect(html.match(/role="radio"[^>]*disabled=""/g)).toHaveLength(3)
+    expect(html.match(/role="radio"/g)).toHaveLength(3)
     expect(html).not.toContain('aria-pressed')
   })
 
-  it('the admin panel’s tabs and the appearance’s rows are drawn by it too', () => {
+  it('the admin page’s tabs and the appearance’s rows are drawn by it too', () => {
     const src = (f: string) =>
       readFileSync(new URL(`../src/components/${f}`, import.meta.url), 'utf8')
-    expect(src('AdminPanel.tsx')).toMatch(/<Segmented\s+kind="tab"[\s\S]*?panelId=/)
-    expect(src('AdminPanel.tsx')).toMatch(/role="tabpanel"\s+id=\{`admin-panel-\$\{tab\}`\}/)
+    expect(src('AdminPage.tsx')).toMatch(/<Segmented\s+kind="tab"[\s\S]*?panelId=/)
+    expect(src('AdminPage.tsx')).toMatch(/role="tabpanel"\s+id=\{`admin-tab-\$\{tab\}`\}/)
     expect(src('Appearance.tsx').match(/<Segmented/g)).toHaveLength(2)
     for (const f of [
       'Appearance.tsx',
-      'AdminPanel.tsx',
+      'AdminPage.tsx',
       'GateControl.tsx',
-      'RoleSwitcher.tsx',
       'RunFilters.tsx',
       'RunTrigger.tsx',
     ]) {

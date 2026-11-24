@@ -18,7 +18,7 @@ import { Icon } from './Icon'
  * The status buttons answer "what happened"; these answer "which runs". They
  * are offered what the caller could have started — the same lists as the run
  * form, from `GET /runs/options` — so a developer is not offered branches they
- * cannot run and a demo visitor is not offered other people to filter by.
+ * cannot run.
  *
  * Chips for what is active stay on screen with the panel shut, each removable:
  * a list narrowed without saying so reads as a quiet dashboard.
@@ -122,7 +122,7 @@ export function AdvancedFilters({
               <Select
                 value={filters.triggeredBy}
                 any="Anyone"
-                choices={(['demo', 'dev', 'qa', 'admin'] as const).map((r) => ({
+                choices={(['dev', 'qa', 'admin'] as const).map((r) => ({
                   value: r,
                   label: r,
                 }))}

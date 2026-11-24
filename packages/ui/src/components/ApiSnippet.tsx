@@ -9,13 +9,14 @@ import { CopyButton } from './CopyButton'
  * The form's request as a command, for anyone who would rather script it.
  *
  * What it shows is what pressing Run would send, so changing a dropdown above
- * changes the command. A demo visitor can mint a sandbox key here, copy it from
+ * changes the command. A member can mint a key of their own here, copy it from
  * its own field, and paste a command into a terminal — the one part of the
- * product that is not a page. The key is the demo role's own: it can only
- * simulate, it expires after a day, and it is rate limited. Once it exists it is
- * written into the commands, so a copy of either runs as it is.
+ * product that is not a page. The key carries their role, simulates like every
+ * run, dies with the sandbox, and is rate limited. Once it exists it is written
+ * into the commands, so a copy of either runs as it is.
  *
- * Everyone else uses a key an admin issued, which this does not touch.
+ * An admin issues keys on the admin page instead, with a label chosen on
+ * purpose (decision 25), so admin is not offered one here.
  */
 
 type Sandbox = Awaited<ReturnType<typeof api.createSandboxKey>>
@@ -60,16 +61,12 @@ export function ApiSnippet({
 
 /** The panel for a given state, apart from the request that changes it, so each state can be rendered. */
 /**
- * How a role that is not demo gets the key the commands read.
- *
- * It said "Use a key from the admin panel's API keys, as $RUN_KEY" to every
- * role, but only admin can open that panel, and it never showed setting the
- * variable — so a pasted command sent an empty key.
+ * How admin gets the key the commands read: from the admin page, where keys
+ * are issued with a label. It shows setting the variable, because a pasted
+ * command without it sends an empty key.
  */
-export function keyNote(role: Role): string {
-  return role === 'admin'
-    ? 'Issue a key under API keys in the admin panel, then set it in the terminal first:'
-    : 'Ask an admin for an API key, then set it in the terminal first:'
+export function keyNote(): string {
+  return 'Issue a key under API keys on the admin page, then set it in the terminal first:'
 }
 
 export function SnippetView({
@@ -98,7 +95,7 @@ export function SnippetView({
       <summary style={s.summary}>Run this from a script</summary>
 
       <div style={s.body}>
-        {role === 'demo' ? (
+        {role !== 'admin' ? (
           sandbox ? (
             <>
               <KeyField value={sandbox.key} />
@@ -109,15 +106,15 @@ export function SnippetView({
             </>
           ) : (
             <p style={s.note}>
-              The key is yours to try: simulated runs only, never a real workflow.{' '}
+              A key of your own, with your role: simulated runs only, gone when the sandbox resets.{' '}
               <button type="button" onClick={onMint} disabled={busy} style={s.mint}>
-                {busy ? 'Making a key…' : 'Get a sandbox key'}
+                {busy ? 'Making a key…' : 'Get a key'}
               </button>
             </p>
           )
         ) : (
           <p style={s.note}>
-            {keyNote(role)} <code style={mono}>export {KEY_VARIABLE}=&lt;the key&gt;</code>
+            {keyNote()} <code style={mono}>export {KEY_VARIABLE}=&lt;the key&gt;</code>
           </p>
         )}
 

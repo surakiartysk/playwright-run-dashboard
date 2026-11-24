@@ -3,7 +3,6 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Collapsible } from '../src/components/Collapsible'
-import { RoleSwitcher, policyLines, previewNote } from '../src/components/RoleSwitcher'
 import {
   CHART_HEIGHT,
   PLOT_HEIGHT,
@@ -15,7 +14,6 @@ import {
   trendPoints,
 } from '../src/components/RunTrend'
 import { RunStats, statsHint } from '../src/components/RunStats'
-import type { RolePolicy } from '../src/api'
 import { status as sc } from '../src/theme'
 import { run } from './fixtures'
 
@@ -23,14 +21,6 @@ import { run } from './fixtures'
  * The panels that fold on a narrow screen: what they say while shut, and that
  * shut means shut. Rendered to a string — the first render is the folded one.
  */
-
-const policies: RolePolicy[] = (['demo', 'dev', 'qa', 'admin'] as const).map((role) => ({
-  role,
-  allowedRefs: ['main'],
-  maxWorkers: 2,
-  canDelete: role === 'admin',
-  sees: 'every run',
-}))
 
 const runs = [
   run({ status: 'passed', total: 40, passed: 40 }),
@@ -147,42 +137,12 @@ describe('the folded summary', () => {
 describe('which panels the stacked layout folds', () => {
   const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
 
-  it.each(['RoleSwitcher', 'RunStats', 'RunTrend'])(
-    'folds %s when the layout is not wide',
-    (name) => {
-      const tag = new RegExp(`<${name}\\b[^>]*>`, 's').exec(app)?.[0]
-      expect(tag, `<${name} …> in App.tsx`).toBeDefined()
-      expect(tag).toContain('collapsible={!wide}')
-    },
-  )
-})
-
-describe('the folded role switcher', () => {
-  const render = (collapsible: boolean) =>
-    renderToStaticMarkup(
-      createElement(RoleSwitcher, {
-        role: 'qa',
-        realRole: 'qa',
-        policies,
-        onSwitched: () => undefined,
-        collapsible,
-      }),
-    )
-
-  it('names the role in force while shut, and hides the buttons', () => {
-    const html = render(true)
-    expect(html).toContain('View as another role')
-    expect(html).toContain('Now: qa')
-    expect(html).not.toContain('>admin</button>')
-  })
-
-  it('shows the buttons straight away in the side column', () => {
-    const html = render(false)
-    expect(html).not.toContain('<details')
-    expect(html).toContain('>admin</button>')
+  it.each(['RunStats', 'RunTrend'])('folds %s when the layout is not wide', (name) => {
+    const tag = new RegExp(`<${name}\\b[^>]*>`, 's').exec(app)?.[0]
+    expect(tag, `<${name} …> in App.tsx`).toBeDefined()
+    expect(tag).toContain('collapsible={!wide}')
   })
 })
-
 describe('failureSummary', () => {
   const points = (...statuses: ('passed' | 'failed' | 'error' | 'timeout')[]) =>
     trendPoints(
@@ -266,74 +226,5 @@ describe('the status strip', () => {
 
   it('is taller than the plot used to be, so a failing bar is not a sliver', () => {
     expect(PLOT_HEIGHT).toBeGreaterThanOrEqual(96)
-  })
-})
-
-describe('policyLines', () => {
-  const [demo, , , admin] = policies
-
-  it('has the same four lines in the same order for every role', () => {
-    for (const policy of policies) {
-      expect(policyLines(policy).map((l) => l.label)).toEqual([
-        'Sees',
-        'Suite branches',
-        'Workers',
-        'Delete runs',
-      ])
-    }
-  })
-
-  it('states the role’s own limits', () => {
-    expect(policyLines({ ...demo!, maxWorkers: 16, canDelete: true })).toEqual([
-      { label: 'Sees', value: 'every run' },
-      { label: 'Suite branches', value: 'main' },
-      { label: 'Workers', value: 'up to 16' },
-      { label: 'Delete runs', value: 'yes' },
-    ])
-    expect(policyLines(admin!).find((l) => l.label === 'Delete runs')?.value).toBe('yes')
-    expect(policyLines(demo!).find((l) => l.label === 'Delete runs')?.value).toBe('no')
-  })
-
-  it('says "any" for a role that may use any branch, and lists the rest', () => {
-    expect(policyLines({ ...demo!, allowedRefs: ['*'] })[1]?.value).toBe('any')
-    expect(policyLines({ ...demo!, allowedRefs: ['main', 'develop'] })[1]?.value).toBe(
-      'main, develop',
-    )
-  })
-})
-
-describe('previewNote', () => {
-  it('names both roles when what is viewed is not what is signed in', () => {
-    const note = previewNote('admin', 'demo')
-    expect(note).toContain('signed in as demo')
-    expect(note).toContain('Viewing as admin')
-    expect(note).toContain('still uses demo')
-  })
-
-  it('is the general reminder when they are the same', () => {
-    expect(previewNote('demo', 'demo')).not.toContain('signed in as')
-    expect(previewNote('demo', 'demo')).toContain('not what you may do')
-  })
-
-  it('shows on the open panel and in the folded row when viewing another role', () => {
-    const html = renderToStaticMarkup(
-      createElement(RoleSwitcher, {
-        role: 'admin',
-        realRole: 'demo',
-        policies,
-        onSwitched: () => undefined,
-      }),
-    )
-    expect(html).toContain('You are signed in as demo')
-    const folded = renderToStaticMarkup(
-      createElement(RoleSwitcher, {
-        role: 'admin',
-        realRole: 'demo',
-        policies,
-        onSwitched: () => undefined,
-        collapsible: true,
-      }),
-    )
-    expect(folded).toContain('Now: admin · you are demo')
   })
 })

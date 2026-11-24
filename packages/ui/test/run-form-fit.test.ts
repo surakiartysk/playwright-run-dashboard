@@ -1,6 +1,5 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { RunTrigger } from '../src/components/RunTrigger'
 import type * as Compact from '../src/use-compact'
@@ -24,7 +23,7 @@ vi.mock('../src/use-compact', async (original) => ({
 const render = (compact: boolean) => {
   media.compact = compact
   return renderToStaticMarkup(
-    createElement(RunTrigger, { options: runOptions(), role: 'demo', onStarted: () => undefined }),
+    createElement(RunTrigger, { options: runOptions(), role: 'dev', onStarted: () => undefined }),
   )
 }
 
@@ -64,17 +63,5 @@ describe('the run form, on a phone', () => {
 
   it('keeps the branch beside the workers, half a row', () => {
     expect(pill(html, 'Suite branch')).toContain('flex:1 1 calc(50% - 4px)')
-  })
-})
-
-describe('the role preview on a phone', () => {
-  const app = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8')
-
-  it('comes after the run form, and before the runs, so it does not push Run down', () => {
-    expect(app).toMatch(/const asideContent = \([\s\S]*?\{!compact && roleSwitcher\}/)
-    const main = /const mainContent = \(([\s\S]*?)\n {2}\)\n/.exec(app)?.[1] ?? ''
-    expect(main.indexOf('<RunTrigger')).toBeGreaterThan(-1)
-    expect(main.indexOf('{compact && roleSwitcher}')).toBeGreaterThan(main.indexOf('<RunTrigger'))
-    expect(main.indexOf('{compact && roleSwitcher}')).toBeLessThan(main.indexOf('<RunHistory'))
   })
 })

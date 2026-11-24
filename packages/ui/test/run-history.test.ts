@@ -291,7 +291,7 @@ describe('the list marks a run a key started', () => {
     renderToStaticMarkup(
       createElement(RunHistory, {
         runs,
-        role: 'demo',
+        role: 'dev',
         canDelete: false,
         onChanged: () => undefined,
         total: runs.length,
@@ -352,11 +352,11 @@ describe('the list marks a run a key started', () => {
 })
 
 /*
- * A demo visitor previewing dev was told the list was "your role's scope", and
- * dev is not their role. Found by the real-user review.
+ * The list holds two kinds of run, the CI's and the sandbox's, and the scope
+ * says so rather than leaving a visitor to wonder whose runs they are reading.
  */
 describe('the scope beside the heading', () => {
-  it("names dev's scope rather than calling it the reader's own", () => {
+  it("names both sources, and dev's branch", () => {
     const html = renderToStaticMarkup(
       createElement(RunHistory, {
         runs: [],
@@ -373,7 +373,7 @@ describe('the scope beside the heading', () => {
       }),
     )
 
-    expect(html).toContain('dev’s scope')
+    expect(html).toContain('CI and this sandbox · main branch only')
     expect(html).not.toContain('your role')
   })
 })

@@ -42,7 +42,7 @@ describe("a failed run's result line", () => {
   const html = renderToStaticMarkup(
     createElement(RunHistory, {
       runs: [run({ status: 'failed', total: 16, passed: 13, failed: 3 })],
-      role: 'demo',
+      role: 'dev',
       canDelete: false,
       onChanged: () => undefined,
       total: 1,

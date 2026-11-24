@@ -250,11 +250,6 @@ export function ApiKeys() {
               <label htmlFor="key-role" style={s.label}>
                 Role
               </label>
-              {/*
-                `demo` is absent because the server refuses it: a demo key can
-                never dispatch for real, so it would be a credential that does
-                nothing, issued with ceremony.
-              */}
               <select
                 id="key-role"
                 value={role}

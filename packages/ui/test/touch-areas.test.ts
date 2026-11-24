@@ -28,7 +28,7 @@ describe('the Copy buttons of a command', () => {
     const html = renderToStaticMarkup(
       createElement(SnippetView, {
         form: initialForm(runOptions()),
-        role: 'demo',
+        role: 'dev',
         origin: 'https://runs.example',
         sandbox: {
           key: 'rdk_abcdef123456_zyxwvu9876543210zyxwvu9876',
