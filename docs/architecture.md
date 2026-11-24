@@ -5,82 +5,59 @@ differently because they are trusted differently.
 
 ## The whole flow
 
+Two flows now, and they never meet in a write: a visitor's runs are simulated
+inside their sandbox, and the real runs arrive from the suites' own CI
+([decision 52](decisions.md#52-a-demo-throughout-a-sandbox-for-each-visitor)).
+
 ```mermaid
 sequenceDiagram
-    participant D as Developer
+    participant V as Visitor
     participant UI as Dashboard (React)
     participant W as Worker (Hono)
     participant DB as D1
-    participant GH as GitHub Actions
+    participant GH as A suite's CI
     participant R2 as R2 (private)
 
-    D->>UI: sign in
-    UI->>W: POST /auth/login
-    W->>DB: charge one attempt to this address
-    W-->>UI: Set-Cookie: session (signed, 8h)
+    V->>UI: Log in to demo
+    UI->>W: POST /auth/demo
+    W->>DB: INSERT sandbox, its gate, its three accounts
+    W-->>UI: Set-Cookie: session (sandbox + account, until the sandbox expires)
 
-    D->>UI: pick suite + service + scope + branch, press Run
+    V->>UI: pick suite + service + scope + branch, press Run
     UI->>W: POST /runs  (session cookie)
+    W->>DB: read the account's role from the sandbox's member list
     W->>W: policy check — may this role use this ref?
-    W->>DB: INSERT status='queued', suite
-    W->>GH: workflow_dispatch (to the suite's own repo)
-    W-->>UI: 201 { runId }
+    W->>DB: INSERT status='queued', sandbox_id
+    W-->>UI: 201 { runId, simulated: true }
+    W->>DB: (after the response) queued → running → a result
 
     Note over UI,W: UI polls only while a run is pending
 
-    GH->>GH: run the suite
+    GH->>GH: run the suite on its own schedule
     GH->>R2: upload the HTML report
     GH->>W: POST /webhook (HMAC over timestamp.body)
     W->>W: verify signature, then age
-    W->>DB: UPDATE status, totals, report_path
+    W->>DB: INSERT a real run (no sandbox), or UPDATE one already known
 
-    D->>UI: open report
+    V->>UI: open report
     UI->>W: GET /reports/:runId/?token=…
     W->>W: verify token, check it names THIS run
     W->>R2: get object
-    W-->>D: the report
+    W-->>V: the report
 ```
 
-The run row is written **before** GitHub is called. A run that fails to dispatch
-is still a run someone asked for, and it should appear with its error rather
-than vanish.
+**The suites' scheduled workflows do not post here yet.** Until they send a
+callback naming what ran, the real runs shown are the ones recorded before the
+dashboard stopped dispatching.
 
 ## The contract with the suites
 
-Three repositories, no shared code, meeting at exactly three points. This
-dashboard dispatches either suite — API or UI — and each meets it the same way.
-Nothing but tests stops them drifting — and they had drifted: this dashboard
-sent a service name in a workflow input that only accepts package names, and the
-workflow had no callback step at all. Both repos' docs claimed the integration
-worked.
-
-**Dispatch — what this sends:**
-
-| Input     | Value                                        | Note                                             |
-| --------- | -------------------------------------------- | ------------------------------------------------ |
-| `run_id`  | the run id created here                      | The callback names it, or the result is orphaned |
-| `scope`   | the chosen service, or the tag when it's all | Means different things per suite — see below     |
-| `style`   | `both`                                       | Which package to run — not this dashboard's axis |
-| `workers` | a **string**                                 | GitHub accepts nothing else                      |
-
-`scope` and `style` are the workflow's names, not this dashboard's, and they do
-not line up with its vocabulary. That mismatch is the whole reason the tests in
-[`integration-contract.test.ts`](../packages/api/test/integration-contract.test.ts)
-exist: they pin both workflows' accepted values as a hand-copied list, so a
-change on any side surfaces here rather than as a 422 from GitHub.
-
-**The input names are identical for both suites, and that is deliberate.**
-GitHub rejects a dispatch carrying an input the workflow does not declare — the
-whole request fails rather than the extra being ignored — so a body that
-branched per suite would be a second thing to keep in step.
-
-What differs is what `scope` _means_. The API suite greps a tag; the UI suite
-names a spec file, because its journeys are grouped by file. Getting that wrong
-is not a loud failure: `--grep @auth` against file-grouped tests matches
-nothing, and Playwright reports "no tests found" as a **success with zero
-tests** — a green run that asserted nothing. Which is why the contract test
-checks that every slice this dashboard can offer is one the target workflow
-accepts.
+Three repositories, no shared code, meeting at two points: the report a suite
+uploads into this deployment's R2, and the callback it posts. There used to be
+a third, the workflow inputs this dashboard dispatched with, and that is where
+they had drifted — this dashboard sent a service name in a workflow input that
+only accepted package names, and the workflow had no callback step at all.
+Nothing is dispatched now.
 
 **Callback — what comes back:**
 
@@ -119,10 +96,12 @@ dashboard showing `running` forever.
 what someone quotes; the sha is the only thing that identifies what actually ran,
 and most runs happen between releases.
 
-The workflow skips the callback entirely when `run_id` is empty, which is what
-a hand-started run looks like. Nobody asked, so there is nobody to tell.
+A callback for a run id this dashboard has not seen is recorded as a new real
+run when it also carries `suite`, `service`, `tags` and `ref`; the suite must be
+the one the signing secret is for. One for a sandbox's run is refused (`409`):
+a CI run id is the workflow's own, and a clash means two writers disagree.
 
-**Report upload — the third crossing.** The workflow writes the built report
+**Report upload — the second crossing.** The workflow writes the built report
 straight into this deployment's R2 bucket under `runs/{run_id}/`, using a token
 scoped to that one bucket, and only then claims `reportPath` in the callback. It
 does not POST the bytes here: an endpoint accepting several megabytes needs a
@@ -132,15 +111,17 @@ to reach a bucket the job can already write to. See
 
 ## Why each surface authenticates differently
 
-| Surface            | Caller                 | Authentication                       | Why                                                                     |
-| ------------------ | ---------------------- | ------------------------------------ | ----------------------------------------------------------------------- |
-| `POST /auth/login` | a person               | password → role, limited per address | The only place a secret is exchanged, so the only one worth guessing at |
-| `POST /runs`       | the dashboard          | session cookie + policy              | Needs to know _who_, to decide what they may run                        |
-| `GET /runs`        | the dashboard, polling | session cookie, scoped in SQL        | Needs to know who, to decide what they may see                          |
-| `POST /webhook`    | the workflow           | HMAC over `timestamp.body`           | The only endpoint that can change a result                              |
-| `GET /reports/*`   | a browser tab          | signed run-scoped token              | Asset requests cannot carry a header                                    |
-| `GET /gate`        | the dashboard          | session cookie                       | Readable by the role it restricts, so a refusal explains itself         |
-| `PUT /gate`        | an admin               | session cookie + role                | Pauses developer runs without editing anyone's role                     |
+| Surface              | Caller                  | Authentication                               | Why                                                                    |
+| -------------------- | ----------------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
+| `POST /auth/demo`    | a visitor               | none; makes a sandbox, capped per hour       | The way in is public by design; what it opens reaches only one sandbox |
+| `POST /auth/account` | a visitor               | the sandbox's member list                    | The concept Google chooser; an account on no list is refused           |
+| `POST /auth/admin`   | an account listed admin | the sandbox's admin key, limited per account | The second lock on admin; the only secret here worth guessing at       |
+| `POST /runs`         | the dashboard           | session + role from the list + policy        | Needs to know _who_, to decide what they may run                       |
+| `GET /runs`          | the dashboard, polling  | session, scoped in SQL by sandbox and role   | Needs to know who, to decide what they may see                         |
+| `POST /webhook`      | a suite's CI            | HMAC over `timestamp.body`                   | The only endpoint that can write a real result                         |
+| `GET /reports/*`     | a browser tab           | signed run-scoped token                      | Asset requests cannot carry a header                                   |
+| `PUT /gate`          | an admin                | session + role                               | Pauses the sandbox's developer runs                                    |
+| `/demo/admin/*`      | an admin, in person     | session + role, keys refused                 | Members, activity, lockdown — changing who may do what                 |
 
 The webhook is the one worth attacking: it writes the numbers the dashboard
 displays. Anyone who learned a run id and could post unsigned would be able to
@@ -153,7 +134,7 @@ mark a failing run green. So it is the one that is signed.
 ```
 1. may this role start a run?        →  POLICIES[role]
 2. against which refs?               →  mayUseRef(role, ref)
-3. which runs may it then see?       →  visibilityClause(role)   ← SQL fragment
+3. which runs may it then see?       →  visibilityClause(role, sandbox)   ← SQL fragment
 ```
 
 Question 3 returns a **SQL fragment**, not a predicate. The database must never
@@ -161,13 +142,16 @@ hand back a row the caller may not see — filtering after the query is a
 convention, not a restriction, and it breaks under `LIMIT` besides. See
 [decision 3](decisions.md#3-visibility-is-enforced-in-sql-never-in-the-handler).
 
-|             | `demo`                   | `dev`                   | `qa`                         | `admin`                 |
-| ----------- | ------------------------ | ----------------------- | ---------------------------- | ----------------------- |
-| Branches    | `main`                   | `main`                  | `main`, `develop`, `release` | any                     |
-| Max workers | 2                        | 4                       | 8                            | 16                      |
-| Sees        | its own runs only        | main-branch runs        | every run                    | every run               |
-| May delete  | no                       | no                      | no                           | yes                     |
-| Dispatches  | never (always simulated) | per `SIMULATE_DISPATCH` | per `SIMULATE_DISPATCH`      | per `SIMULATE_DISPATCH` |
+|             | `dev`                                    | `qa`                              | `admin`                           |
+| ----------- | ---------------------------------------- | --------------------------------- | --------------------------------- |
+| Branches    | `main`                                   | `main`, `develop`, `release/*`    | any                               |
+| Max workers | 4                                        | 8                                 | 16                                |
+| Sees        | main-branch runs, real and its sandbox's | every run, real and its sandbox's | every run, real and its sandbox's |
+| May delete  | no                                       | no                                | its sandbox's runs only           |
+
+Every run started from the dashboard is simulated, whatever the role. A
+sandbox's runs are never shown to another sandbox, and a real run — one with no
+sandbox — is shown to all of them and deleted by none.
 
 A run the caller may not see returns **404, not 403** — telling a developer that
 a run exists but is off-limits leaks the branch names they were scoped away
@@ -177,24 +161,22 @@ from.
 
 Everything has a local implementation, so the repo runs with no account:
 
-|          | Local (`pnpm dev`)             | Deployed                   |
-| -------- | ------------------------------ | -------------------------- |
-| D1       | SQLite file under `.wrangler/` | Cloudflare D1              |
-| R2       | a directory                    | Cloudflare R2              |
-| Dispatch | simulated in-process           | `workflow_dispatch`        |
-| Result   | the simulator writes it        | the workflow posts it back |
-| Secrets  | obviously fake defaults        | `wrangler secret put`      |
+|           | Local (`pnpm dev`)              | Deployed                        |
+| --------- | ------------------------------- | ------------------------------- |
+| D1        | SQLite file under `.wrangler/`  | Cloudflare D1                   |
+| R2        | a directory                     | Cloudflare R2                   |
+| Runs      | simulated in-process            | simulated in-process            |
+| Real runs | none, unless a callback is sent | the suites' CI posts them back  |
+| Secrets   | obviously fake defaults         | `wrangler secret put`, required |
 
-`SIMULATE_DISPATCH` is the switch, and it defaults to **on** so the safe
-behaviour is the default. The same flag decides which passwords
-`GET /auth/dev-credentials` returns; the login screen uses only `demo`'s. See
-[decision 6](decisions.md#6-simulation-is-the-default-and-one-flag-governs-it).
-`/demo/preview-role` is not gated by this flag at all — see
-[decision 12](decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
+Which column applies is decided by the host a request reaches: a local name
+(`localhost`, `127.0.0.1`, `*.test`, `*.localhost`) keeps the defaults; any
+other refuses to serve without its secrets. There is no flag to forget.
 
 ## Data model
 
-One table. The id is human-readable on purpose —
+Runs are one table, and a sandbox's other state — its gate, members, keys and
+activity — sits in tables keyed by `sandbox_id` (migration 0014). The id is human-readable on purpose —
 `20260826-1430-items-k3f9qw` sorts chronologically, says what it covered, and
 doubles as the R2 prefix for that run's report. A UUID would need a second
 column to answer "when was this and what did it cover?", which is the question
@@ -206,8 +188,7 @@ the same minute collide on the PRIMARY KEY. That was a real 500 — see
 
 `suite` is a column rather than a convention inside `service`, because a `ui-`
 prefix would be invisible to SQL: filtering, grouping and the trend chart would
-each re-derive it by parsing, and each could parse it differently. It is also
-what decides which repository a run is dispatched to. See
+each re-derive it by parsing, and each could parse it differently. See
 [decision 24](decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention).
 
 ## Polling

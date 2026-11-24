@@ -2,7 +2,9 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import { env } from 'cloudflare:test'
 import { migrate, request, seedRun, sessionFor } from './helpers'
 import { signReportToken } from '../src/crypto'
-import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from '../src/config'
+import { DEV_TOKEN_SECRET } from '../src/config'
+import { adminKeyFor } from '../src/sandboxes'
+import { makeTestSandbox } from './helpers'
 
 beforeAll(migrate)
 
@@ -10,7 +12,7 @@ beforeAll(migrate)
  * Every cookie the Worker sets is `Secure` when the request came over HTTPS,
  * and only then — see `cookie` in auth.ts and decision 41.
  *
- * One table — three cookies, set or cleared in five places — because the
+ * One table — the session, the admin hour and the report cookie — because the
  * property belongs to all of them, and a new one should have to be added here
  * to be trusted. Each is asked for twice, once
  * per scheme: the HTTPS half is the fix, and the HTTP half is what keeps
@@ -22,10 +24,15 @@ const json = (body: unknown) => ({
   body: JSON.stringify(body),
 })
 
-const asDemo = async (body?: unknown) => ({
-  ...json(body ?? {}),
-  headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('demo') },
-})
+/** An unlock with the right key, from the account listed as admin. */
+async function unlock(base: string) {
+  const sandbox = await makeTestSandbox()
+  const cookie = (await sessionFor('admin', sandbox)).split(';')[0]!
+  return request(`${base}/auth/admin`, {
+    ...json({ key: await adminKeyFor(env, sandbox.id) }),
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+  })
+}
 
 async function openReport(base: string) {
   const id = await seedRun()
@@ -37,25 +44,15 @@ async function openReport(base: string) {
 }
 
 const cookies: Array<[string, (base: string) => Promise<Response>]> = [
-  [
-    'the session, on sign-in',
-    (base) => request(`${base}/auth/login`, json({ password: DEV_PASSWORDS.qa })),
-  ],
-  ['the session, cleared on sign-out', (base) => request(`${base}/auth/logout`, json({}))],
-  [
-    'the preview role, on preview',
-    async (base) => request(`${base}/demo/preview-role`, await asDemo({ role: 'qa' })),
-  ],
-  [
-    'the preview role, cleared',
-    async (base) => request(`${base}/demo/stop-preview`, await asDemo()),
-  ],
+  ['the session, on the demo sign-in', (base) => request(`${base}/auth/demo`, json({}))],
+  ['the admin hour, on unlock', unlock],
+  ['the admin hour, given up', (base) => request(`${base}/auth/admin`, { method: 'DELETE' })],
   ['the report asset cookie', openReport],
 ]
 
-/** The attributes of the one cookie a response set, trimmed — never a substring match. */
+/** The attributes of the cookie a response set first, trimmed — never a substring match. */
 function attributes(response: Response): string[] {
-  const header = response.headers.get('Set-Cookie')
+  const header = response.headers.getSetCookie()[0]
   if (!header) throw new Error(`no Set-Cookie on a ${response.status} response`)
   return header.split(';').map((part) => part.trim())
 }

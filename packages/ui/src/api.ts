@@ -6,7 +6,40 @@
  * shape, and every one of them re-decides what to do about a 401.
  */
 
-export type Role = 'demo' | 'dev' | 'qa' | 'admin'
+export type Role = 'dev' | 'qa' | 'admin'
+
+/** Who is signed in, and to which sandbox — decision 52. */
+export interface Me {
+  email: string
+  /** What the request is treated as: the list's role, or admin with the key. */
+  role: Role
+  /** What the member list says, before the admin key is counted. */
+  listedRole: Role
+  /** When the admin hour ends, in epoch seconds; null without one. */
+  adminUntil: number | null
+  sandbox: { expiresAt: string | null; lockdown: boolean }
+}
+
+export interface Account {
+  email: string
+  /** Null for the account that is on no list. */
+  role: Role | null
+}
+
+export interface Member {
+  email: string
+  role: Role
+  added_at: string
+  added_by: string
+}
+
+export interface ActivityEntry {
+  id: number
+  at: string
+  actor: string
+  action: string
+  detail: string | null
+}
 
 export type RunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'error' | 'timeout'
 
@@ -161,20 +194,54 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  login: (password: string, name?: string) =>
-    request<{ role: Role; expiresAt: number; name?: string }>('/auth/login', {
+  /** A new sandbox, signed in as its visitor account. */
+  demo: () => request<{ email: string }>('/auth/demo', { method: 'POST' }),
+
+  /** The concept Google chooser's accounts — the sandbox's, or a new one's. */
+  accounts: () => request<{ accounts: Account[] }>('/auth/accounts'),
+
+  /** Pick an account in the chooser; refused for one on no list. */
+  account: (email: string) =>
+    request<{ email: string }>('/auth/account', {
       method: 'POST',
-      body: JSON.stringify({ password, ...(name ? { name } : {}) }),
+      body: JSON.stringify({ email }),
     }),
 
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
 
-  me: () => request<{ role: Role; name?: string }>('/auth/me'),
+  me: () => request<Me>('/auth/me'),
 
-  devCredentials: () =>
-    request<{ mode: 'full' | 'demo-only'; passwords: Partial<Record<Role, string>> }>(
-      '/auth/dev-credentials',
-    ),
+  /** The sandbox's admin key, shown because this is a demo. Listed admins only. */
+  adminKey: () => request<{ key: string; demo: true }>('/auth/admin-key'),
+
+  unlockAdmin: (key: string) =>
+    request<{ role: 'admin'; adminUntil: number }>('/auth/admin', {
+      method: 'POST',
+      body: JSON.stringify({ key }),
+    }),
+
+  lockAdmin: () => request<{ ok: true }>('/auth/admin', { method: 'DELETE' }),
+
+  members: () => request<{ members: Member[] }>('/demo/admin/members'),
+
+  setMember: (email: string, role: Role) =>
+    request<{ ok: true }>('/demo/admin/members', {
+      method: 'PUT',
+      body: JSON.stringify({ email, role }),
+    }),
+
+  removeMember: (email: string) =>
+    request<{ ok: true }>(`/demo/admin/members/${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+    }),
+
+  activity: () => request<{ entries: ActivityEntry[] }>('/demo/admin/activity'),
+
+  setLockdown: (on: boolean) =>
+    request<{ lockdown: boolean }>('/demo/admin/lockdown', {
+      method: 'PUT',
+      body: JSON.stringify({ on }),
+    }),
 
   /**
    * One run, with what the list leaves out: the failures its callback named.
@@ -185,9 +252,9 @@ export const api = {
     request<Run & { details: RunDetails | null }>(`/runs/${encodeURIComponent(id)}`),
 
   /**
-   * A key a demo session can mint for itself, to try the API from a terminal.
-   * The plaintext is returned once. It is the demo role's own, so it can only
-   * simulate, and it expires.
+   * A key a member mints for themselves, to try the API from a terminal. The
+   * plaintext is returned once. It carries the member's role, simulates like
+   * every run, and dies with the sandbox.
    */
   createSandboxKey: () =>
     request<{
@@ -199,22 +266,8 @@ export const api = {
   /** What the caller may ask for — see `RunOptions`. */
   options: () => request<RunOptions>('/runs/options'),
 
-  /** `simulates` is whether runs this session starts are simulated. */
-  roles: () =>
-    request<{ canPreview: boolean; simulates: boolean; roles: RolePolicy[] }>('/demo/roles'),
-
-  /**
-   * Previews another role's read view for an authenticated `demo` session.
-   * Mints no session token — the caller's real, authenticated role is
-   * unchanged; only what GET /runs and GET /runs/:id return is affected.
-   */
-  previewRole: (role: Role) =>
-    request<{ previewing: Role }>('/demo/preview-role', {
-      method: 'POST',
-      body: JSON.stringify({ role }),
-    }),
-
-  stopPreview: () => request<{ ok: true }>('/demo/stop-preview', { method: 'POST' }),
+  /** `simulates` is whether runs this session starts are simulated — always, now. */
+  roles: () => request<{ role: Role; simulates: boolean; roles: RolePolicy[] }>('/demo/roles'),
 
   /**
    * `updatedBy` and `updatedAt` say who last changed the gate. Returned to
@@ -240,9 +293,6 @@ export const api = {
     }),
 
   /**
-   * `role` is always the caller's real, authenticated role; `viewAs` differs
-   * from it only for a demo session currently previewing another role.
-   *
    * `total` counts every run the caller may see, not the page — without it the
    * list could only truncate silently, which is what it used to do. `cursor`
    * asks for the page after a given row; `nextCursor` is null on the last page.
@@ -317,7 +367,6 @@ export const RUNS_PER_PAGE = 25
 export type RunPage = {
   runs: Run[]
   role: Role
-  viewAs: Role
   /** Every run the caller may see, counted past the end of this page. */
   total: number
   /** Null on the last page. */
@@ -334,14 +383,14 @@ export type ApiKey = {
   role: Role
   allowedRefs: string[] | null
   maxWorkers: number | null
-  /**
-   * Who issued it — a name and role, or a role alone when none was given.
-   * Not a `Role`: with one shared admin password that identified nobody.
-   */
+  /** The account that issued it, or `self-serve` for one a member minted. */
   createdBy: string
   createdAt: string
   lastUsedAt: string | null
   revokedAt: string | null
+  /** It dies with the sandbox. */
+  expiresAt: string | null
+  selfServe: boolean
 }
 
 /** Runs still in flight — the UI polls only while one of these exists. */

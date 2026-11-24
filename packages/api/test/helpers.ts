@@ -7,7 +7,8 @@ import {
 import type { D1Migration } from '@cloudflare/vitest-pool-workers'
 import worker from '../src/index'
 import { hmacHex } from '../src/crypto'
-import { createToken } from '../src/auth'
+import { createAdminToken, createToken } from '../src/auth'
+import { DEMO_DOMAIN, newSandboxId, SANDBOX_LIFETIME_MS } from '../src/sandboxes'
 import { DEV_TOKEN_SECRET, DEV_WEBHOOK_SECRET } from '../src/config'
 import type { Bindings, Role, RunStatus } from '../src/types'
 
@@ -76,10 +77,56 @@ export async function settle(path: string, init: RequestInit = {}): Promise<Resp
   return response
 }
 
-/** A valid session cookie for a role, without going through the login form. */
-export async function sessionFor(role: Role): Promise<string> {
-  const { token } = await createToken(DEV_TOKEN_SECRET, role)
-  return `session=${token}`
+/**
+ * A sandbox made directly, with one account per role, for tests that are not
+ * about signing in.
+ *
+ * Inserted rather than made through `POST /auth/demo`: that path is shared and
+ * rate limited, and a test about runs should not fail because another file
+ * made its hourly share of sandboxes.
+ */
+export async function makeTestSandbox(
+  options: { lockdown?: boolean; expiresAt?: string } = {},
+): Promise<{ id: string; expires_at: string }> {
+  const id = newSandboxId()
+  const now = new Date().toISOString()
+  const expires_at = options.expiresAt ?? new Date(Date.now() + SANDBOX_LIFETIME_MS).toISOString()
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO sandboxes (id, created_at, expires_at, lockdown) VALUES (?1, ?2, ?3, ?4)`,
+    ).bind(id, now, expires_at, options.lockdown ? 1 : 0),
+    env.DB.prepare(`INSERT INTO sandbox_gate (sandbox_id, mode) VALUES (?1, 'open')`).bind(id),
+    ...(['admin', 'qa', 'dev'] as const).map((role) =>
+      env.DB.prepare(
+        `INSERT INTO members (sandbox_id, email, role, added_at, added_by) VALUES (?1, ?2, ?3, ?4, 'test')`,
+      ).bind(id, emailFor(role), role, now),
+    ),
+  ])
+  return { id, expires_at }
+}
+
+/** The account each role signs in as in a test sandbox. */
+export const emailFor = (role: Role) => `${role}@${DEMO_DOMAIN}`
+
+let shared: Promise<{ id: string; expires_at: string }> | null = null
+/** One sandbox per test file, so sessions of different roles see the same runs. */
+export const sharedSandbox = () => (shared ??= makeTestSandbox())
+
+/**
+ * A valid session cookie for a role, without going through sign-in.
+ *
+ * In the file's shared sandbox unless one is given. Admin is the account listed
+ * as admin plus a valid admin cookie, exactly what unlocking with the key gives.
+ */
+export async function sessionFor(
+  role: Role,
+  sandbox?: { id: string; expires_at: string },
+): Promise<string> {
+  const box = sandbox ?? (await sharedSandbox())
+  const { token } = await createToken(DEV_TOKEN_SECRET, box, emailFor(role))
+  if (role !== 'admin') return `session=${token}`
+  const admin = await createAdminToken(DEV_TOKEN_SECRET, box.id, emailFor(role))
+  return `session=${token}; admin=${admin.token}`
 }
 
 /** `request`, with a signed-in role attached. */
@@ -141,9 +188,12 @@ export async function seedRun(
     ref: string
     status: RunStatus
     suite: 'api' | 'ui'
-    triggeredBy: Role
+    triggeredBy: Role | 'ci'
     reportPath: string | null
     startedAt: string
+    /** Null (the default) is a real run from a suite's CI, seen by every sandbox. */
+    sandboxId: string | null
+    simulated: boolean
   }> = {},
 ): Promise<string> {
   const row = {
@@ -153,15 +203,18 @@ export async function seedRun(
     ref: 'main',
     status: 'queued' as RunStatus,
     suite: 'api' as 'api' | 'ui',
-    triggeredBy: 'qa' as Role,
+    triggeredBy: 'ci' as Role | 'ci',
     reportPath: null,
     startedAt: new Date().toISOString(),
+    sandboxId: null as string | null,
+    simulated: false,
     ...overrides,
   }
 
   await env.DB.prepare(
-    `INSERT INTO runs (id, service, tags, triggered_by, status, ref, started_at, report_path, suite)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+    `INSERT INTO runs (id, service, tags, triggered_by, status, ref, started_at, report_path, suite,
+                       sandbox_id, simulated)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`,
   )
     .bind(
       row.id,
@@ -173,6 +226,8 @@ export async function seedRun(
       row.startedAt,
       row.reportPath,
       row.suite,
+      row.sandboxId,
+      row.sandboxId === null ? (row.simulated ? 1 : 0) : 1,
     )
     .run()
 

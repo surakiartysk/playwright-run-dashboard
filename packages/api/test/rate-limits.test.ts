@@ -1,12 +1,14 @@
 import { env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { as, migrate, request, seedRun, settle } from './helpers'
+import { as, makeTestSandbox, migrate, request, seedRun, settle, sharedSandbox } from './helpers'
 import {
-  SANDBOX_ACTIVE_MAX,
-  SANDBOX_KEYS_PER_HOUR,
-  SANDBOX_RUNS_PER_HOUR,
-  issueSandboxKey,
-} from '../src/sandbox'
+  VISITOR_KEYS_PER_HOUR,
+  VISITOR_KEYS_PER_SANDBOX,
+  VISITOR_KEY_RUNS_PER_HOUR,
+  issueVisitorKey,
+} from '../src/visitorKeys'
+import { SANDBOX_RUNS_PER_HOUR } from '../src/routes/runs'
+import { SANDBOXES_ALIVE_MAX, SANDBOXES_PER_HOUR, makeSandbox } from '../src/sandboxes'
 import { LAST_USED_GRANULARITY_MS, lastUsedIsStale } from '../src/auth'
 import { parseKey } from '../src/apiKeys'
 import { secondsUntilRoom } from '../src/retry'
@@ -36,7 +38,7 @@ const near = (actual: number, expected: number) => {
 const retryAfter = (response: Response) => Number(response.headers.get('Retry-After'))
 
 const mintKey = async () => {
-  const response = await as('demo', '/demo/keys', { method: 'POST' })
+  const response = await as('dev', '/demo/keys', { method: 'POST' })
   return ((await response.json()) as { key: string }).key
 }
 
@@ -50,22 +52,22 @@ const postRun = (key: string) =>
 const insertKeyRun = (id: string, keyId: string, startedAt: string) =>
   env.DB.prepare(
     `INSERT INTO runs (id, service, tags, triggered_by, status, ref, started_at, api_key_id)
-     VALUES (?1, 'items', 'all', 'demo', 'passed', 'main', ?2, ?3)`,
+     VALUES (?1, 'items', 'all', 'dev', 'passed', 'main', ?2, ?3)`,
   )
     .bind(id, startedAt, keyId)
     .run()
 
-describe('Retry-After on a spent sandbox key', () => {
+describe('Retry-After on a spent key', () => {
   beforeEach(async () => {
     await env.DB.prepare(`DELETE FROM runs`).run()
-    await env.DB.prepare(`DELETE FROM api_keys WHERE sandbox = 1`).run()
+    await env.DB.prepare(`DELETE FROM api_keys`).run()
   })
 
   it('is the time until the oldest counted run is an hour old', async () => {
     const key = await mintKey()
     const id = parseKey(key)!.id
     // Ten runs, the oldest fifty minutes ago: ten more minutes to wait.
-    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) {
+    for (let i = 0; i < VISITOR_KEY_RUNS_PER_HOUR; i++) {
       await insertKeyRun(`r-${i}`, id, ago(50 - i))
     }
     const response = await postRun(key)
@@ -88,44 +90,49 @@ describe('Retry-After on a spent sandbox key', () => {
   it('counts only this key’s runs', async () => {
     const key = await mintKey()
     const id = parseKey(key)!.id
-    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) await insertKeyRun(`mine-${i}`, id, ago(30))
+    for (let i = 0; i < VISITOR_KEY_RUNS_PER_HOUR; i++) await insertKeyRun(`mine-${i}`, id, ago(30))
     for (let i = 0; i < 3; i++) await insertKeyRun(`theirs-${i}`, 'another', ago(59))
     near(retryAfter(await postRun(key)), 30 * 60)
   })
 })
 
-describe('Retry-After on the demo’s shared limit', () => {
+describe('Retry-After on a sandbox’s run limit', () => {
   beforeEach(async () => {
     await env.DB.prepare(`DELETE FROM runs`).run()
   })
 
-  it('is the time until the oldest of the demo’s runs this hour is an hour old', async () => {
-    for (let i = 0; i < 30; i++) await seedRun({ triggeredBy: 'demo', startedAt: ago(45 - i / 2) })
-    const response = await as('demo', '/runs', {
+  const start = () =>
+    as('dev', '/runs', {
       method: 'POST',
       body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
     })
+
+  it('is the time until the oldest of the sandbox’s runs this hour is an hour old', async () => {
+    const { id } = await sharedSandbox()
+    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) {
+      await seedRun({ sandboxId: id, startedAt: ago(45 - i / 2) })
+    }
+    const response = await start()
     expect(response.status).toBe(429)
     near(retryAfter(response), 15 * 60)
   })
 
-  it('works the wait out from the demo’s runs alone, not a colleague’s older one', async () => {
-    await seedRun({ triggeredBy: 'qa', startedAt: ago(59) })
-    for (let i = 0; i < 30; i++) await seedRun({ triggeredBy: 'demo', startedAt: ago(45 - i / 2) })
-    const response = await as('demo', '/runs', {
-      method: 'POST',
-      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
-    })
-    expect(response.status).toBe(429)
-    near(retryAfter(response), 15 * 60)
+  it('works the wait out from this sandbox’s runs alone, not a real run older still', async () => {
+    const { id } = await sharedSandbox()
+    await seedRun({ startedAt: ago(59) })
+    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) {
+      await seedRun({ sandboxId: id, startedAt: ago(45 - i / 2) })
+    }
+    near(retryAfter(await start()), 15 * 60)
   })
 
-  it('does not count anyone else’s runs', async () => {
-    for (let i = 0; i < 30; i++) await seedRun({ triggeredBy: 'qa', startedAt: ago(10) })
-    const response = await as('demo', '/runs', {
-      method: 'POST',
-      body: JSON.stringify({ service: 'items', tags: 'all', ref: 'main' }),
-    })
+  /** One visitor's runs do not use up another's. */
+  it('does not count another sandbox’s runs', async () => {
+    const other = await makeTestSandbox()
+    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) {
+      await seedRun({ sandboxId: other.id, startedAt: ago(10) })
+    }
+    const response = await start()
     expect(response.status).toBe(201)
     expect(response.headers.get('Retry-After')).toBeNull()
   })
@@ -133,25 +140,24 @@ describe('Retry-After on the demo’s shared limit', () => {
 
 describe('Retry-After on minting', () => {
   beforeEach(async () => {
-    await env.DB.prepare(`DELETE FROM api_keys WHERE sandbox = 1`).run()
+    await env.DB.prepare(`DELETE FROM api_keys`).run()
   })
 
-  const insertKey = (id: string, createdAt: string, expiresAt: string) =>
+  const insertKey = (id: string, createdAt: string, sandboxId = 'elsewhere') =>
     env.DB.prepare(
-      `INSERT INTO api_keys (id, hash, label, role, created_by, created_at, expires_at, sandbox)
-       VALUES (?1, 'x', 'sandbox', 'demo', 'demo-session', ?2, ?3, 1)`,
+      `INSERT INTO api_keys (id, hash, label, role, created_by, created_at, expires_at, sandbox, sandbox_id)
+       VALUES (?1, 'x', 'terminal', 'dev', 'self-serve', ?2, ?3, 1, ?4)`,
     )
-      .bind(id, createdAt, expiresAt)
+      .bind(id, createdAt, ahead(600), sandboxId)
       .run()
 
   it('is the time until the oldest key of this hour is an hour old', async () => {
-    for (let i = 0; i < SANDBOX_KEYS_PER_HOUR; i++)
-      await insertKey(`k${i}`, ago(40 - i), ahead(600))
-    const refused = await issueSandboxKey(env)
+    for (let i = 0; i < VISITOR_KEYS_PER_HOUR; i++) await insertKey(`k${i}`, ago(40 - i / 4))
+    const refused = await issueVisitorKey(env, await sharedSandbox(), 'dev')
     expect(refused.ok).toBe(false)
     near((refused as { retryAfter: number }).retryAfter, 20 * 60)
 
-    const response = await as('demo', '/demo/keys', { method: 'POST' })
+    const response = await as('dev', '/demo/keys', { method: 'POST' })
     expect(response.status).toBe(429)
     near(retryAfter(response), 20 * 60)
   })
@@ -163,19 +169,55 @@ describe('Retry-After on minting', () => {
     )
       .bind(ago(59))
       .run()
-    for (let i = 0; i < SANDBOX_KEYS_PER_HOUR; i++)
-      await insertKey(`k${i}`, ago(40 - i), ahead(600))
-    near(((await issueSandboxKey(env)) as { retryAfter: number }).retryAfter, 20 * 60)
-    await env.DB.prepare(`DELETE FROM api_keys WHERE id = 'admins'`).run()
+    for (let i = 0; i < VISITOR_KEYS_PER_HOUR; i++) await insertKey(`k${i}`, ago(40 - i / 4))
+    const refused = await issueVisitorKey(env, await sharedSandbox(), 'dev')
+    near((refused as { retryAfter: number }).retryAfter, 20 * 60)
   })
 
-  /** Room at the live cap opens when a key expires, not when an hour passes. */
-  it('is the time until the soonest key expires, at the live cap', async () => {
-    // Created long ago, so only the cap can be what refuses.
-    for (let i = 0; i < SANDBOX_ACTIVE_MAX; i++) {
-      await insertKey(`live${i}`, ago(300), ahead(120 + i))
-    }
-    const refused = await issueSandboxKey(env)
+  it('refuses a sandbox that holds its share of keys, until one is revoked', async () => {
+    const sandbox = await makeTestSandbox()
+    for (let i = 0; i < VISITOR_KEYS_PER_SANDBOX; i++)
+      await insertKey(`mine${i}`, ago(300), sandbox.id)
+    const refused = await issueVisitorKey(env, sandbox, 'dev')
+    expect(refused).toMatchObject({ ok: false })
+    expect((refused as { error: string }).error).toMatch(/Revoke one/)
+
+    await env.DB.prepare(`UPDATE api_keys SET revoked_at = ?1 WHERE id = 'mine0'`)
+      .bind(ago(0))
+      .run()
+    expect((await issueVisitorKey(env, sandbox, 'dev')).ok).toBe(true)
+  })
+})
+
+describe('Retry-After on making a sandbox', () => {
+  beforeEach(async () => {
+    const { id } = await sharedSandbox()
+    await env.DB.prepare(`DELETE FROM sandboxes WHERE id != ?1`).bind(id).run()
+  })
+
+  const insertSandbox = (id: string, createdAt: string, expiresAt: string) =>
+    env.DB.prepare(`INSERT INTO sandboxes (id, created_at, expires_at) VALUES (?1, ?2, ?3)`)
+      .bind(id, createdAt, expiresAt)
+      .run()
+
+  it('is the time until the oldest sandbox of this hour is an hour old', async () => {
+    // One fewer: the file's own sandbox was made this hour and is alive.
+    for (let i = 0; i < SANDBOXES_PER_HOUR - 1; i++)
+      await insertSandbox(`s${i}`, ago(40 - i / 10), ahead(600))
+    const refused = await makeSandbox(env)
+    expect(refused.ok).toBe(false)
+    near((refused as { retryAfter: number }).retryAfter, 20 * 60)
+
+    const response = await request('/auth/demo', { method: 'POST' })
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  /** Room at the alive cap opens when a sandbox expires, not when an hour passes. */
+  it('is the time until the soonest sandbox expires, at the alive cap', async () => {
+    for (let i = 0; i < SANDBOXES_ALIVE_MAX - 1; i++)
+      await insertSandbox(`a${i}`, ago(300), ahead(120 + i))
+    const refused = await makeSandbox(env)
     expect(refused.ok).toBe(false)
     const seconds = (refused as { retryAfter: number }).retryAfter
     expect(seconds).toBeGreaterThan(100 * 60)
@@ -193,7 +235,7 @@ describe('secondsUntilRoom', () => {
       env.DB,
       {
         from: 'runs',
-        where: `triggered_by = 'demo'`,
+        where: `triggered_by = 'ci'`,
         column: 'started_at',
         params: [],
         count: 1,
@@ -206,12 +248,12 @@ describe('secondsUntilRoom', () => {
     )
 
   it('is at least a second, never an invitation to retry at once', async () => {
-    await seedRun({ triggeredBy: 'demo', startedAt: ago(61) })
+    await seedRun({ startedAt: ago(61) })
     expect(await ask()).toBe(1)
   })
 
   it('is never more than the window', async () => {
-    await seedRun({ triggeredBy: 'demo', startedAt: ahead(30) })
+    await seedRun({ startedAt: ahead(30) })
     expect(await ask()).toBe(3600)
   })
 
@@ -221,7 +263,7 @@ describe('secondsUntilRoom', () => {
   })
 
   it('is capped by what the caller says is the longest, not by an hour', async () => {
-    await seedRun({ triggeredBy: 'demo', startedAt: ahead(600) })
+    await seedRun({ startedAt: ahead(600) })
     expect(await ask({ holdMs: 0, atMostMs: 24 * 60 * MIN })).toBeGreaterThan(3600)
     expect(await ask({ holdMs: 0, atMostMs: 24 * 60 * MIN })).toBeLessThanOrEqual(600 * 60)
   })
@@ -239,7 +281,7 @@ describe('what using a key writes', () => {
     settle('/runs/options', { headers: { Authorization: `Bearer ${key}` } })
 
   beforeEach(async () => {
-    await env.DB.prepare(`DELETE FROM api_keys WHERE sandbox = 1`).run()
+    await env.DB.prepare(`DELETE FROM api_keys`).run()
   })
 
   it('records the first use', async () => {
@@ -269,7 +311,7 @@ describe('what using a key writes', () => {
     await env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
       .bind(id, recent)
       .run()
-    for (let i = 0; i < SANDBOX_RUNS_PER_HOUR; i++) await insertKeyRun(`s-${i}`, id, ago(20))
+    for (let i = 0; i < VISITOR_KEY_RUNS_PER_HOUR; i++) await insertKeyRun(`s-${i}`, id, ago(20))
     expect((await postRun(key)).status).toBe(429)
     expect(await lastUsed(id)).toBe(recent)
   })

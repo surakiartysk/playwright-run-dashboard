@@ -1,114 +1,199 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { HonoEnv } from '../types'
 import {
+  adminCookie,
+  clearAdminCookie,
   clearCookie,
-  clearPreviewRoleCookie,
+  createAdminToken,
   createToken,
   isHttps,
+  readSessionCookie,
   requireSession,
-  roleForPassword,
   sessionCookie,
+  verifyToken,
 } from '../auth'
-import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from '../config'
-import { LOGIN_WINDOW_MINUTES, chargeAttempt, clientAddress, refundAttempt } from '../loginLimit'
+import { DEV_TOKEN_SECRET } from '../config'
+import { LOGIN_WINDOW_MINUTES, chargeAttempt, refundAttempt } from '../loginLimit'
+import {
+  OUTSIDER_EMAIL,
+  SEED_MEMBERS,
+  VISITOR_EMAIL,
+  adminKeyFor,
+  liveSandbox,
+  makeSandbox,
+  type SandboxRow,
+} from '../sandboxes'
+import { listMembers, listedRole, normalizeEmail } from '../members'
+import { record } from '../audit'
+import { constantTimeEquals } from '../crypto'
 
 export const authRoutes = new Hono<HonoEnv>()
 
 /**
- * A password per role, plus an optional name.
+ * Signing in, without a password (decision 52).
  *
- * Still no user accounts: the dashboard answers "may this person start a run,
- * and whose runs may they see", and a user table with invitations and password
- * resets would be a large answer to a question nobody is asking.
- *
- * What did change is an assumption. The original note here said the dashboard
- * "does not need to know who they are", and migration 0006 stated it plainly —
- * "there is one human behind each password". A role password is shared, so a
- * history of runs all attributed to `qa` answers "who ran this?" no better than the
- * machine case 0006 was written to fix.
- *
- * So the name is asked for and signed into the session, and it is a *claim*
- * rather than an identity: anyone with the password can type anything. That is
- * the honest limit of a shared password, and pretending otherwise by calling
- * it a user would be worse than saying so. It answers "who should I ask about
- * this run" — nothing that anyone would defend in a disagreement.
+ * Two ways in, and both are the demo. "Log in to demo" makes a sandbox and
+ * signs in as its visitor account. "Sign in with Google" is a concept: it is
+ * not connected to Google. It shows the account chooser a real deployment
+ * would put in front of a company's Google Workspace, lists the sandbox's
+ * accounts plus one that is on no list, and applies the real whitelist check to
+ * whichever is picked — so the one thing worth showing, that an account outside
+ * the list is refused, happens rather than being described.
  */
-authRoutes.post('/login', async (c) => {
-  const body = (await c.req.json().catch(() => null)) as {
-    password?: string
-    name?: string
-  } | null
-  if (!body?.password) return c.json({ error: 'Password is required' }, 422)
 
-  // Before the password is looked at, so an address over its limit learns
-  // nothing — not even that it finally guessed right. See decision 28.
-  const client = clientAddress(c.req.raw)
-  if (!(await chargeAttempt(c.env.DB, client))) {
-    return c.json(
-      { error: `Too many wrong passwords. Try again within ${LOGIN_WINDOW_MINUTES} minutes.` },
-      429,
-    )
+/** The sandbox a request's session cookie points at, if it is still alive. */
+async function currentSandbox(c: Context<HonoEnv>): Promise<SandboxRow | null> {
+  const token = readSessionCookie(c.req.header('Cookie'))
+  if (!token) return null
+  const session = await verifyToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, token)
+  if (!session) return null
+  return liveSandbox(c.env.DB, session.sandboxId)
+}
+
+async function signIn(c: Context<HonoEnv>, sandbox: SandboxRow, email: string) {
+  const secure = isHttps(c.req.url)
+  const session = await createToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, sandbox, email)
+  const maxAge = session.expiresAt - Math.floor(Date.now() / 1000)
+  c.header('Set-Cookie', sessionCookie(session.token, maxAge, secure))
+  // A new account in the same browser starts without the last one's admin hour.
+  c.header('Set-Cookie', clearAdminCookie(secure), { append: true })
+  await record(c.env.DB, sandbox.id, email, 'sign-in')
+  return c.json({ email, sandbox: { expiresAt: sandbox.expires_at } })
+}
+
+/** A new sandbox, signed in as its visitor account. */
+authRoutes.post('/demo', async (c) => {
+  const made = await makeSandbox(c.env)
+  if (!made.ok) {
+    return c.json({ error: made.error }, 429, { 'Retry-After': String(made.retryAfter) })
+  }
+  return signIn(c, made.sandbox, VISITOR_EMAIL)
+})
+
+/**
+ * The concept chooser's accounts: the sandbox's members when there is one, the
+ * accounts a new sandbox would start with when there is not, and the outsider
+ * either way.
+ */
+authRoutes.get('/accounts', async (c) => {
+  const sandbox = await currentSandbox(c)
+  const members = sandbox
+    ? (await listMembers(c.env.DB, sandbox.id)).map(({ email, role }) => ({ email, role }))
+    : SEED_MEMBERS.map(({ email, role }) => ({ email, role }))
+  return c.json({ accounts: [...members, { email: OUTSIDER_EMAIL, role: null }] })
+})
+
+/**
+ * Pick an account in the concept chooser.
+ *
+ * Within the visitor's sandbox when they have one, so switching account keeps
+ * what they made; otherwise a new sandbox. An account that is not on the list
+ * is refused — and when there is no sandbox yet, refused before one is made,
+ * so a refusal does not spend a sandbox nobody can sign in to.
+ */
+authRoutes.post('/account', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as { email?: unknown } | null
+  const email = normalizeEmail(body?.email)
+  if (!email) return c.json({ error: 'email must be one plain address' }, 422)
+
+  const existing = await currentSandbox(c)
+  if (!existing) {
+    if (!SEED_MEMBERS.some((member) => member.email === email)) {
+      return c.json({ error: `${email} is not on this sandbox's list` }, 403)
+    }
+    const made = await makeSandbox(c.env)
+    if (!made.ok) {
+      return c.json({ error: made.error }, 429, { 'Retry-After': String(made.retryAfter) })
+    }
+    return signIn(c, made.sandbox, email)
   }
 
-  const role = await roleForPassword(c.env, body.password)
-
-  // No distinction between "wrong password" and "no such role" — there is
-  // nothing to enumerate.
-  if (!role) return c.json({ error: 'Wrong password' }, 401)
-
-  await refundAttempt(c.env.DB, client)
-
-  // Optional on purpose: a blank name is a valid sign-in, and refusing one
-  // would turn a label into a gate. `demo` never gets one — it is a published
-  // password anyone may use, so a name there would be noise at best.
-  const name = role === 'demo' ? undefined : body.name
-
-  const session = await createToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, role, name)
-  const maxAge = session.expiresAt - Math.floor(Date.now() / 1000)
-
-  c.header('Set-Cookie', sessionCookie(session.token, maxAge, isHttps(c.req.url)))
-  return c.json({ role: session.role, expiresAt: session.expiresAt, name: session.name })
+  if (!(await listedRole(c.env.DB, existing.id, email))) {
+    await record(c.env.DB, existing.id, email, 'sign-in-refused', 'not on the list')
+    return c.json({ error: `${email} is not on this sandbox's list` }, 403)
+  }
+  return signIn(c, existing, email)
 })
 
 authRoutes.post('/logout', (c) => {
   const secure = isHttps(c.req.url)
   c.header('Set-Cookie', clearCookie(secure))
-  // The preview cookie is bound to the session's expiry, which has one-second
-  // resolution: left behind, it applied again to a demo sign-in in the same
-  // second, and the new session opened previewing admin.
-  c.header('Set-Cookie', clearPreviewRoleCookie(secure), { append: true })
+  c.header('Set-Cookie', clearAdminCookie(secure), { append: true })
   return c.json({ ok: true })
 })
 
-/** Who am I — lets the UI restore a session without a second login. */
-authRoutes.get('/me', requireSession, (c) =>
-  c.json({ role: c.get('role'), name: c.get('sessionName') }),
-)
+/** Who am I — lets the UI restore a session without signing in again. */
+authRoutes.get('/me', requireSession, async (c) => {
+  const sandbox = await liveSandbox(c.env.DB, c.get('sandboxId'))
+  return c.json({
+    email: c.get('email') ?? null,
+    role: c.get('role'),
+    listedRole: c.get('listedRole') ?? null,
+    adminUntil: c.get('adminUntil') ?? null,
+    sandbox: { expiresAt: sandbox?.expires_at ?? null, lockdown: c.get('lockdown') },
+  })
+})
+
+// ── Admin key ─────────────────────────────────────────────────────────────
 
 /**
- * Which passwords this deployment hands out.
+ * The sandbox's admin key, shown on the admin page (decision 52).
  *
- * `mode` is why this is not a single `passwords` object with sometimes-fewer
- * keys: a caller that needs to know which case it is in should be told, not
- * left to guess from which keys happened to arrive — exactly the kind of
- * inference that breaks quietly when a role is renamed.
- *
- * The login screen uses only `demo`'s, for its one-click button; the others
- * are listed in the README for local use.
- *
- * `'full'` — simulating. Every password is safe to return; nothing here can
- * reach a real system.
- *
- * `'demo-only'` — not simulating, so at least one of dev/qa/admin dispatches
- * for real. Those three stay hidden; a reader is told them out of band, the
- * way any real deployment's credentials are shared. `demo`'s password is
- * still returned — its safety was never secrecy, see decision 12, so hiding
- * it here would gate a link that is meant to be handed out and gain nothing:
- * the role it unlocks still cannot dispatch anything real.
+ * Only to an account listed as admin, and only to a person: a key may not read
+ * it. On a real deployment the key is a secret nobody can ask the server for;
+ * here the page hands it over, because a demo whose admin cannot be reached
+ * shows nothing. What is real is the check in `POST /auth/admin`.
  */
-authRoutes.get('/dev-credentials', (c) => {
-  if (c.env.SIMULATE_DISPATCH === 'false') {
-    return c.json({ mode: 'demo-only' as const, passwords: { demo: DEV_PASSWORDS.demo } })
+authRoutes.get('/admin-key', requireSession, async (c) => {
+  if (c.get('apiKey') || c.get('listedRole') !== 'admin') {
+    return c.json({ error: 'Only an account listed as admin is shown the admin key' }, 403)
   }
-  return c.json({ mode: 'full' as const, passwords: DEV_PASSWORDS })
+  return c.json({ key: await adminKeyFor(c.env, c.get('sandboxId')), demo: true })
+})
+
+/**
+ * Unlock admin: the account must be listed as admin, and the key must match.
+ *
+ * Ten tries in fifteen minutes per account, counted before the key is compared
+ * so parallel guesses each see their own place in the queue (decision 28).
+ */
+authRoutes.post('/admin', requireSession, async (c) => {
+  const email = c.get('email')
+  const sandboxId = c.get('sandboxId')
+  if (c.get('apiKey') || !email) {
+    return c.json({ error: 'Keys may not unlock admin — sign in to do that' }, 403)
+  }
+  if (c.get('listedRole') !== 'admin') {
+    await record(c.env.DB, sandboxId, email, 'admin-key-refused', 'not listed as admin')
+    return c.json({ error: `${email} is not listed as admin in this sandbox` }, 403)
+  }
+  const body = (await c.req.json().catch(() => null)) as { key?: unknown } | null
+  if (typeof body?.key !== 'string' || body.key.length === 0 || body.key.length > 256) {
+    return c.json({ error: 'key is required' }, 422)
+  }
+
+  const bucket = `admin:${sandboxId}:${email}`
+  if (!(await chargeAttempt(c.env.DB, bucket))) {
+    return c.json(
+      { error: `Too many wrong keys. Try again within ${LOGIN_WINDOW_MINUTES} minutes.` },
+      429,
+    )
+  }
+  if (!(await constantTimeEquals(body.key, await adminKeyFor(c.env, sandboxId)))) {
+    await record(c.env.DB, sandboxId, email, 'admin-key-refused', 'wrong key')
+    return c.json({ error: 'Wrong admin key' }, 401)
+  }
+  await refundAttempt(c.env.DB, bucket)
+
+  const admin = await createAdminToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, sandboxId, email)
+  const maxAge = admin.expiresAt - Math.floor(Date.now() / 1000)
+  c.header('Set-Cookie', adminCookie(admin.token, maxAge, isHttps(c.req.url)))
+  await record(c.env.DB, sandboxId, email, 'admin-unlocked')
+  return c.json({ role: 'admin', adminUntil: admin.expiresAt })
+})
+
+/** Give up the admin hour early. */
+authRoutes.delete('/admin', (c) => {
+  c.header('Set-Cookie', clearAdminCookie(isHttps(c.req.url)))
+  return c.json({ ok: true })
 })

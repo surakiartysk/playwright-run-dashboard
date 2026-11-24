@@ -1,199 +1,156 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
+  createAdminToken,
   createToken,
-  verifyToken,
-  roleForPassword,
+  readAdminCookie,
   readSessionCookie,
-  MAX_NAME_LENGTH,
+  verifyAdminToken,
+  verifyToken,
 } from '../src/auth'
 import { hmacHex } from '../src/crypto'
-import { DEV_PASSWORDS } from '../src/config'
-import type { Bindings, Role } from '../src/types'
 
 const SECRET = 'test-token-secret'
+const SANDBOX = '0123456789abcdef0123456789abcdef'
+const OTHER_SANDBOX = 'fedcba9876543210fedcba9876543210'
+const inADay = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+const box = (id = SANDBOX) => ({ id, expires_at: inADay() })
 
 afterEach(() => vi.useRealTimers())
 
 describe('session tokens', () => {
-  it.each(['dev', 'qa', 'admin'] as Role[])('round-trips a %s session', async (role) => {
-    const { token } = await createToken(SECRET, role)
-    expect(await verifyToken(SECRET, token)).toMatchObject({ role })
+  it('round-trips the sandbox and the account', async () => {
+    const { token } = await createToken(SECRET, box(), 'you@demo.testbydesign.dev')
+    expect(await verifyToken(SECRET, token)).toMatchObject({
+      sandboxId: SANDBOX,
+      email: 'you@demo.testbydesign.dev',
+    })
+  })
+
+  it('lasts as long as its sandbox', async () => {
+    const sandbox = box()
+    const { expiresAt } = await createToken(SECRET, sandbox, 'a@b.co')
+    expect(expiresAt).toBe(Math.floor(Date.parse(sandbox.expires_at) / 1000))
   })
 
   it('rejects a token signed with a different secret', async () => {
-    const { token } = await createToken('other-secret', 'admin')
+    const { token } = await createToken('other-secret', box(), 'a@b.co')
     expect(await verifyToken(SECRET, token)).toBeNull()
   })
 
   /**
-   * The role is in plain text in the token, so the only thing stopping a `dev`
-   * from editing it to `admin` is the signature. This is the escalation the
-   * whole scheme exists to prevent.
+   * The sandbox is in plain text in the token, so the only thing stopping a
+   * visitor from editing it to someone else's is the signature. This is the
+   * crossing the whole scheme exists to prevent.
    */
-  it('rejects a dev token edited to say admin', async () => {
-    const { token } = await createToken(SECRET, 'dev')
-    const [exp, , name, signature] = token.split('.')
-
-    expect(await verifyToken(SECRET, `${exp}.admin.${name}.${signature}`)).toBeNull()
+  it("rejects a token edited to name another visitor's sandbox", async () => {
+    const { token } = await createToken(SECRET, box(), 'a@b.co')
+    const [exp, , email, signature] = token.split('.')
+    expect(await verifyToken(SECRET, `${exp}.${OTHER_SANDBOX}.${email}.${signature}`)).toBeNull()
   })
 
-  /**
-   * Signature before expiry, deliberately: an attacker who could push the
-   * expiry out and have it read first would only be stopped by the signature
-   * anyway, and checking in that order is harder to reason about.
+  /*
+   * The account is inside the signed payload, so switching it is the same class
+   * of attack as switching the sandbox: an account listed as qa edited to the
+   * one listed as admin.
    */
-  it('rejects a token whose expiry was pushed into the future', async () => {
-    const { token } = await createToken(SECRET, 'dev')
-    const [, role, name, signature] = token.split('.')
+  it('rejects a token whose account was edited after signing', async () => {
+    const { token } = await createToken(SECRET, box(), 'qa@b.co')
+    const [exp, sandbox, , signature] = token.split('.')
+    const forged = btoa('admin@b.co').replace(/=+$/, '')
+    expect(await verifyToken(SECRET, `${exp}.${sandbox}.${forged}.${signature}`)).toBeNull()
+  })
 
-    expect(await verifyToken(SECRET, `9999999999.${role}.${name}.${signature}`)).toBeNull()
+  it('rejects a token whose expiry was pushed into the future', async () => {
+    const { token } = await createToken(SECRET, box(), 'a@b.co')
+    const [, sandbox, email, signature] = token.split('.')
+    expect(await verifyToken(SECRET, `9999999999.${sandbox}.${email}.${signature}`)).toBeNull()
   })
 
   it('rejects a token once it has expired', async () => {
-    const { token } = await createToken(SECRET, 'qa')
-    expect(await verifyToken(SECRET, token)).toMatchObject({ role: 'qa' })
-
-    // The TTL is eight hours; step past it.
+    const { token } = await createToken(SECRET, box(), 'a@b.co')
+    expect(await verifyToken(SECRET, token)).not.toBeNull()
     vi.useFakeTimers()
-    vi.setSystemTime(Date.now() + 9 * 60 * 60 * 1000)
-
+    vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000)
     expect(await verifyToken(SECRET, token)).toBeNull()
   })
 
-  /**
-   * A correctly signed token naming a role that does not exist must not be
-   * let through — otherwise `c.get('role')` carries a value no policy covers,
-   * and `POLICIES[role]` is undefined at the point it is trusted.
-   */
-  it('rejects a correctly signed token naming an unknown role', async () => {
-    const payload = '9999999999.superuser'
-    const token = `${payload}.${await hmacHex(SECRET, payload)}`
+  it('rejects a correctly signed token whose sandbox is not one of ours', async () => {
+    const payload = `9999999999.not-a-sandbox.${btoa('a@b.co')}`
+    expect(await verifyToken(SECRET, `${payload}.${await hmacHex(SECRET, payload)}`)).toBeNull()
+  })
 
-    expect(await verifyToken(SECRET, token)).toBeNull()
+  /*
+   * An email is free text, and the payload is dot-delimited. Encoding it is
+   * what stops `j.smith@x.co` splitting the token into extra parts.
+   */
+  it('survives an account with dots and characters base64 would pad', async () => {
+    const { token } = await createToken(SECRET, box(), 'j.smith+a@x.co')
+    expect(await verifyToken(SECRET, token)).toMatchObject({ email: 'j.smith+a@x.co' })
   })
 
   it.each([
     ['no separators', 'justastring'],
-    ['two parts', 'a.b'],
-    ['four parts', 'a.b.c.d'],
+    ['three parts', 'a.b.c'],
+    ['five parts', 'a.b.c.d.e'],
     ['empty', ''],
-    ['non-numeric expiry', 'later.dev.abc'],
+    ['the old role token', '9999999999.admin.abc'],
   ])('rejects a malformed token: %s', async (_label, token) => {
     expect(await verifyToken(SECRET, token)).toBeNull()
   })
 })
 
-describe('roleForPassword', () => {
-  // Nothing configured, so the development defaults apply — the local case.
-  const env = {} as Bindings
-
-  it.each(Object.entries(DEV_PASSWORDS))('maps %s password to its role', async (role, password) => {
-    expect(await roleForPassword(env, password)).toBe(role)
+describe('admin tokens', () => {
+  it('holds for the sandbox and account it was issued to', async () => {
+    const { token, expiresAt } = await createAdminToken(SECRET, SANDBOX, 'you@x.co')
+    expect(await verifyAdminToken(SECRET, token, SANDBOX, 'you@x.co')).toBe(expiresAt)
   })
 
-  it.each([
-    ['wrong', 'not-a-password'],
-    ['empty', ''],
-    ['a role name that is not the password', 'administrator'],
-  ])('returns null for a %s password', async (_label, password) => {
-    expect(await roleForPassword(env, password)).toBeNull()
+  it('lasts an hour', async () => {
+    const { token } = await createAdminToken(SECRET, SANDBOX, 'you@x.co')
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.now() + 61 * 60 * 1000)
+    expect(await verifyAdminToken(SECRET, token, SANDBOX, 'you@x.co')).toBeNull()
   })
 
-  it('prefers an explicitly configured password over the default', async () => {
-    const configured = { ADMIN_PASSWORD: 'a-real-secret' } as unknown as Bindings
+  it('does not carry to another sandbox', async () => {
+    const { token } = await createAdminToken(SECRET, SANDBOX, 'you@x.co')
+    expect(await verifyAdminToken(SECRET, token, OTHER_SANDBOX, 'you@x.co')).toBeNull()
+  })
 
-    expect(await roleForPassword(configured, 'a-real-secret')).toBe('admin')
-    // The default must no longer open the admin role once one is configured.
-    expect(await roleForPassword(configured, DEV_PASSWORDS.admin)).toBeNull()
+  it('does not carry to another account in the same sandbox', async () => {
+    const { token } = await createAdminToken(SECRET, SANDBOX, 'you@x.co')
+    expect(await verifyAdminToken(SECRET, token, SANDBOX, 'qa@x.co')).toBeNull()
+  })
+
+  it('is not a session token, and a session token is not one', async () => {
+    const session = await createToken(SECRET, box(), 'you@x.co')
+    const admin = await createAdminToken(SECRET, SANDBOX, 'you@x.co')
+    expect(await verifyAdminToken(SECRET, session.token, SANDBOX, 'you@x.co')).toBeNull()
+    expect(await verifyToken(SECRET, admin.token)).toBeNull()
+  })
+
+  it('rejects one signed with another secret', async () => {
+    const { token } = await createAdminToken('other', SANDBOX, 'you@x.co')
+    expect(await verifyAdminToken(SECRET, token, SANDBOX, 'you@x.co')).toBeNull()
   })
 })
 
-describe('readSessionCookie', () => {
+describe('reading the cookies', () => {
   it('finds the session among other cookies', () => {
     expect(readSessionCookie('theme=dark; session=abc.def; other=1')).toBe('abc.def')
+  })
+
+  it('finds the admin cookie apart from the session', () => {
+    expect(readAdminCookie('session=s.1; admin=adm.2')).toBe('adm.2')
+    expect(readSessionCookie('session=s.1; admin=adm.2')).toBe('s.1')
   })
 
   it('returns null when there is no cookie header at all', () => {
     expect(readSessionCookie(undefined)).toBeNull()
   })
 
-  it('returns null when no session cookie is present', () => {
-    expect(readSessionCookie('theme=dark; other=1')).toBeNull()
-  })
-
-  // A cookie named `not_session` must not satisfy a prefix match.
+  // A cookie named `not_session` must not satisfy a suffix match.
   it('does not match a cookie whose name merely ends in session', () => {
     expect(readSessionCookie('not_session=abc')).toBeNull()
-  })
-})
-
-/**
- * The name a session carries.
- *
- * It is a claim, not an identity — anyone holding a shared password can type
- * anything. What these pin down is the part that *is* enforceable: the claim
- * cannot be changed after sign-in, a name with awkward characters does not
- * break the token, and a session from before names existed still works.
- */
-describe('session names', () => {
-  it('round-trips the name alongside the role', async () => {
-    const { token } = await createToken(SECRET, 'qa', 'Ada Lovelace')
-    expect(await verifyToken(SECRET, token)).toMatchObject({
-      role: 'qa',
-      name: 'Ada Lovelace',
-    })
-  })
-
-  it('carries no name when none was given', async () => {
-    const { token } = await createToken(SECRET, 'qa')
-    const session = await verifyToken(SECRET, token)
-    expect(session?.name).toBeUndefined()
-  })
-
-  /*
-   * The payload is dot-delimited and a name is free text. Encoding it is what
-   * stops "J. Smith" splitting the token into an extra part and failing
-   * verification — which would sign someone out for using a full stop.
-   */
-  it('survives a name containing the delimiter', async () => {
-    const { token } = await createToken(SECRET, 'dev', 'J. Smith')
-    expect(await verifyToken(SECRET, token)).toMatchObject({ name: 'J. Smith' })
-  })
-
-  it('survives a name that is not ASCII', async () => {
-    const { token } = await createToken(SECRET, 'dev', 'สุรเกียรติ')
-    expect(await verifyToken(SECRET, token)).toMatchObject({ name: 'สุรเกียรติ' })
-  })
-
-  /*
-   * The name is inside the signed payload, so editing it is the same class of
-   * attack as editing the role — and has to fail the same way. Without this,
-   * a shared password would let anyone rewrite the history to name a colleague.
-   */
-  it('rejects a token whose name was edited after signing', async () => {
-    const { token } = await createToken(SECRET, 'qa', 'Ada')
-    const [exp, role, , signature] = token.split('.')
-    const forged = btoa('Grace')
-
-    expect(await verifyToken(SECRET, `${exp}.${role}.${forged}.${signature}`)).toBeNull()
-  })
-
-  it('trims a name and caps its length', async () => {
-    const { name } = await createToken(SECRET, 'qa', `  ${'a'.repeat(80)}  `)
-    expect(name).toHaveLength(MAX_NAME_LENGTH)
-  })
-
-  /*
-   * A deployment must not sign everyone out. Tokens minted before this feature
-   * have three parts rather than four, and stay valid — carrying no name.
-   */
-  it('still accepts a token signed before names existed', async () => {
-    const expiresAt = Math.floor(Date.now() / 1000) + 3600
-    const payload = `${expiresAt}.qa`
-    const signature = await hmacHex(SECRET, payload)
-
-    const session = await verifyToken(SECRET, `${payload}.${signature}`)
-    expect(session).toMatchObject({ role: 'qa' })
-    expect(session?.name).toBeUndefined()
   })
 })

@@ -26,7 +26,7 @@ interface Caller {
 }
 
 const policy = (over: Partial<Caller> = {}): Caller => ({
-  role: 'demo',
+  role: 'dev',
   allowedRefs: ['main'],
   maxWorkers: 2,
   ...over,
@@ -97,9 +97,9 @@ describe('the first render of the command bar', () => {
   })
 
   it('says why the branch is locked under the row, not only in a tooltip a phone never shows', () => {
-    const text = renderedText(render(policy({ role: 'demo', allowedRefs: ['main'] })))
+    const text = renderedText(render(policy({ role: 'dev', allowedRefs: ['main'] })))
     expect(text).toContain(
-      'Suite branch: the branch of the test code, not of the app under test. Only main is available to demo here.',
+      'Suite branch: the branch of the test code, not of the app under test. Only main is available to dev here.',
     )
   })
 

@@ -1,190 +1,142 @@
 import type { Context, Next } from 'hono'
 import type { HonoEnv, Role } from './types'
 import { hmacHex, verifyHmac } from './crypto'
-import { DEV_PASSWORDS, DEV_TOKEN_SECRET } from './config'
+import { DEV_TOKEN_SECRET } from './config'
 import type { RolePolicy } from './policy'
 import { effectivePolicy, looksLikeKey, parseKey, verifyKey, type ApiKeyRow } from './apiKeys'
+import { liveSandbox, type SandboxRow } from './sandboxes'
+import { listedRole, type MemberRole } from './members'
 
 /**
- * Session tokens and the role they carry.
+ * Sessions, and the role a request is given (decision 52).
  *
- * Format: `<exp>.<role>.<hmac(exp.role)>`, or with a name between role and
- * signature when the person gave one (see below). Deliberately not a JWT —
- * there is one issuer and one consumer, the payload is a few fields, and a library would
- * be more surface than the twenty lines it replaces. Signed, not encrypted:
- * the role is not a secret, and tampering is what needs preventing.
+ * There are no passwords. A session says which sandbox it belongs to and which
+ * of that sandbox's accounts signed in — nothing about a role. The role is read
+ * from the sandbox's member list on every request, so a member removed or
+ * changed by an admin is treated as removed or changed on their next click.
  *
- * Eight hours: long enough to cover a working day without a mid-afternoon
- * re-login, short enough that a token left on a shared machine expires the
- * same day.
+ * Format: `<exp>.<sandbox>.<email, base64url>.<hmac>`. Deliberately not a JWT —
+ * one issuer, one consumer, three fields. Signed, not encrypted: nothing in it
+ * is a secret, and tampering is what needs preventing.
+ *
+ * A session lasts as long as its sandbox. Shorter, and a visitor signed out
+ * after a few hours would sign in to a new, empty sandbox and lose what they
+ * had made; longer, and it would outlive what it points at.
  */
 
-const TOKEN_TTL_SECONDS = 8 * 60 * 60
-
-export const ROLES = ['demo', 'dev', 'qa', 'admin'] as const
-
-const isRole = (value: string): value is Role => (ROLES as readonly string[]).includes(value)
+export const ROLES = ['dev', 'qa', 'admin'] as const
 
 export interface Session {
-  role: Role
+  sandboxId: string
+  email: string
   expiresAt: number
-  /**
-   * Who said they were signing in. A claim, never a proof.
-   *
-   * The password grants the role; this only labels the person using it, so a
-   * shared password stops producing a history where every row says the same
-   * thing. Anyone holding the password can type any name, which is exactly why
-   * it answers "who should I ask about this run" and nothing more.
-   *
-   * Optional: a session created before this existed, or by a caller that did
-   * not offer a name, is still a valid session.
-   */
-  name?: string
 }
 
-/**
- * Names are base64url-encoded inside the token.
- *
- * The payload is dot-delimited, and a name is free text — "J. Smith" would
- * split into an extra part and fail verification, silently signing people out
- * the moment they used a full stop. Encoding sidesteps the whole class:
- * whatever someone types, the token still has exactly four parts.
- */
-const encodeName = (name: string) => btoa(unescape(encodeURIComponent(name)))
-const decodeName = (encoded: string) => decodeURIComponent(escape(atob(encoded)))
+const base64url = (text: string) =>
+  btoa(unescape(encodeURIComponent(text)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 
-/** Trimmed, and capped so a token cannot be inflated by a long name. */
-export const MAX_NAME_LENGTH = 40
+function fromBase64url(encoded: string): string | null {
+  try {
+    const padded = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    return decodeURIComponent(escape(atob(padded)))
+  } catch {
+    return null
+  }
+}
+
+const SANDBOX_RE = /^[0-9a-f]{32}$/
 
 export async function createToken(
   secret: string,
-  role: Role,
-  name?: string,
+  sandbox: Pick<SandboxRow, 'id' | 'expires_at'>,
+  email: string,
 ): Promise<Session & { token: string }> {
-  const expiresAt = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS
-  const trimmed = name?.trim().slice(0, MAX_NAME_LENGTH)
-  const encoded = trimmed ? encodeName(trimmed) : ''
-
-  // The name is part of the signed payload, so it cannot be edited after
-  // sign-in without invalidating the session.
-  const payload = `${expiresAt}.${role}.${encoded}`
+  const expiresAt = Math.floor(Date.parse(sandbox.expires_at) / 1000)
+  const payload = `${expiresAt}.${sandbox.id}.${base64url(email)}`
   return {
     token: `${payload}.${await hmacHex(secret, payload)}`,
-    role,
+    sandboxId: sandbox.id,
+    email,
     expiresAt,
-    ...(trimmed ? { name: trimmed } : {}),
   }
 }
 
-/**
- * Returns the session a token carries, or null if it is invalid or expired.
- *
- * Returns the whole session rather than the role alone: the name travels with
- * the role and separating them here would mean a second parse somewhere else,
- * which is a second place for the two to disagree.
- *
- * Tokens signed before the name existed have three parts, not four. They stay
- * valid — nobody is signed out by a deployment — and simply carry no name.
- */
+/** The session a token carries, or null if it is invalid or expired. */
 export async function verifyToken(secret: string, token: string): Promise<Session | null> {
   const parts = token.split('.')
-  if (parts.length !== 3 && parts.length !== 4) return null
+  if (parts.length !== 4) return null
+  const [expRaw, sandboxId, encodedEmail, signature] = parts as [string, string, string, string]
 
-  const hasName = parts.length === 4
-  const [expRaw, roleRaw] = parts as [string, string, ...string[]]
-  const encodedName = hasName ? (parts[2] as string) : ''
-  const signature = (hasName ? parts[3] : parts[2]) as string
-  const payload = hasName ? `${expRaw}.${roleRaw}.${encodedName}` : `${expRaw}.${roleRaw}`
-
-  // Signature is checked before anything is trusted, including the expiry —
-  // otherwise an attacker picks their own expiry and only the signature stops
-  // them, which is the same thing but harder to reason about.
-  if (!(await verifyHmac(secret, payload, signature))) return null
-
+  // The signature is checked before anything is trusted, including the expiry.
+  if (!(await verifyHmac(secret, `${expRaw}.${sandboxId}.${encodedEmail}`, signature))) {
+    return null
+  }
   const exp = Number.parseInt(expRaw, 10)
   if (Number.isNaN(exp) || Date.now() / 1000 > exp) return null
-  if (!isRole(roleRaw)) return null
-
-  let name: string | undefined
-  if (encodedName) {
-    try {
-      name = decodeName(encodedName)
-    } catch {
-      // A signed token whose name will not decode is a bug on the writing
-      // side, not an attack — the signature already passed. Drop the name
-      // rather than refusing a session the password legitimately earned.
-      name = undefined
-    }
-  }
-
-  return { role: roleRaw, expiresAt: exp, ...(name ? { name } : {}) }
+  if (!SANDBOX_RE.test(sandboxId)) return null
+  const email = fromBase64url(encodedEmail)
+  if (!email) return null
+  return { sandboxId, email, expiresAt: exp }
 }
 
-/** Which password maps to which role. */
-export async function roleForPassword(
-  env: HonoEnv['Bindings'],
-  password: string,
-): Promise<Role | null> {
-  const configured: Record<Role, string | undefined> = {
-    demo: env.DEMO_PASSWORD ?? DEV_PASSWORDS.demo,
-    dev: env.DEV_PASSWORD ?? DEV_PASSWORDS.dev,
-    qa: env.QA_PASSWORD ?? DEV_PASSWORDS.qa,
-    admin: env.ADMIN_PASSWORD ?? DEV_PASSWORDS.admin,
-  }
+// ── Admin elevation ────────────────────────────────────────────────────────
 
-  // Every candidate is compared even after a match, so the time taken does not
-  // reveal which role was hit — or whether any was.
-  let matched: Role | null = null
-  for (const role of ROLES) {
-    const expected = configured[role]
-    if (expected && (await constantTimeEquals(password, expected))) matched = role
-  }
-  return matched
+/**
+ * An hour of admin, for one account in one sandbox, after its admin key.
+ *
+ * A second cookie rather than a field in the session: the session lasts a day,
+ * and admin should not. When this one runs out the person is still signed in,
+ * as what the list says, and the admin page asks for the key again.
+ *
+ * Bound to the sandbox and the email, so it cannot be carried to another
+ * account; and it counts only while the email is still listed as admin, so an
+ * admin removed from the list loses it on their next request.
+ */
+export const ADMIN_ELEVATION_SECONDS = 60 * 60
+
+export async function createAdminToken(
+  secret: string,
+  sandboxId: string,
+  email: string,
+): Promise<{ token: string; expiresAt: number }> {
+  const expiresAt = Math.floor(Date.now() / 1000) + ADMIN_ELEVATION_SECONDS
+  const payload = `adm.${expiresAt}.${sandboxId}.${base64url(email)}`
+  return { token: `${payload}.${await hmacHex(secret, payload)}`, expiresAt }
 }
 
-async function constantTimeEquals(a: string, b: string): Promise<boolean> {
-  // Comparing HMACs of the inputs rather than the inputs themselves: equal
-  // length is then guaranteed, so the comparison cannot leak length, and the
-  // key is per-process so the digests are not useful elsewhere.
-  const key = crypto.randomUUID()
-  return (await hmacHex(key, a)) === (await hmacHex(key, b))
-}
-
-// ── Middleware ──────────────────────────────────────────────────────────────
-
-declare module 'hono' {
-  interface ContextVariableMap {
-    role: Role
-    /**
-     * The current session's expiry, in epoch seconds. Set alongside `role` by
-     * `requireSession` — exists so a preview-role cookie can be bound to it
-     * (see signPreviewRole/verifyPreviewRole below).
-     */
-    sessionExpiresAt: number
-    /**
-     * What the person signing in said their name was, if they said anything.
-     *
-     * A claim, not a proof — see the note on `Session.name`. Handlers attach it
-     * to a run so a shared password stops producing a history where every row
-     * says the same role and nothing else. Undefined for an API key, for a
-     * session created before names existed, and for anyone who left it blank.
-     */
-    sessionName?: string
-    /** Set by the config check in index.ts; empty when the deployment is sound. */
-    configProblems: string[]
-    /**
-     * The API key this request was made with, when it was made with one.
-     *
-     * Undefined for every request from a person. Handlers read it to attribute
-     * a run to the key rather than only to its role — five pipelines carrying
-     * dev-level keys would otherwise produce a history where every row says
-     * 'dev'. See decision 15.
-     */
-    apiKey?: { id: string; label: string; policy: RolePolicy; sandbox: boolean }
+/** The expiry of a valid admin token for this sandbox and email, or null. */
+export async function verifyAdminToken(
+  secret: string,
+  token: string | null,
+  sandboxId: string,
+  email: string,
+): Promise<number | null> {
+  if (!token) return null
+  const parts = token.split('.')
+  if (parts.length !== 5 || parts[0] !== 'adm') return null
+  const [, expRaw, tokenSandbox, encodedEmail, signature] = parts as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ]
+  if (!(await verifyHmac(secret, `adm.${expRaw}.${tokenSandbox}.${encodedEmail}`, signature))) {
+    return null
   }
+  const exp = Number.parseInt(expRaw, 10)
+  if (Number.isNaN(exp) || Date.now() / 1000 > exp) return null
+  if (tokenSandbox !== sandboxId || fromBase64url(encodedEmail) !== email) return null
+  return exp
 }
 
-const COOKIE_NAME = 'session'
+// ── Cookies ────────────────────────────────────────────────────────────────
+
+const SESSION_COOKIE = 'session'
+const ADMIN_COOKIE = 'admin'
 
 function readCookie(header: string | undefined, name: string): string | null {
   if (!header) return null
@@ -195,7 +147,8 @@ function readCookie(header: string | undefined, name: string): string | null {
   return null
 }
 
-export const readSessionCookie = (header: string | undefined) => readCookie(header, COOKIE_NAME)
+export const readSessionCookie = (header: string | undefined) => readCookie(header, SESSION_COOKIE)
+export const readAdminCookie = (header: string | undefined) => readCookie(header, ADMIN_COOKIE)
 
 /** Whether a request reached the Worker over HTTPS — see `cookie` for why it matters. */
 export const isHttps = (url: string) => new URL(url).protocol === 'https:'
@@ -212,10 +165,7 @@ export const isHttps = (url: string) => new URL(url).protocol === 'https:'
  * treat `http://localhost` as secure, and would break it in any browser that
  * does not. Never setting it was the state before: a cookie issued over HTTPS
  * that a browser would then also send over plain HTTP, to anyone on the path.
- * On this deployment that cannot happen — `.dev` is HSTS-preloaded, so no
- * browser makes a plain request to it — which is exactly why it went unnoticed,
- * and why it is fixed here rather than left to the domain: a clone deployed
- * anywhere else does not inherit the preload. See decision 41.
+ * See decision 41.
  */
 export function cookie(
   name: string,
@@ -233,72 +183,44 @@ export function cookie(
 }
 
 export const sessionCookie = (token: string, maxAgeSeconds: number, secure: boolean) =>
-  cookie(COOKIE_NAME, token, { path: '/', maxAge: maxAgeSeconds, secure })
+  cookie(SESSION_COOKIE, token, { path: '/', maxAge: maxAgeSeconds, secure })
 
 export const clearCookie = (secure: boolean) =>
-  cookie(COOKIE_NAME, '', { path: '/', maxAge: 0, secure })
+  cookie(SESSION_COOKIE, '', { path: '/', maxAge: 0, secure })
 
-// ── Preview role ────────────────────────────────────────────────────────────
+export const adminCookie = (token: string, maxAgeSeconds: number, secure: boolean) =>
+  cookie(ADMIN_COOKIE, token, { path: '/', maxAge: maxAgeSeconds, secure })
 
-/**
- * Lets an authenticated `demo` session look at what another role's read views
- * show, without ever minting a session token for that role.
- *
- * Deliberately not `createToken` for the previewed role: that would produce a
- * cookie cryptographically indistinguishable from a real login for that role,
- * and every write path (`POST /runs`, `DELETE /runs/:id`, `dispatchWorkflow`)
- * trusts `role` completely — see decision 12. This cookie is a second,
- * narrower thing: it is only ever consulted by the two GET handlers in
- * routes/runs.ts, never by anything that writes or dispatches.
- *
- * The HMAC covers the previewed role plus the *underlying session's* expiry,
- * not a new expiry of its own — so the preview cookie cannot outlive the real
- * session it rides on, and is meaningless without a valid `demo` session
- * cookie also present alongside it.
- */
-const PREVIEW_COOKIE_NAME = 'preview-role'
+export const clearAdminCookie = (secure: boolean) =>
+  cookie(ADMIN_COOKIE, '', { path: '/', maxAge: 0, secure })
 
-export async function signPreviewRole(
-  secret: string,
-  role: Role,
-  sessionExpiresAt: number,
-): Promise<string> {
-  const payload = `${role}.${sessionExpiresAt}`
-  return `${payload}.${await hmacHex(secret, payload)}`
+// ── Middleware ──────────────────────────────────────────────────────────────
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    role: Role
+    /** The sandbox every query this request makes is scoped to. */
+    sandboxId: string
+    /** Whether that sandbox is locked down; set so a handler need not read it again. */
+    lockdown: boolean
+    /** The account that signed in. Undefined for an API key. */
+    email?: string
+    /** What the member list says, before the admin key is counted. Undefined for a key. */
+    listedRole?: MemberRole
+    /** When the admin elevation ends, in epoch seconds; undefined when there is none. */
+    adminUntil?: number
+    /** When the session ends, in epoch seconds. 0 for a key, which has no session. */
+    sessionExpiresAt: number
+    /** Set by the config check in index.ts; empty when the deployment is sound. */
+    configProblems: string[]
+    /**
+     * The API key this request was made with, when it was made with one.
+     * Handlers read it to attribute a run to the key rather than only to its
+     * role. See decision 15.
+     */
+    apiKey?: { id: string; label: string; policy: RolePolicy }
+  }
 }
-
-/**
- * Returns the previewed role, or null if the cookie is missing, malformed, or
- * signed against a different session expiry than the one currently in force —
- * which is what makes it worthless once the real session it rode on expires.
- */
-export async function verifyPreviewRole(
-  secret: string,
-  cookieHeader: string | undefined,
-  sessionExpiresAt: number,
-): Promise<Role | null> {
-  const token = readCookie(cookieHeader, PREVIEW_COOKIE_NAME)
-  if (!token) return null
-
-  const parts = token.split('.')
-  if (parts.length !== 3) return null
-
-  const [roleRaw, expRaw, signature] = parts as [string, string, string]
-  // A key's request has no session, and its expiry reads 0. A preview rides on
-  // a session, so there is nothing for one to ride on here.
-  if (sessionExpiresAt <= 0) return null
-  if (Number.parseInt(expRaw, 10) !== sessionExpiresAt) return null
-  if (!(await verifyHmac(secret, `${roleRaw}.${expRaw}`, signature))) return null
-  if (!isRole(roleRaw)) return null
-
-  return roleRaw
-}
-
-export const previewRoleCookie = (token: string, maxAgeSeconds: number, secure: boolean) =>
-  cookie(PREVIEW_COOKIE_NAME, token, { path: '/', maxAge: maxAgeSeconds, secure })
-
-export const clearPreviewRoleCookie = (secure: boolean) =>
-  cookie(PREVIEW_COOKIE_NAME, '', { path: '/', maxAge: 0, secure })
 
 export const LAST_USED_GRANULARITY_MS = 60 * 60 * 1000
 
@@ -311,43 +233,33 @@ export function lastUsedIsStale(lastUsedAt: string | null, now: number = Date.no
   return Number.isNaN(at) || now - at >= LAST_USED_GRANULARITY_MS
 }
 
+const isRole = (value: string): value is Role => (ROLES as readonly string[]).includes(value)
+
 /**
- * Authenticates a request with an API key, or returns null if it is not one.
+ * Authenticates a request with an API key: the key's row, or null.
  *
- * Split out of `requireSession` so the two paths stay readable: this one hits
- * the database, the session path does not, and conflating them would put a
- * query on every request a person makes.
+ * A key belongs to a sandbox and dies with it. A key without one — issued
+ * before sandboxes existed, or carrying the retired `demo` role — is refused,
+ * because there is nothing left it could act on.
  *
- * `last_used_at` is written with `waitUntil` rather than awaited. It exists so
- * an unused key is visible to whoever has to decide whether removing it is
- * safe; that is worth a write, and worth nothing at all if it adds latency to
- * a dispatch or fails one when D1 is briefly unhappy.
+ * `last_used_at` is written with `waitUntil` rather than awaited, and at most
+ * once an hour: written on every request, it made a valid key a way to write to
+ * D1 without limit.
  */
-async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<Role | null> {
+async function authenticateKey(
+  c: Context<HonoEnv>,
+  presented: string,
+): Promise<(ApiKeyRow & { role: Role; sandbox_id: string }) | null> {
   const parsed = parseKey(presented)
   if (!parsed) return null
-
   const row = await c.env.DB.prepare(`SELECT * FROM api_keys WHERE id = ?1`)
     .bind(parsed.id)
     .first<ApiKeyRow>()
-
   if (!(await verifyKey(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, row, parsed.secret))) {
     return null
   }
-
-  // Non-null: verifyKey returns false for a null row.
   const key = row as ApiKeyRow
-
-  c.set('apiKey', {
-    id: key.id,
-    label: key.label,
-    policy: effectivePolicy(key),
-    sandbox: key.sandbox === 1,
-  })
-  // At most once an hour. Written on every request it made a valid key a way to
-  // write to D1 without limit — each request, including the ones refused with a
-  // 429, cost a write that no rate limit counts. What the field is for is
-  // telling an unused key from a used one, and an hour's precision does that.
+  if (!key.sandbox_id || !isRole(key.role)) return null
   if (lastUsedIsStale(key.last_used_at)) {
     c.executionCtx.waitUntil(
       c.env.DB.prepare(`UPDATE api_keys SET last_used_at = ?2 WHERE id = ?1`)
@@ -355,19 +267,26 @@ async function authenticateKey(c: Context<HonoEnv>, presented: string): Promise<
         .run(),
     )
   }
-
-  return key.role
+  return key as ApiKeyRow & { role: Role; sandbox_id: string }
 }
 
-/** Rejects anything without a valid session, and records the role. */
+/** The answer a locked-down sandbox gives everyone but its admin. */
+const locked = (c: Context<HonoEnv>) =>
+  c.json(
+    {
+      error: 'This sandbox is locked down. Only its admin can use it until lockdown is lifted.',
+      locked: true,
+    },
+    403,
+  )
+
+/** Rejects anything without a valid session or key, and resolves the role. */
 export async function requireSession(c: Context<HonoEnv>, next: Next) {
   const authorization = c.req.header('Authorization')
-
   /*
    * A header naming nothing is what a pasted command sends when the variable it
-   * reads (`$RUN_KEY`) was never set. It used to fall through to session
-   * verification and come back "Session is invalid or expired" — a login
-   * problem for someone who never logged in, from a terminal.
+   * reads (`$RUN_KEY`) was never set. Said plainly rather than answered as a
+   * login problem for someone who never logged in.
    */
   if (authorization !== undefined && /^(Bearer)?\s*$/i.test(authorization)) {
     return c.json(
@@ -378,46 +297,69 @@ export async function requireSession(c: Context<HonoEnv>, next: Next) {
       401,
     )
   }
-
   const bearer = authorization?.replace(/^Bearer /, '')
 
   /*
    * A key is checked before a session token, and only when it is shaped like
-   * one. The prefix makes that unambiguous rather than a guess: a session token
-   * has three dot-separated parts, a key three underscore-separated ones, so
-   * neither can be silently read as the other.
-   *
-   * A key that fails verification stops here rather than falling through to
-   * session verification. Falling through would turn a revoked key into
-   * "Sign in first", which sends whoever is debugging a pipeline looking for a
-   * login problem that does not exist.
+   * one. A key that fails stops here rather than falling through to session
+   * verification, which would answer a revoked key with "Sign in first".
    */
   if (bearer && looksLikeKey(bearer)) {
-    const role = await authenticateKey(c, bearer)
-    if (!role) return c.json({ error: 'API key is invalid or revoked' }, 401)
-
-    c.set('role', role)
-    // A key does not expire on a clock the way a session does; it lives until
-    // it is revoked. Zero means "no session expiry" — the preview cookie is the
-    // only reader, and it is a browser-only concept a key never reaches.
+    const key = await authenticateKey(c, bearer)
+    if (!key) return c.json({ error: 'API key is invalid, revoked or expired' }, 401)
+    const sandbox = await liveSandbox(c.env.DB, key.sandbox_id)
+    if (!sandbox) return c.json({ error: 'API key is invalid, revoked or expired' }, 401)
+    if (sandbox.lockdown === 1 && key.role !== 'admin') return locked(c)
+    c.set('role', key.role)
+    c.set('sandboxId', sandbox.id)
+    c.set('lockdown', sandbox.lockdown === 1)
     c.set('sessionExpiresAt', 0)
+    c.set('apiKey', { id: key.id, label: key.label, policy: effectivePolicy(key) })
     await next()
     return undefined
   }
 
   const token = bearer ?? readSessionCookie(c.req.header('Cookie'))
-
   if (!token) return c.json({ error: 'Sign in first' }, 401)
 
-  const session = await verifyToken(c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET, token)
+  const secret = c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET
+  const session = await verifyToken(secret, token)
   if (!session) return c.json({ error: 'Session is invalid or expired' }, 401)
 
-  // Straight off the verified session. This used to re-split the token to read
-  // the expiry back out, which was correct but meant the same string was
-  // parsed twice by two pieces of code that had to agree about its shape.
-  c.set('role', session.role)
+  const sandbox = await liveSandbox(c.env.DB, session.sandboxId)
+  if (!sandbox) {
+    return c.json({ error: 'This sandbox has expired. Sign in again for a new one.' }, 401)
+  }
+
+  // Read every time, so a removal or a change of role takes effect at once.
+  const listed = await listedRole(c.env.DB, sandbox.id, session.email)
+  if (!listed) {
+    return c.json({ error: `${session.email} is not a member of this sandbox` }, 403)
+  }
+
+  // Listed as admin is half of it. Without the key, the account works as dev.
+  let role: Role = listed
+  let adminUntil: number | undefined
+  if (listed === 'admin') {
+    const until = await verifyAdminToken(
+      secret,
+      readAdminCookie(c.req.header('Cookie')),
+      sandbox.id,
+      session.email,
+    )
+    if (until === null) role = 'dev'
+    else adminUntil = until
+  }
+
+  if (sandbox.lockdown === 1 && role !== 'admin') return locked(c)
+
+  c.set('role', role)
+  c.set('sandboxId', sandbox.id)
+  c.set('lockdown', sandbox.lockdown === 1)
+  c.set('email', session.email)
+  c.set('listedRole', listed)
+  if (adminUntil !== undefined) c.set('adminUntil', adminUntil)
   c.set('sessionExpiresAt', session.expiresAt)
-  c.set('sessionName', session.name)
   await next()
   return undefined
 }
@@ -430,11 +372,6 @@ export async function requireSession(c: Context<HonoEnv>, next: Next) {
  * keys too — which is how an admin-level key reached `DELETE /runs/:id`, and
  * how one could mint another admin key until this existed.
  *
- * Deliberately a separate middleware rather than a flag on `requireRole`:
- * "which roles may do this" and "may a machine do this at all" are different
- * questions, and a combined helper would invite answering the second by
- * accident whenever someone adjusts the first.
- *
  * @param what - Named in the refusal, so the caller is told what to do instead
  */
 export const refuseKeys = (what: string) => async (c: Context<HonoEnv>, next: Next) => {
@@ -446,24 +383,14 @@ export const refuseKeys = (what: string) => async (c: Context<HonoEnv>, next: Ne
 }
 
 /**
- * Who made this request, in the words a history can actually use.
- *
- * The role alone was what the gate and the key table recorded, and with a
- * shared password that is the same non-answer migration 0007 exists to fix for
- * runs: every row said 'admin'. The name is a claim rather than an identity —
- * see `Session.name` — so the role stays alongside it instead of being
- * replaced, and a reader can see both what was typed and what it unlocked.
- *
- * A key gets its label, which is the thing it was made to be identified by.
- * Inventing a person for it would be a worse answer than none.
+ * Who made this request, in the words a history can use: the account's email,
+ * or a key's label. A key gets its label, the thing it was made to be
+ * identified by; inventing a person for it would be a worse answer than none.
  */
 export function actorFor(c: Context<HonoEnv>): string {
   const key = c.get('apiKey')
   if (key) return `key:${key.label}`
-
-  const name = c.get('sessionName')
-  const role = c.get('role')
-  return name ? `${name} (${role})` : role
+  return c.get('email') ?? c.get('role')
 }
 
 /** Role gate. Runs after `requireSession`. */

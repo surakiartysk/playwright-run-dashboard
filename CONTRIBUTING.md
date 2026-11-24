@@ -21,9 +21,9 @@ fake development default. `pnpm install` also installs the git hooks via
 pnpm dev
 ```
 
-Starts the Worker on `:8787` and the UI on `:5173` together. `dev`, `qa` and
-`admin` each sign in with their own name as the password; `demo` is a button on
-the login screen.
+Starts the Worker on `:8787` and the UI on `:5173` together. **Log in to demo**
+makes a sandbox; **Switch account** signs in as its `qa` or `dev` account, and
+the admin page shows the sandbox's admin key. There are no passwords.
 
 If the local database ends up in a state you do not want, `pnpm db:reset`
 deletes `.wrangler/` and re-migrates. It is the only destructive command here,
@@ -33,7 +33,7 @@ and it only touches local state.
 
 | Command             | Runs                                                    |
 | ------------------- | ------------------------------------------------------- |
-| `pnpm test`         | Both packages — 670 Worker tests, then 548 UI tests     |
+| `pnpm test`         | Both packages — 601 Worker tests, then 531 UI tests     |
 | `pnpm verify`       | Everything CI runs: format, lint, types, tests, claims  |
 | `pnpm check:claims` | Fails if the docs advertise a count that has gone stale |
 
@@ -53,14 +53,17 @@ The Worker's tests split by what they need, not by which file they mirror.
 | File                    | Covers                                            | Needs a binding? |
 | ----------------------- | ------------------------------------------------- | ---------------- |
 | `crypto.test.ts`        | HMAC, report tokens                               | no               |
-| `auth.test.ts`          | Session tokens, password → role, cookie parsing   | no               |
+| `auth.test.ts`          | Session and admin tokens, cookie parsing          | no               |
 | `policy.test.ts`        | The policy table, `mayUseRef`, `visibilityClause` | no               |
 | `deployability.test.ts` | `assertDeployable` — the secrets fence            | no               |
 | `routes-*.test.ts`      | One endpoint each, through its middleware         | yes              |
 | `simulate.test.ts`      | The simulator, including its overwrite guard      | yes              |
+| `sandboxes.test.ts`     | What one sandbox can see and change of another    | yes              |
 
 `test/helpers.ts` holds the shared setup: `migrate`, `request`, `as(role, …)`,
-`postWebhook`, `seedRun`, `uniqueService`.
+`makeTestSandbox`, `sessionFor(role, sandbox)`, `postWebhook`, `seedRun`,
+`uniqueService`. `as(role, …)` signs in to one sandbox per file, so sessions of
+different roles in a file see the same runs.
 
 Two helpers are easy to confuse:
 
@@ -111,28 +114,28 @@ cp /tmp/policy.bak src/policy.ts   # always restore
 pnpm exec vitest run               # confirm green again
 ```
 
-So far 353 mutations have been run against this repo, 297 of them
+So far 379 mutations have been run against this repo, 323 of them
 recorded one by one in [`docs/mutations.md`](docs/mutations.md). Any new one
 belongs in that table with the message it produced. The ones worth repeating
 after any change to authorisation or signing:
 
-| Mutation                                                     | Must fail                     |
-| ------------------------------------------------------------ | ----------------------------- |
-| Delete the `role !== 'demo'` guard in `routes/demo.ts`       | preview-role escalation tests |
-| Make `POST /runs` consult the preview cookie for `mayUseRef` | `preview-role-safety.test.ts` |
-| Sign the webhook over `raw` instead of `` `${ts}.${raw}` ``  | webhook replay tests          |
-| Drop the age window in `routes/webhook.ts`                   | stale-timestamp tests         |
-| Make `visibilityClause` return `{ sql: '' }` for `dev`       | visibility tests              |
-| Remove `AND status IN (...)` from `simulate.ts`              | the overwrite-guard test      |
-| Remove the run-scope check in `routes/reports.ts`            | cross-run token test          |
-| Let `demo` obey `SIMULATE_DISPATCH` in `dispatchWorkflow`    | `demo-role-safety.test.ts`    |
-| Point `DEMO_REPORT_PREFIX` somewhere nothing was uploaded    | the simulator's report test   |
-| Make the report entry point cacheable again                  | the asset-cookie cache test   |
-| Resolve a report's prefix to anything but `report_path`      | the cross-repo contract test  |
-| Narrow the "Failed" filter to `status === 'failed'` alone    | the filter-reachability tests |
-| Drop `.reverse()` from the trend, so it reads newest-first   | the trend-direction tests     |
-| Stop inverting y, so a high pass rate sits at the bottom     | the trend y-axis test         |
-| Remove the trend's minimum window, letting a wobble fill it  | the trend-domain test         |
+| Mutation                                                    | Must fail                     |
+| ----------------------------------------------------------- | ----------------------------- |
+| Drop `OR sandbox_id = ?` scoping from `visibilityClause`    | `sandboxes.test.ts`           |
+| Delete runs without `AND sandbox_id = ?`                    | the real-run delete test      |
+| Treat a listed admin as admin without the admin cookie      | the "dev until the key" test  |
+| Sign the webhook over `raw` instead of `` `${ts}.${raw}` `` | webhook replay tests          |
+| Drop the age window in `routes/webhook.ts`                  | stale-timestamp tests         |
+| Make `visibilityClause` return `{ sql: '' }` for `dev`      | visibility tests              |
+| Remove `AND status IN (...)` from `simulate.ts`             | the overwrite-guard test      |
+| Remove the run-scope check in `routes/reports.ts`           | cross-run token test          |
+| Point `DEMO_REPORT_PREFIX` somewhere nothing was uploaded   | the simulator's report test   |
+| Make the report entry point cacheable again                 | the asset-cookie cache test   |
+| Resolve a report's prefix to anything but `report_path`     | the cross-repo contract test  |
+| Narrow the "Failed" filter to `status === 'failed'` alone   | the filter-reachability tests |
+| Drop `.reverse()` from the trend, so it reads newest-first  | the trend-direction tests     |
+| Stop inverting y, so a high pass rate sits at the bottom    | the trend y-axis test         |
+| Remove the trend's minimum window, letting a wobble fill it | the trend-domain test         |
 
 One of these caught a **vacuous test**. The simulator's report test originally
 interpolated `DEMO_REPORT_PREFIX` on both sides — seeding R2 with it and

@@ -109,15 +109,11 @@ describe('POST /webhook — a secret for each suite', () => {
 })
 
 describe('what a real deployment must have set', () => {
-  const real: Partial<Bindings> = {
-    SIMULATE_DISPATCH: 'false',
-    TOKEN_SECRET: 't',
-    ADMIN_PASSWORD: 'a',
-    QA_PASSWORD: 'q',
-    DEV_PASSWORD: 'd',
-  }
+  const real: Partial<Bindings> = { TOKEN_SECRET: 't' }
   const forgeable = (extra: Partial<Bindings>) =>
-    assertDeployable({ ...env, ...real, ...extra }).filter((p) => p.includes('forgeable'))
+    assertDeployable({ ...env, ...real, ...extra }, 'https://runs.example.com/webhook').filter(
+      (p) => p.includes('forgeable'),
+    )
 
   it('accepts the one shared secret, or both suites’ own', () => {
     expect(forgeable({ WEBHOOK_SECRET: SHARED })).toEqual([])

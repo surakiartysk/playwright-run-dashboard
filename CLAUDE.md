@@ -10,8 +10,10 @@ actually goes wrong twice.
 
 ## What this repo is
 
-A portfolio piece: a self-service test-run dashboard that really dispatches
-two published suites and serves their reports. The audience is engineers who
+A portfolio piece: a self-service test-run dashboard, a demo throughout. Every
+visitor gets a sandbox of their own, every run started from it is simulated,
+and the real runs two published suites report from their own CI are shown
+beside it ([decision 52](docs/decisions.md#52-a-demo-throughout-a-sandbox-for-each-visitor)). The audience is engineers who
 will read the reasoning and ask about it — so **`docs/decisions.md` is the
 deliverable, not an artifact of the code**. Anything that cannot be explained
 in an interview does not belong here.
@@ -22,22 +24,24 @@ packages/ui     React + Vite
 ```
 
 The interesting part is not the Run button. It is _who may run what, and who
-may then see the result_ — so anything touching `policy.ts`, `auth.ts` or
-`visibilityClause` deserves more care than its line count suggests.
+may then see the result_ — so anything touching `policy.ts`, `auth.ts`,
+`sandboxes.ts` or `visibilityClause` deserves more care than its line count
+suggests.
 
 ## Non-negotiables
 
-**1. Every test must be proven able to fail.** 353 deliberate mutations have
-been run, 297 of them recorded in [docs/mutations.md](docs/mutations.md)
+**1. Every test must be proven able to fail.** 379 deliberate mutations have
+been run, 323 of them recorded in [docs/mutations.md](docs/mutations.md)
 — add yours there, because no check will notice if you do not — and two real
 bugs came out of writing them — see
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found). A green
 suite means nothing until you have watched it go red for the right reason.
 
 **2. Visibility is enforced in SQL, not in a handler.** `visibilityClause`
-scopes what a role may see inside the query, so a handler that forgets to
-filter still cannot leak rows. Never re-implement that filtering in
-JavaScript, and never add a query over `runs` that skips it.
+scopes what a caller may see inside the query — by sandbox, then by role — so a
+handler that forgets to filter still cannot leak rows. Never re-implement that
+filtering in JavaScript, and never add a query over `runs` that skips it. A
+write names the caller's sandbox in its own `WHERE` for the same reason.
 
 **3. Policy fails closed; the gate fails open.** Two rules that look alike and
 are not. A role that may not run something is refused; a run gate with bad
@@ -53,11 +57,12 @@ Where an action has no automated use case, refuse keys explicitly with
 one deliberate exception, and
 [decision 25](docs/decisions.md#25-a-key-may-not-issue-a-key) says why.
 
-**5. `demo` always simulates, whatever the deployment says.** Its password is
-published, so a real dispatch behind it would let anyone spend Actions minutes
-or drive a workflow against a ref they choose. `SIMULATE_DISPATCH` is
-deployment-wide; the `demo` exception is separate and must stay that way — see
-[decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
+**5. Nothing a visitor does reaches past their sandbox.** Sign-in is public,
+so every table a visitor writes carries `sandbox_id`, and a real run — one with
+no sandbox — can be read by every visitor and changed by none. The role comes
+from the member list on every request, never from the session, so a removal
+takes effect on the next click. See
+[decision 52](docs/decisions.md#52-a-demo-throughout-a-sandbox-for-each-visitor).
 
 **6. Comments must be true.** A comment describing behaviour that does not
 exist is worse than no comment — a reader will believe it and ask about it. If
@@ -74,39 +79,35 @@ on every callback** — the new code selects a column the database does not have
 and the only visible symptom is runs that never leave `running`. That happened
 when 0004 was added. The order is: migrations → Worker → UI.
 
-**`wrangler deploy` without `--var` silently reverts to simulating.** The
-tracked `wrangler.toml` holds `SIMULATE_DISPATCH = "true"` and placeholder repo
-names on purpose, so a clone never inherits a live deployment's configuration.
-Pass the vars on the command line; the dashboard keeps working and quietly
-stops dispatching anything real if you forget.
+**`wrangler deploy` without `--var` silently reverted to simulating.** It
+did, while there was a flag for it. There is no flag now: nothing is
+dispatched, and whether a deployment must have its secrets is decided by the
+host a request reaches (`assertDeployable`), which a deploy cannot forget.
 
 ## The contract with the suites
 
-This dashboard dispatches two repositories, and neither can import the other.
-Three things have to stay in step, and only a test holds them there:
+Two suites report here, and neither can import this repository. Two things
+have to stay in step, and only a test holds them there:
 
-- **The workflow inputs.** Both suites' `on-demand.yml` declare the same names.
-  GitHub rejects a dispatch carrying an input a workflow does not declare — the
-  whole request fails — so a body that branched per suite would be a second
-  thing to maintain.
 - **The report path.** The workflow writes `runs/{runId}/index.html` into R2;
   this repo serves from that prefix.
 - **The callback shape.** Signed over `timestamp.body`, refused after five
-  minutes.
+  minutes. A callback for a run this dashboard has not seen is recorded as a
+  new real run when it carries `suite`, `service`, `tags` and `ref`.
 
-`packages/api/test/integration-contract.test.ts` pins all three by hand.
-Copying is the test: deriving the values from the other repos would need them
-checked out, and asserting against a list this repo generates would agree by
-construction and prove nothing. It has already caught a real mismatch — a
-service name sent in an input that only accepted package names, which would
-have rejected every dispatch.
+`packages/api/test/integration-contract.test.ts` pins both by hand. Copying is
+the test: deriving the values from the other repos would need them checked
+out, and asserting against a list this repo generates would agree by
+construction and prove nothing. There used to be a third point, the workflow
+inputs sent on dispatch, and it caught a real mismatch — a service name sent in
+an input that only accepted package names.
 
 ## Adding a suite
 
 `suite` is a closed union of two, and a third is a real change rather than a
-new row: its own `GITHUB_*_REPO` pair, a migration widening the CHECK
-constraint, an entry in the dashboard's service lists, and the contract test's
-accepted values. See
+new row: a migration widening the CHECK constraint, its own webhook secret, an
+entry in the dashboard's service lists, and the contract test's accepted
+values. See
 [decision 24](docs/decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention).
 
 ## Commands

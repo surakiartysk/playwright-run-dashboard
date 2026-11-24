@@ -45,6 +45,25 @@ const FALLBACK_REFS = ['main', 'develop']
  */
 export const MAX_PATTERN_REFS = 10
 
+/**
+ * The branches the demo offers, as if read from a suite's repository.
+ *
+ * Made up, and said to be: nothing is dispatched, so there is no repository to
+ * ask. They exist so each role's list differs the way it would on a real
+ * deployment — `dev` gets `main`, `qa` adds `develop` and the release branches,
+ * `admin` gets every one.
+ */
+export const DEMO_BRANCHES: readonly string[] = [
+  'main',
+  'develop',
+  'release/1.0.0',
+  'release/1.1.0',
+  'feature/checkout-flow',
+]
+
+/** Workers a run gets when the request names none, lowered to the caller's ceiling. */
+export const DEFAULT_WORKERS = 4
+
 /** Version-aware, so `release/1.10.0` sorts above `release/1.9.0`. */
 const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true })
 
@@ -57,8 +76,8 @@ const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric
  * each; picking either made GitHub refuse the dispatch, and the run was
  * recorded as an error for choosing something the form had offered.
  *
- * `existing` is null when the branches could not be read (no token, GitHub
- * unreachable, a simulated deployment). Then the policy's own list stands — and
+ * `existing` is null when the branches are not known — today it is always the
+ * fixed `DEMO_BRANCHES`, so this is the general rule. Then the policy's own list stands — and
  * for a role that may use any branch, which a list cannot enumerate, the common
  * ones. A pattern cannot be enumerated either, so with nothing to read it
  * contributes nothing rather than offering `release/*` as if it were a branch.

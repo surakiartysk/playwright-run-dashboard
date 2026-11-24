@@ -5,6 +5,8 @@ import { DEV_TOKEN_SECRET } from '../config'
 import { mintKey, type ApiKeyRow } from '../apiKeys'
 import { ROLES } from '../auth'
 import { matchesRef, policyFor } from '../policy'
+import { liveSandbox } from '../sandboxes'
+import { record } from '../audit'
 
 export const keyRoutes = new Hono<HonoEnv>()
 
@@ -48,6 +50,8 @@ const toView = (row: ApiKeyRow) => ({
   createdAt: row.created_at,
   lastUsedAt: row.last_used_at,
   revokedAt: row.revoked_at,
+  expiresAt: row.expires_at,
+  selfServe: row.sandbox === 1,
 })
 
 // ── GET /keys ───────────────────────────────────────────────────────────────
@@ -59,12 +63,14 @@ const toView = (row: ApiKeyRow) => ({
  * answers it wrong. `revokedAt` carries the distinction.
  */
 keyRoutes.get('/', async (c) => {
+  // This sandbox's keys, the ones its members minted for themselves included:
+  // in a sandbox they are few, and an admin reviewing access should see all of
+  // them.
   const { results } = await c.env.DB.prepare(
-    // Not the sandbox keys: those are minted by visitors, by the hundred, and
-    // are not credentials an admin issued or can sensibly review. They would
-    // bury the real ones.
-    `SELECT * FROM api_keys WHERE sandbox = 0 ORDER BY created_at DESC`,
-  ).all<ApiKeyRow>()
+    `SELECT * FROM api_keys WHERE sandbox_id = ?1 ORDER BY created_at DESC`,
+  )
+    .bind(c.get('sandboxId'))
+    .all<ApiKeyRow>()
 
   return c.json({ keys: results.map(toView) })
 })
@@ -96,13 +102,6 @@ keyRoutes.post('/', async (c) => {
 
   if (!body.role || !(ROLES as readonly string[]).includes(body.role)) {
     return c.json({ error: `role must be one of: ${ROLES.join(', ')}` }, 422)
-  }
-
-  // `demo` exists to be handed out publicly and can never dispatch for real
-  // (decision 12). A key for it would be a credential that does nothing, issued
-  // with ceremony — worth refusing rather than explaining later.
-  if (body.role === 'demo') {
-    return c.json({ error: 'demo cannot dispatch for real, so a key for it would do nothing' }, 422)
   }
 
   if (
@@ -142,14 +141,17 @@ keyRoutes.post('/', async (c) => {
     role,
     allowedRefs: body.allowedRefs,
     maxWorkers: body.maxWorkers,
-    // The person, not only the role. 0005 calls this "the admin who issued
-    // it", and with one shared admin password the role identifies nobody.
+    // The account that issued it. 0005 calls this "the admin who issued it".
     createdBy: actorFor(c),
   })
+  // A key dies with its sandbox: nothing is left for it to act on afterwards.
+  const sandbox = await liveSandbox(c.env.DB, c.get('sandboxId'))
+  const expiresAt = sandbox?.expires_at ?? new Date().toISOString()
 
   await c.env.DB.prepare(
-    `INSERT INTO api_keys (id, hash, label, role, allowed_refs, max_workers, created_by, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
+    `INSERT INTO api_keys (id, hash, label, role, allowed_refs, max_workers, created_by, created_at,
+                           expires_at, sandbox, sandbox_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 0, ?10)`,
   )
     .bind(
       row.id,
@@ -160,10 +162,16 @@ keyRoutes.post('/', async (c) => {
       row.max_workers,
       row.created_by,
       row.created_at,
+      expiresAt,
+      c.get('sandboxId'),
     )
     .run()
+  await record(c.env.DB, c.get('sandboxId'), actorFor(c), 'key-issued', `${label} (${role})`)
 
-  return c.json({ key: toView(row), plaintext }, 201)
+  return c.json(
+    { key: toView({ ...row, expires_at: expiresAt, sandbox_id: c.get('sandboxId') }), plaintext },
+    201,
+  )
 })
 
 // ── DELETE /keys/:id ────────────────────────────────────────────────────────
@@ -179,17 +187,22 @@ keyRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id')
 
   const result = await c.env.DB.prepare(
-    `UPDATE api_keys SET revoked_at = ?2 WHERE id = ?1 AND revoked_at IS NULL`,
+    `UPDATE api_keys SET revoked_at = ?2 WHERE id = ?1 AND sandbox_id = ?3 AND revoked_at IS NULL`,
   )
-    .bind(id, new Date().toISOString())
+    .bind(id, new Date().toISOString(), c.get('sandboxId'))
     .run()
 
   if (result.meta.changes === 0) {
-    const exists = await c.env.DB.prepare(`SELECT id FROM api_keys WHERE id = ?1`).bind(id).first()
+    const exists = await c.env.DB.prepare(
+      `SELECT id FROM api_keys WHERE id = ?1 AND sandbox_id = ?2`,
+    )
+      .bind(id, c.get('sandboxId'))
+      .first()
 
     if (!exists) return c.json({ error: 'No such key' }, 404)
     return c.json({ ok: true, alreadyRevoked: true })
   }
+  await record(c.env.DB, c.get('sandboxId'), actorFor(c), 'key-revoked', id)
 
   return c.json({ ok: true })
 })

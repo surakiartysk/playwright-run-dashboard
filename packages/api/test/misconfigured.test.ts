@@ -19,21 +19,18 @@ beforeAll(migrate)
  * fresh env object per call.
  */
 
-/** A deployed-looking env: simulation off, and whatever secrets are given. */
-const deployed = (secrets: Record<string, string> = {}) =>
-  ({ ...env, SIMULATE_DISPATCH: 'false', ...secrets }) as typeof env
+/** The test env with whatever secrets are given; deployed by the host it is called on. */
+const deployed = (secrets: Record<string, string> = {}) => ({ ...env, ...secrets }) as typeof env
 
-const ALL_SECRETS = {
-  WEBHOOK_SECRET: 'w',
-  TOKEN_SECRET: 't',
-  ADMIN_PASSWORD: 'a',
-  QA_PASSWORD: 'q',
-  DEV_PASSWORD: 'd',
-}
+const ALL_SECRETS = { WEBHOOK_SECRET: 'w', TOKEN_SECRET: 't' }
 
 async function call(bindings: typeof env, path: string) {
   const ctx = createExecutionContext()
-  const response = await worker.fetch(new Request(`http://api.test${path}`, {}), bindings, ctx)
+  const response = await worker.fetch(
+    new Request(`https://runs.example.com${path}`, {}),
+    bindings,
+    ctx,
+  )
   await waitOnExecutionContext(ctx)
   return response
 }
@@ -63,7 +60,7 @@ describe('a misconfigured deployment', () => {
   it('refuses the webhook too, not just the browsing surfaces', async () => {
     const ctx = createExecutionContext()
     const response = await worker.fetch(
-      new Request('http://api.test/webhook', { method: 'POST', body: '{}' }),
+      new Request('https://runs.example.com/webhook', { method: 'POST', body: '{}' }),
       deployed(),
       ctx,
     )
@@ -81,8 +78,10 @@ describe('a correctly configured deployment', () => {
     expect(await response.json()).toMatchObject({ status: 'ok' })
   })
 
-  it('is unaffected while simulating, where the defaults are the point', async () => {
-    const response = await call(env, '/health')
+  it('is unaffected on a local host, where the defaults are the point', async () => {
+    const ctx = createExecutionContext()
+    const response = await worker.fetch(new Request('http://api.test/health'), env, ctx)
+    await waitOnExecutionContext(ctx)
 
     expect(response.status).toBe(200)
     // Matched exactly rather than by property, so a field added to this

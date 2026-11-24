@@ -73,7 +73,7 @@ export function afterSuiteChange(
   }
 }
 
-/** One branch on offer is not a choice. `demo` and `dev` may only use `main`. */
+/** One branch on offer is not a choice. `dev` may only use `main`. */
 export const refLocked = (refs: readonly string[]): boolean => refs.length <= 1
 
 /**

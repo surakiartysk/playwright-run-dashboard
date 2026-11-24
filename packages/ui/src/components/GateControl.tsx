@@ -13,11 +13,9 @@ import { Segmented } from './Segmented'
  * wider version of what QA can do; this is the only thing that is theirs alone,
  * and it was the piece that was missing.
  *
- * Writable only for a real admin session. That is presentation, not
- * enforcement: `requireRole('admin')` on the route is the control, and a write
- * from anyone else is refused by the server. A demo session previewing admin
- * gets `readOnly` — the live gate, with nothing it can press — so the feature
- * is visible without offering a button that cannot work (admin-panel.ts).
+ * Shown on the admin page only. That is presentation, not enforcement:
+ * `requireRole('admin')` on the route is the control, and a write from anyone
+ * else is refused by the server. Each sandbox has its own gate (decision 52).
  *
  * The gate deliberately affects `dev` only — QA and admin run during a freeze,
  * because a freeze is when release verification happens. The copy says so
@@ -31,7 +29,7 @@ const MODES: { value: GateMode; label: string; hint: string }[] = [
   { value: 'window', label: 'Scheduled', hint: 'Developers may run only inside the window.' },
 ]
 
-export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
+export function GateControl() {
   const [gate, setGate] = useState<GateStatus | null>(null)
   const [mode, setMode] = useState<GateMode>('open')
   const [opensAt, setOpensAt] = useState(() => toLocalInput(null))
@@ -88,9 +86,7 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
             {live ? 'Paused' : 'Open'}
           </span>
         </div>
-        <span style={s.hint}>
-          {readOnly ? 'Admin only · read-only preview' : 'Admin only · affects developers'}
-        </span>
+        <span style={s.hint}>Admin only · affects developers</span>
       </header>
 
       <Segmented
@@ -101,7 +97,6 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
           setMode(next)
           setSaved(false)
         }}
-        disabled={readOnly}
       />
 
       <p style={s.modeHint}>{MODES.find((m) => m.value === mode)?.hint}</p>
@@ -112,28 +107,16 @@ export function GateControl({ readOnly = false }: { readOnly?: boolean }) {
           closesAt={closesAt}
           onOpens={setOpensAt}
           onCloses={setClosesAt}
-          readOnly={readOnly}
+          readOnly={false}
         />
       )}
 
-      {readOnly ? (
-        /*
-          No Apply at all, rather than one that is disabled: a disabled button
-          invites a second press and a wonder whether it is broken. This says
-          why instead.
-        */
-        <p style={s.readOnly}>
-          This is the live gate. Changing it takes a real admin sign-in: the demo password is
-          published, so a writable gate here would let anyone pause runs for everyone.
-        </p>
-      ) : (
-        <div style={s.actions}>
-          <button onClick={() => void apply()} disabled={busy} style={s.apply}>
-            {busy ? 'Saving…' : 'Apply'}
-          </button>
-          {saved && !error && <span style={s.saved}>Saved</span>}
-        </div>
-      )}
+      <div style={s.actions}>
+        <button onClick={() => void apply()} disabled={busy} style={s.apply}>
+          {busy ? 'Saving…' : 'Apply'}
+        </button>
+        {saved && !error && <span style={s.saved}>Saved</span>}
+      </div>
 
       {error && <p style={s.error}>{error}</p>}
 

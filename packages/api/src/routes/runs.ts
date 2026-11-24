@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
-import type { Context } from 'hono'
-import type { CreateRunRequest, HonoEnv, Role, RunRow } from '../types'
+import type { CreateRunRequest, HonoEnv, RunRow } from '../types'
 import {
   toView,
   isSuite,
@@ -10,46 +9,22 @@ import {
   isOutcomeMode,
   OUTCOME_MODES,
 } from '../types'
-import { DEFAULT_WORKERS, dispatchWorkflow, simulates } from '../github'
 import { simulateRun } from '../simulate'
-import { recordRefSha } from '../branches'
 import { parseDetails } from '../details'
-import { SANDBOX_RUNS_PER_HOUR, sandboxKeyIsSpent, sandboxKeyRetryAfter } from '../sandbox'
+import { VISITOR_KEY_RUNS_PER_HOUR, visitorKeyWait } from '../visitorKeys'
 import { secondsUntilRoom } from '../retry'
-import { deleteRunReport } from '../retention'
 import { signReportToken } from '../crypto'
 import { DEV_TOKEN_SECRET } from '../config'
-import { ROLES, refuseKeys, requireSession, requireRole, verifyPreviewRole } from '../auth'
-import { matchesRef, policyFor, redactForPreview, visibilityClause } from '../policy'
+import { ROLES, actorFor, refuseKeys, requireSession, requireRole } from '../auth'
+import { matchesRef, policyFor, visibilityClause } from '../policy'
+import { record } from '../audit'
 import { gateApplies, loadGate, resolveGate } from '../gate'
-import { SUITE_OPTIONS } from '../options'
+import { DEFAULT_WORKERS, SUITE_OPTIONS } from '../options'
 
 export const runRoutes = new Hono<HonoEnv>()
 
 // Every route here needs a session; none of them are public.
 runRoutes.use('*', requireSession)
-
-/**
- * The role to show a *read* response for — the caller's real, authenticated
- * role, unless they are a `demo` session previewing another one.
- *
- * Deliberately not used by POST / or DELETE /:id below: those keep reading
- * `c.get('role')` directly, so a demo session previewing 'admin' still hits
- * demo's own policy and dispatch guarantees on every write path. Only the two
- * GET handlers call this — see docs/decisions.md on why the preview cookie is
- * a display-only concept, never a second claim on write authorisation.
- */
-async function resolveViewRole(c: Context<HonoEnv>): Promise<Role> {
-  const role = c.get('role')
-  if (role !== 'demo') return role
-
-  const previewed = await verifyPreviewRole(
-    c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET,
-    c.req.header('Cookie'),
-    c.get('sessionExpiresAt'),
-  )
-  return previewed ?? role
-}
 
 /**
  * `20260826-1430-items-k3f9qw` — sortable, readable, usable as an R2 prefix.
@@ -95,28 +70,16 @@ export function randomSuffix(length = 6): string {
 }
 
 /**
- * How many runs `demo` may start in a rolling hour, across everyone using it.
+ * Runs one sandbox may start in an hour.
  *
- * `demo`'s password is public, and a one-click button on the sign-in screen
- * signs in with it. That is deliberate and
- * safe in every way that matters: a demo run is always simulated, never
- * reaches a real workflow, and cannot delete anything. (It can read more than
- * its own runs — previewing another role shows that role's runs — but reading
- * changes nothing; see decision 22.) The one thing a stranger *can* do is
- * start simulated runs in a loop, and the only casualty is rows in D1.
- *
- * So this is a housekeeping limit, not a security control — the security is
- * that demo cannot reach anything real in the first place. It is deliberately
- * generous: the number exists to stop a script, not to interrupt a visitor
- * clicking Run a few times to see what happens, which is exactly what the
- * button invites them to do.
- *
- * Shared rather than per-visitor on purpose. A demo session carries no
- * identity beyond its role — that is the point of it — so there is nothing
- * honest to key a per-caller bucket on. IP would be the usual choice and is
- * both spoofable and shared by everyone behind one NAT.
+ * A housekeeping limit, not a security control: every run is simulated, so the
+ * only thing a script starting runs in a loop can cost is rows in D1. Generous
+ * on purpose — the number exists to stop a script, not to interrupt a visitor
+ * pressing Run a few times to see what happens. Per sandbox, because a sandbox
+ * is the one identity a visitor has; the number of sandboxes is itself capped
+ * (sandboxes.ts), which is what bounds the total.
  */
-const DEMO_RUNS_PER_HOUR = 30
+export const SANDBOX_RUNS_PER_HOUR = 30
 
 // The history's filters: a name a past run carried need not be offered today.
 const SERVICE_RE = /^[a-z][a-z0-9-]*$/
@@ -126,6 +89,7 @@ const REF_RE = /^[a-zA-Z0-9._\-/]+$/
 // ── POST /runs ──────────────────────────────────────────────────────────────
 runRoutes.post('/', async (c) => {
   const role = c.get('role')
+  const sandboxId = c.get('sandboxId')
   const apiKey = c.get('apiKey')
 
   // A key's policy is its role's, already narrowed by its own limits — see
@@ -141,7 +105,7 @@ runRoutes.post('/', async (c) => {
   /*
    * Omitted means the suites' default, lowered to what this caller may use.
    * It used to be checked only when it was sent: leave it out and the
-   * dispatch filled in 4 — past `demo`'s 2 and past any key limited below 4.
+   * dispatch filled in 4 — past any key limited below 4.
    */
   const workers = body.workers ?? Math.min(DEFAULT_WORKERS, policy.maxWorkers)
   const ref = body.ref ?? 'main'
@@ -158,9 +122,10 @@ runRoutes.post('/', async (c) => {
    *
    * A pattern let through anything shaped like a name: the API suite's run of
    * `cart` (a UI-suite group) and a tag nobody defined were both accepted, and
-   * simulation reported each one green in everyone's history. Deployed, the
-   * workflow would refuse the dispatch for an input it does not accept. The
-   * names are in `SUITE_OPTIONS`, which is also what the form offers.
+   * simulation reported each one green in everyone's history. A real
+   * workflow would refuse an input it does not accept, and the simulator
+   * should not report green for one either. The names are in `SUITE_OPTIONS`,
+   * which is also what the form offers.
    */
   const offered = SUITE_OPTIONS[suite]
   if (!service || !offered.services.includes(service)) {
@@ -183,9 +148,9 @@ runRoutes.post('/', async (c) => {
    * This used to be refused. The suites' workflows took a single `scope` input
    * whose values were a union of tag names and service names, so a request
    * naming both could only be honoured by dropping one — and the run row went
-   * on recording the one that was dropped (decision 26). Both suites now take
-   * an optional second input, `tag`, and `dispatchWorkflow` sends it only when
-   * both are named, so the request is passed on whole instead of narrowed.
+   * on recording the one that was dropped (decision 26). Both suites came to
+   * take an optional second input, `tag`, so the pair is a request a suite can
+   * honour, and it is recorded whole.
    *
    * What is still not checked here is whether any test carries the pair. A
    * combination nothing matches (`items` with `flow`) is a run the suite fails
@@ -197,19 +162,12 @@ runRoutes.post('/', async (c) => {
   }
 
   /*
-   * What a simulated run should come back as.
-   *
-   * Refused for a real run rather than ignored. Someone who sends `fail` to
-   * the real pipeline and gets a green run back has been told nothing is
-   * wrong; a 422 says the field means nothing there. Decided from the same
-   * `simulates` the run is recorded with, so the two cannot disagree.
+   * What the simulated run should come back as. Every run started here is
+   * simulated (decision 52), so the field always means something.
    */
   const outcome = body.outcome ?? 'random'
   if (!isOutcomeMode(outcome)) {
     return c.json({ error: `outcome must be one of: ${OUTCOME_MODES.join(', ')}` }, 422)
-  }
-  if (outcome !== 'random' && !simulates(c.env, role)) {
-    return c.json({ error: 'outcome applies only to simulated runs; this run is real' }, 422)
   }
 
   // 403, not 422: the request is well-formed, the caller simply may not make
@@ -232,7 +190,7 @@ runRoutes.post('/', async (c) => {
   // told the second when the first is also true would fix the timing and hit
   // the wall again.
   if (gateApplies(role)) {
-    const gate = resolveGate(await loadGate(c.env.DB), new Date())
+    const gate = resolveGate(await loadGate(c.env.DB, sandboxId), new Date())
     if (gate.state === 'closed') {
       return c.json(
         {
@@ -250,55 +208,52 @@ runRoutes.post('/', async (c) => {
   }
 
   /*
-   * Checked last of the refusals, and only for demo.
+   * Checked last of the refusals. A caller who is over the limit but also
+   * asked for a branch they may never use should hear about the branch: that
+   * answer does not change in an hour, and telling them to come back later
+   * would send them round the same wall.
    *
-   * A caller who is over the limit but also asked for a branch they may never
-   * use should hear about the branch: that answer does not change in an hour,
-   * and telling them to come back later would send them round the same wall.
+   * Counted per sandbox: one visitor's runs do not use up another's.
    */
-  if (role === 'demo') {
-    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const recent = await c.env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM runs WHERE triggered_by = 'demo' AND started_at > ?1`,
-    )
-      .bind(since)
-      .first<{ n: number }>()
-
-    if ((recent?.n ?? 0) >= DEMO_RUNS_PER_HOUR) {
-      const retryAfter = await secondsUntilRoom(c.env.DB, {
-        from: 'runs',
-        where: `triggered_by = 'demo' AND started_at > ?1`,
-        column: 'started_at',
-        params: [since],
-        count: recent?.n ?? 0,
-        limit: DEMO_RUNS_PER_HOUR,
-        holdMs: 60 * 60 * 1000,
-        atMostMs: 60 * 60 * 1000,
-      })
-      return c.json(
-        {
-          error:
-            'The demo has run its hourly limit. It resets within the hour — ' +
-            'or clone the repo and run it locally with no limit at all.',
-        },
-        // 429, and it is the honest status: the request is allowed, the caller
-        // is simply making too many of them.
-        429,
-        { 'Retry-After': String(retryAfter) },
-      )
-    }
-  }
-
-  // A sandbox key has its own hourly allowance on top of the shared demo one:
-  // the shared limit stops a script from filling the table, and this stops one
-  // key from using all of it.
-  if (apiKey?.sandbox && (await sandboxKeyIsSpent(c.env.DB, apiKey.id))) {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const recent = await c.env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM runs WHERE sandbox_id = ?1 AND started_at > ?2`,
+  )
+    .bind(sandboxId, since)
+    .first<{ n: number }>()
+  if ((recent?.n ?? 0) >= SANDBOX_RUNS_PER_HOUR) {
+    const retryAfter = await secondsUntilRoom(c.env.DB, {
+      from: 'runs',
+      where: 'sandbox_id = ?1 AND started_at > ?2',
+      column: 'started_at',
+      params: [sandboxId, since],
+      count: recent?.n ?? 0,
+      limit: SANDBOX_RUNS_PER_HOUR,
+      holdMs: 60 * 60 * 1000,
+      atMostMs: 60 * 60 * 1000,
+    })
     return c.json(
       {
-        error: `This sandbox key has started its ${SANDBOX_RUNS_PER_HOUR} runs for the hour. It resets within the hour.`,
+        error:
+          'This sandbox has run its hourly limit. It resets within the hour — ' +
+          'or clone the repo and run it locally with no limit at all.',
       },
       429,
-      { 'Retry-After': String(await sandboxKeyRetryAfter(c.env.DB, apiKey.id)) },
+      { 'Retry-After': String(retryAfter) },
+    )
+  }
+
+  // A key has its own hourly allowance on top of the sandbox's: the sandbox's
+  // limit stops a script from filling the table, and this stops one key from
+  // using all of it.
+  const keyWait = apiKey ? await visitorKeyWait(c.env.DB, apiKey.id) : null
+  if (keyWait !== null) {
+    return c.json(
+      {
+        error: `This key has started its ${VISITOR_KEY_RUNS_PER_HOUR} runs for the hour. It resets within the hour.`,
+      },
+      429,
+      { 'Retry-After': String(keyWait) },
     )
   }
 
@@ -318,12 +273,10 @@ runRoutes.post('/', async (c) => {
 
   const id = makeRunId(service)
 
-  // Written before dispatching. A run that fails to reach GitHub is still a run
-  // someone asked for, and it should be visible with its error rather than
-  // vanishing.
   await c.env.DB.prepare(
-    `INSERT INTO runs (id, suite, service, tags, workers, triggered_by, status, ref, started_at, api_key_id, started_by, simulated)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8, ?9, ?10, ?11)`,
+    `INSERT INTO runs (id, suite, service, tags, workers, triggered_by, status, ref, started_at,
+                       api_key_id, started_by, simulated, sandbox_id)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'queued', ?7, ?8, ?9, ?10, 1, ?11)`,
   )
     .bind(
       id,
@@ -334,37 +287,21 @@ runRoutes.post('/', async (c) => {
       role,
       ref,
       new Date().toISOString(),
-      // Null for a person. `triggered_by` still holds the role either way, so
-      // an existing reader is unaffected; this only adds the answer to "which
-      // pipeline?" that the role alone cannot give.
+      // Null for a person; the key's id for a key, so "which pipeline?" has an
+      // answer the role alone cannot give.
       apiKey?.id ?? null,
-      // And the person's side of the same question. Null for a key: a key has
-      // an id and a label already, and inventing a person for it would be a
-      // worse answer than none.
-      apiKey ? null : (c.get('sessionName') ?? null),
-      // Recorded from the same decision dispatchWorkflow is about to act on.
-      simulates(c.env, role) ? 1 : 0,
+      // The account that started it. Null for a key: a key has an id and a
+      // label already, and inventing a person for it would be a worse answer.
+      apiKey ? null : (c.get('email') ?? null),
+      sandboxId,
     )
     .run()
 
-  const dispatch = await dispatchWorkflow(c.env, id, role, { suite, service, tags, workers, ref })
+  // Nothing is dispatched (decision 52). The simulator walks the run through
+  // the states a real one passes through, after the response has gone.
+  c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service, outcome))
 
-  if (!dispatch.ok) {
-    await c.env.DB.prepare(`UPDATE runs SET status = 'error', finished_at = ?2 WHERE id = ?1`)
-      .bind(id, new Date().toISOString())
-      .run()
-    return c.json({ error: dispatch.error ?? 'Dispatch failed', runId: id }, 502)
-  }
-
-  if (dispatch.simulated) {
-    c.executionCtx.waitUntil(simulateRun(c.env, id, suite, service, outcome))
-  } else {
-    // Which commit the branch is at, written down while the run is still
-    // queued. After the response: nobody should wait on a second GitHub call.
-    c.executionCtx.waitUntil(recordRefSha(c.env, id, suite, ref))
-  }
-
-  return c.json({ runId: id, status: 'queued', simulated: dispatch.simulated }, 201)
+  return c.json({ runId: id, status: 'queued', simulated: true }, 201)
 })
 
 /**
@@ -463,7 +400,6 @@ export function readListFilters(
 // ── GET /runs ───────────────────────────────────────────────────────────────
 runRoutes.get('/', async (c) => {
   const role = c.get('role')
-  const viewAs = await resolveViewRole(c)
   const limit = Math.min(100, Math.max(1, Number.parseInt(c.req.query('limit') ?? '25', 10) || 25))
   const status = c.req.query('status')
   const suite = c.req.query('suite')
@@ -491,7 +427,7 @@ runRoutes.get('/', async (c) => {
 
   // Visibility is applied in SQL, so a role cannot receive rows it may not see
   // even if a later handler forgets to filter.
-  const visibility = visibilityClause(viewAs)
+  const visibility = visibilityClause(role, c.get('sandboxId'))
   const conditions: string[] = []
   const params: unknown[] = []
 
@@ -552,30 +488,21 @@ runRoutes.get('/', async (c) => {
 
   const runs = await Promise.all(
     page.map(async (row) =>
-      redactForPreview(
-        role,
-        viewAs,
-        toView(
-          row,
-          row.report_path
-            ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
-            : null,
-        ),
+      toView(
+        row,
+        row.report_path
+          ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
+          : null,
       ),
     ),
   )
 
-  // `role` is always the real, authenticated session; `viewAs` only differs
-  // from it for a demo session previewing another role's read view — the UI
-  // needs both so it can be honest about which is which.
-  //
   // `total` is what the reader may see, not what the table holds: it is counted
   // through the same visibility clause, so a dev is never told there are runs
   // they cannot reach.
   return c.json({
     runs,
     role,
-    viewAs,
     total: totalRow?.total ?? runs.length,
     nextCursor: hasMore && page.length > 0 ? encodeCursor(page[page.length - 1]!) : null,
   })
@@ -583,62 +510,31 @@ runRoutes.get('/', async (c) => {
 
 // ── GET /runs/:id ───────────────────────────────────────────────────────────
 runRoutes.get('/:id', async (c) => {
-  const viewAs = await resolveViewRole(c)
-
-  const row = await c.env.DB.prepare(`SELECT * FROM runs WHERE id = ?1`)
-    .bind(c.req.param('id'))
+  // The same clause as the list, in the query: a run of another sandbox is
+  // "no such run", exactly as one that does not exist.
+  const visibility = visibilityClause(c.get('role'), c.get('sandboxId'))
+  const row = await c.env.DB.prepare(`SELECT * FROM runs WHERE id = ? AND ${visibility.sql}`)
+    .bind(c.req.param('id'), ...visibility.params)
     .first<RunRow>()
-
   if (!row) return c.json({ error: 'No such run' }, 404)
-
-  // 404 rather than 403 for a run this role may not see: telling a developer
-  // that a run exists but is off-limits leaks the branch names they were
-  // scoped away from — and for demo, would confirm that some other visitor's
-  // run id is real.
-  const visibility = visibilityClause(viewAs)
-  if (visibility.column && row[visibility.column as keyof RunRow] !== visibility.value) {
-    return c.json({ error: 'No such run' }, 404)
-  }
 
   const secret = c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET
   const reportUrl = row.report_path
     ? `/reports/${row.id}/?token=${await signReportToken(secret, row.id)}`
     : null
-
-  // The failures travel with one run, not with the list: twenty messages a row
-  // across a page of rows is the payload the list should not become.
-  return c.json({
-    ...redactForPreview(c.get('role'), viewAs, toView(row, reportUrl)),
-    details: parseDetails(row.details),
-  })
+  return c.json({ ...toView(row, reportUrl), details: parseDetails(row.details) })
 })
 
-// ── DELETE /runs/:id ────────────────────────────────────────────────────────
-/*
- * `requireRole('admin')` checks the role and nothing else, and a key carries a
- * role — so an admin-level key reached this handler and deleted a run.
- *
- * Caught by a test, not by review. It is the shape of bug this whole feature
- * invites: a key is deliberately made to look like a person by the time a
- * handler sees it, which is what keeps every other rule working unchanged —
- * and it means a rule enforced by role alone silently applies to keys too.
- *
- * Deletion is destructive, irreversible, and has no automated use case, so
- * `refuseKeys` turns it away regardless of role. This was an `if` in the
- * handler until the same bug turned up on the whole /keys router; it is
- * middleware now because one worked example is not a rule until it is
- * reusable. See decision 25.
- */
 runRoutes.delete('/:id', requireRole('admin'), refuseKeys('delete runs'), async (c) => {
-  // The route is `/:id`, so there is always one.
   const id = c.req.param('id') as string
-
-  const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1`).bind(id).run()
+  // Only a run of the caller's own sandbox. A real run has no sandbox, so no
+  // visitor can delete one; retention is what removes those.
+  const result = await c.env.DB.prepare(`DELETE FROM runs WHERE id = ?1 AND sandbox_id = ?2`)
+    .bind(id, c.get('sandboxId'))
+    .run()
   if (result.meta.changes === 0) return c.json({ error: 'No such run' }, 404)
-
-  // The report outlives the row otherwise, and R2 is billed by what it holds.
-  // Which objects, and why by the run's own prefix, is in retention.ts.
-  const deletedObjects = await deleteRunReport(c.env.REPORTS, id)
-
-  return c.json({ ok: true, deletedObjects })
+  await record(c.env.DB, c.get('sandboxId'), actorFor(c), 'run-deleted', id)
+  // A sandbox run points at the shared demo report and owns no stored object,
+  // so there is nothing in R2 to remove with it.
+  return c.json({ ok: true })
 })

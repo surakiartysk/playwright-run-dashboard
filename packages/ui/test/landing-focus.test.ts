@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Login, focusesPassword } from '../src/components/Login'
+import { Login } from '../src/components/Login'
 
 /**
  * Where the keyboard starts, and where it can go.
@@ -14,16 +14,21 @@ import { Login, focusesPassword } from '../src/components/Login'
  * page had no `main` landmark and no way past the header to the runs.
  */
 describe('the sign-in page', () => {
-  it('focuses the password only once it knows there is no demo button', () => {
-    expect(focusesPassword(false, null)).toBe(false)
-    expect(focusesPassword(true, 'demo')).toBe(false)
-    expect(focusesPassword(true, null)).toBe(true)
-  })
-
+  /*
+   * There is no field to type into any more (decision 52), so the way in is
+   * the first button, and the browser is not asked to move focus anywhere.
+   */
   it('does not ask the browser to focus anything on load', () => {
     const html = renderToStaticMarkup(createElement(Login, { onSignedIn: () => undefined }))
-    expect(html).toContain('id="password"')
     expect(html).not.toContain('autofocus')
+    expect(html).not.toContain('type="password"')
+  })
+
+  it('leads with the demo button, before the concept sign-in', () => {
+    const html = renderToStaticMarkup(createElement(Login, { onSignedIn: () => undefined }))
+    expect(html.indexOf('Log in to demo')).toBeGreaterThan(-1)
+    expect(html.indexOf('Log in to demo')).toBeLessThan(html.indexOf('Sign in with Google'))
+    expect(html).toContain('concept')
   })
 })
 

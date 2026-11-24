@@ -3,9 +3,7 @@ import type { HonoEnv } from '../types'
 import { SUITES } from '../types'
 import { requireSession } from '../auth'
 import { policyFor } from '../policy'
-import { simulates } from '../github'
-import { suiteBranches } from '../branches'
-import { SUITE_OPTIONS, refsFor } from '../options'
+import { DEMO_BRANCHES, SUITE_OPTIONS, refsFor } from '../options'
 
 export const optionsRoutes = new Hono<HonoEnv>()
 
@@ -20,33 +18,20 @@ optionsRoutes.use('*', requireSession)
  * read the same endpoint, so the form cannot offer what the API would refuse.
  *
  * Narrowed to the caller: a key's own policy where there is one (a key may be
- * limited below its role), the role's otherwise. The branches are per suite,
- * because each suite is its own repository with its own branches.
- *
- * Reads the real role, never a previewed one. This is about what the caller may
- * *do*, and a demo session previewing admin does not gain admin's branches.
+ * limited below its role), the role's otherwise. The branches are a fixed demo
+ * list, narrowed by the policy: nothing is dispatched, so there is no
+ * repository to read them from (decision 52).
  */
-optionsRoutes.get('/', async (c) => {
+optionsRoutes.get('/', (c) => {
   const role = c.get('role')
   const policy = c.get('apiKey')?.policy ?? policyFor(role)
-  const simulated = simulates(c.env, role)
 
   const suites = Object.fromEntries(
-    await Promise.all(
-      SUITES.map(async (suite) => {
-        // A simulated run never reaches GitHub, so neither does asking about it.
-        const existing = simulated ? null : await suiteBranches(c.env, suite)
-        return [
-          suite,
-          {
-            ...SUITE_OPTIONS[suite],
-            refs: refsFor(policy.allowedRefs, existing),
-            refsFrom: existing === null ? 'policy' : 'github',
-          },
-        ] as const
-      }),
-    ),
+    SUITES.map((suite) => [
+      suite,
+      { ...SUITE_OPTIONS[suite], refs: refsFor(policy.allowedRefs, DEMO_BRANCHES) },
+    ]),
   )
 
-  return c.json({ role, simulated, maxWorkers: policy.maxWorkers, suites })
+  return c.json({ role, simulated: true, maxWorkers: policy.maxWorkers, suites })
 })

@@ -4,6 +4,7 @@ import type { Bindings, HonoEnv } from './types'
 import { assertDeployable } from './config'
 import { authRoutes } from './routes/auth'
 import { demoRoutes } from './routes/demo'
+import { adminRoutes } from './routes/admin'
 import { runRoutes } from './routes/runs'
 import { webhookRoutes } from './routes/webhook'
 import { reportRoutes } from './routes/reports'
@@ -12,7 +13,8 @@ import { keyRoutes } from './routes/keys'
 import { optionsRoutes } from './routes/options'
 import { sweepStaleRuns } from './stale'
 import { pruneReports } from './retention'
-import { pruneSandbox } from './sandbox'
+import { pruneOldDemoRuns } from './visitorKeys'
+import { pruneSandboxes } from './sandboxes'
 import pkg from '../package.json'
 
 /**
@@ -34,14 +36,14 @@ const VERSION = pkg.version
  *
  * The main surfaces, each with a different caller:
  *
- *   POST /auth/login  signing in — a password maps to a role
- *   POST /runs        a developer asking for a run     (session + policy)
- *   GET  /runs        the dashboard polling for status (scoped by role)
- *   POST /webhook     the workflow reporting a result   (HMAC-signed)
- *   GET  /reports     a browser opening a report        (token-scoped)
+ *   POST /auth/demo   signing in — a sandbox of one's own (decision 52)
+ *   POST /runs        a member asking for a simulated run (session + policy)
+ *   GET  /runs        the dashboard polling for status  (scoped by sandbox and role)
+ *   POST /webhook     a suite's CI reporting a real run  (HMAC-signed)
+ *   GET  /reports     a browser opening a report         (token-scoped)
  *
  * They authenticate differently because they are trusted differently — the
- * webhook is the only one that can change a result, so it is the only one that
+ * webhook is the only one that can write a real result, so it is the only one that
  * is signed.
  */
 const app = new Hono<HonoEnv>()
@@ -81,7 +83,7 @@ app.use('*', async (c, next) => {
   // it to every later request, which is wrong the moment two environments
   // share a process. That is only visible in tests today, and a cache that is
   // only correct in production is a cache waiting to mislead someone.
-  const problems = assertDeployable(c.env)
+  const problems = assertDeployable(c.env, c.req.url)
 
   if (!configLogged && problems.length > 0) {
     configLogged = true
@@ -140,7 +142,8 @@ app.get('/health', (c) => {
 })
 
 app.route('/auth', authRoutes)
-// Read-only role preview for an authenticated `demo` session — see routes/demo.ts.
+// The admin page's members, activity and lockdown, then the rest of /demo.
+app.route('/demo/admin', adminRoutes)
 app.route('/demo', demoRoutes)
 // Mounted before `/runs` and under it: Worker routes on the production hostname
 // are configured in the Cloudflare dashboard, so a new top-level path would be
@@ -177,9 +180,12 @@ export default {
         sweepStaleRuns(env.DB).then((marked) => {
           if (marked > 0) console.log(`[stale] marked ${marked} unfinished run(s) as timeout`)
         }),
-        pruneSandbox(env.DB).then(({ keys, runs }) => {
-          if (keys + runs > 0)
-            console.log(`[prune] removed ${keys} sandbox key(s), ${runs} old demo run(s)`)
+        pruneSandboxes(env.DB).then(({ sandboxes }) => {
+          if (sandboxes > 0) console.log(`[prune] removed ${sandboxes} expired sandbox(es)`)
+        }),
+        pruneOldDemoRuns(env.DB).then((runs) => {
+          if (runs > 0)
+            console.log(`[prune] removed ${runs} simulated run(s) from before sandboxes`)
         }),
         pruneReports(env.DB, env.REPORTS).then((removed) => {
           if (removed > 0) console.log(`[retention] removed the report of ${removed} old run(s)`)

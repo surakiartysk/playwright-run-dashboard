@@ -153,7 +153,6 @@ describe('who may be filtered by', () => {
     expect(canFilterByStarter('qa')).toBe(true)
     expect(canFilterByStarter('admin')).toBe(true)
     expect(canFilterByStarter('dev')).toBe(false)
-    expect(canFilterByStarter('demo')).toBe(false)
   })
 })
 
@@ -233,7 +232,7 @@ describe('chips', () => {
 })
 
 describe('AdvancedFilters', () => {
-  const html = (filters = {}, viewing: 'demo' | 'qa' = 'qa') =>
+  const html = (filters = {}, viewing: 'dev' | 'qa' = 'qa') =>
     renderToStaticMarkup(
       createElement(AdvancedFilters, { options, filters, viewing, onChange: () => undefined }),
     )

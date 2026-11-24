@@ -4,13 +4,19 @@ Self-service test running: pick a slice, press **Run**, and get a link to the
 report — without waiting for someone else or digging through CI artifacts. A
 machine holding an API key can start one without opening the page at all.
 
-Four roles see four different dashboards. A `dev` is pinned to `main` and sees
+Three roles see three different dashboards. A `dev` is pinned to `main` and sees
 only main-branch runs; `qa` may also run `develop` and `release/<version>`, and sees every
-run; `admin` may run any branch and delete; `demo` sees the runs started as
-`demo`, by any visitor, may preview — read-only — what the other roles see, and can never
-trigger a real run, which is what makes its password safe to publish rather
-than hand out privately. The interesting part is not the Run button — it is
-_who may run what, and who may then see the result_.
+run; `admin` may run any branch, delete, and use the admin page. The interesting
+part is not the Run button — it is _who may run what, and who may then see the
+result_.
+
+**It is a demo throughout** ([decision 52](docs/decisions.md#52-a-demo-throughout-a-sandbox-for-each-visitor)).
+Every visitor gets a sandbox of their own for a day: their runs, their gate,
+their keys, their member list, their activity log. Every control works — delete
+a run, lock the sandbox down, revoke a key — and the only person who sees the
+result is the one who did it. Nothing starts a real workflow and there are no
+passwords. The real runs the suites' own CI reports are shown beside every
+sandbox's, and no visitor can change them.
 
 **Version 1.3.0.** 1.0.0 (4 September) was complete against its own scope:
 four roles, the run gate, signed callbacks and scoped report links, all
@@ -34,15 +40,9 @@ Part of [testbydesign.dev](https://testbydesign.dev), which draws how this and b
 suites fit together.
 
 **Live at [runs.testbydesign.dev](https://runs.testbydesign.dev)** — one button, no
-password to type. That deployment is real: real D1, real R2, a real GitHub
-token that can dispatch either companion suite below. `demo` cannot reach any of
-that — see
-[decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real)
-for why a role can be handed a genuine login to a real deployment and still be
-safe to publish, and
-[decision 22](docs/decisions.md#22-a-limit-on-demo-runs-and-why-it-is-not-a-security-control)
-for the hourly cap on demo runs — the one thing a published password does
-expose is row count, so thirty an hour is where it stops.
+password. "Sign in with Google" is there too, labelled a concept: it is not
+connected to Google, and it shows the account chooser a company sign-in would
+put first, with the whitelist check behind it applied for real.
 
 ## Run it
 
@@ -52,22 +52,18 @@ No Cloudflare account, no GitHub token, nothing to sign up for.
 pnpm install && pnpm db:migrate && pnpm dev
 ```
 
-The UI is on `http://localhost:5173`. `demo` is a button — one click, no
-typing, because the password is published anyway and a demo whose first screen
-is a password hunt is a demo nobody sees.
+The UI is on `http://localhost:5173`. Press **Log in to demo**: that makes a
+sandbox and signs you in as its visitor account, listed as admin. Listed is half
+of admin; the other half is the sandbox's admin key, which the admin page shows
+you because this is a demo. Paste it, and the gate, members, API keys, activity
+and lockdown are yours. **Switch account** signs in as the sandbox's `qa` or
+`dev` account, or as one on no list, which is refused.
 
-The other three roles sign in with their own name as the password: `dev`,
-`qa`, `admin`. Worth doing at least once as `admin`, which is the only way to
-change the run gate or issue an API key — a `demo` session previewing admin
-_sees_ both, read-only, but never what admin may _do_.
-
-Press Run. The dashboard simulates a dispatch and walks the run through
-queued → running → result. Locally the report link answers 404: the report is
-an object in R2, and a fresh clone's local bucket is empty. On the deployed
-site every simulated run opens one real, shared Allure report
+Press Run. The dashboard walks the run through queued → running → result.
+Locally the report link answers 404: the report is an object in R2, and a fresh
+clone's local bucket is empty. On the deployed site every simulated run opens
+one real, shared Allure report
 ([decision 14](docs/decisions.md#14-one-real-allure-report-shared-by-every-simulated-run)).
-Sign in as `demo` and use the **Viewing as** bar to watch what each role is
-allowed to see — without gaining what it is allowed to do.
 
 ## What is where
 
@@ -79,16 +75,17 @@ packages/ui     React + Vite
 | File                                                      | What it decides                                          |
 | --------------------------------------------------------- | -------------------------------------------------------- |
 | [`policy.ts`](packages/api/src/policy.ts)                 | Who may run what, on which branch, and what they may see |
-| [`auth.ts`](packages/api/src/auth.ts)                     | Session tokens, the role gate                            |
+| [`auth.ts`](packages/api/src/auth.ts)                     | Sessions, the admin key, the role read from the list     |
+| [`sandboxes.ts`](packages/api/src/sandboxes.ts)           | One visitor's copy, its limits and its expiry            |
 | [`crypto.ts`](packages/api/src/crypto.ts)                 | Webhook signing, report-link tokens                      |
 | [`routes/webhook.ts`](packages/api/src/routes/webhook.ts) | The only endpoint that may change a result               |
-| [`routes/demo.ts`](packages/api/src/routes/demo.ts)       | Role preview — read-only, and only for a `demo` session  |
+| [`routes/admin.ts`](packages/api/src/routes/admin.ts)     | Members, activity and lockdown — admin, people only      |
 
 ## Tests
 
 ```bash
 pnpm verify        # what CI runs: format, lint, types, tests, claims
-pnpm test          # 1218 tests — 670 in the Worker, 548 in the UI
+pnpm test          # 1132 tests — 601 in the Worker, 531 in the UI
 pnpm check:claims  # fails if these docs advertise a count that has gone stale
 ```
 
@@ -97,12 +94,12 @@ half of what matters here (visibility enforced in SQL, R2 cleanup on delete, the
 simulator's overwrite guard) is invisible to a fake `prepare()`. See
 [decision 8](docs/decisions.md#8-tests-run-inside-workerd-against-real-d1-and-r2).
 
-Every test was proven able to fail. In all, 353 deliberate mutations — deleting
+Every test was proven able to fail. In all, 379 deliberate mutations — deleting
 the privilege-escalation guard, signing the webhook body without its timestamp,
 dropping the visibility clause — each produced a failure naming the right
-behaviour. 297 of them are written down one by one in
+behaviour. 323 of them are written down one by one in
 [`docs/mutations.md`](docs/mutations.md), with the commit that ran each and the
-message it produced; that file also says plainly which of the 353 are _not_
+message it produced; that file also says plainly which of the 379 are _not_
 recorded, and why they cannot be. Two real bugs came out of writing them:
 [decision 9](docs/decisions.md#9-the-bugs-the-tests-actually-found).
 
@@ -110,14 +107,18 @@ recorded, and why they cannot be. Two real bugs came out of writing them:
 
 This is a demo, and it says so in code rather than in a comment:
 
-- `POST /demo/preview-role` never mints a session token for another role. It
-  requires a genuine `demo` session and sets a second, narrower cookie that
-  only changes what `GET /runs` and `GET /runs/:id` return — every write path
-  (starting a run, deleting one) still enforces the real, signed-in role
-  regardless of what is being previewed. See
-  [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
+- Visibility is scoped in SQL by sandbox as well as by role: a visitor's query
+  can return the real runs and their own sandbox's, never another's, and every
+  write — delete, gate, keys, members, lockdown — names the caller's sandbox in
+  its `WHERE`. A real run cannot be deleted through the API at all.
+- A session names a sandbox and an account, never a role. The role is read from
+  the member list on every request, so a removal takes effect on the next click.
+- Admin is two locks: listed as admin, and the sandbox's admin key, which gives
+  an hour in its own cookie. Wrong keys are counted per account before they are
+  compared ([decision 28](docs/decisions.md#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)).
 - Every secret has an obviously fake development default so a clone runs as-is,
-  and `assertDeployable` refuses to serve if one would reach a real deployment.
+  and `assertDeployable` refuses to serve on any host but a local one without
+  the real ones.
 - The webhook signs `timestamp.body` and refuses anything older than five
   minutes, so a captured callback is not replayable forever.
 - Reports live in a private bucket behind signed, expiring, run-scoped links.
@@ -131,18 +132,11 @@ This is a demo, and it says so in code rather than in a comment:
 
 ## Deploying it for real
 
-Set every secret first. Once `SIMULATE_DISPATCH` is `false`, the Worker
+Set the secrets first. On any host that is not a local one, the Worker
 **refuses to serve** without them — a 503 on every route, and `/health` says
 which are missing — because the development defaults are published in this
-repo, and a deployment that silently used them would sign report links with a
-value anyone can read.
-
-While it simulates, it does not check: simulation is how a clone runs on its
-defaults. So a deployment that simulates and has no secrets serves the
-published passwords, and anyone can sign in to it as `admin` with `admin` —
-delete runs, issue keys, close the gate — and forge its report links. Nothing
-it starts is real, but set the secrets on anything public whatever the flag
-says.
+repo, and a deployment that silently used them would let anyone forge a
+session, an admin key or a report link.
 
 Every `wrangler` command below runs from `packages/api`, where `wrangler.toml`
 is (`pnpm exec wrangler …` if it is not on your PATH).
@@ -150,28 +144,11 @@ is (`pnpm exec wrangler …` if it is not on your PATH).
 ```bash
 wrangler secret put WEBHOOK_SECRET_API   # signs the API suite's result callback
 wrangler secret put WEBHOOK_SECRET_UI    # signs the UI suite's
-wrangler secret put TOKEN_SECRET     # signs report links
-wrangler secret put ADMIN_PASSWORD
-wrangler secret put QA_PASSWORD
-wrangler secret put DEV_PASSWORD
-wrangler secret put GITHUB_TOKEN     # dispatches the workflows
+wrangler secret put TOKEN_SECRET         # signs sessions, admin keys and report links
 ```
 
-`GITHUB_TOKEN` is the one secret `/health` does **not** report as missing, and
-the reason is that it is not always needed: a deployment left simulating never
-reads it. Its absence surfaces as a failed dispatch naming it, on the first
-real run. It needs `actions: write` on **both** suite repositories — a token
-scoped to one of them dispatches that suite and fails on the other, with
-GitHub's 404 rather than anything this dashboard can explain.
-
-Make the three passwords long and random. Sign-in refuses an address after ten
-wrong ones in fifteen minutes
-([decision 28](docs/decisions.md#28-sign-in-counts-wrong-passwords-and-counts-them-before-checking)),
-which makes a short password slow to find rather than safe to use.
-
-`DEMO_PASSWORD` is deliberately absent. `demo` is expected to keep a guessable
-password, because what makes it safe is that it can never dispatch for real —
-see [decision 12](docs/decisions.md#12-a-fourth-role-that-can-never-dispatch-for-real).
+That is all of them. There is no GitHub token, because nothing is dispatched,
+and no passwords, because there are none.
 
 ### Routing
 
@@ -201,12 +178,12 @@ Rules are per zone, so one zone covers every site on it. Suggested rules, by
 path, counted per IP address (adjust the numbers; what the dashboard offers for
 period and block duration depends on the plan, and the free plan's are narrower):
 
-| Path (host `runs.…`) | Why                                                                                  | Starting point        |
-| -------------------- | ------------------------------------------------------------------------------------ | --------------------- |
-| `/auth/*`            | sign-in guessing; the D1 limit (decision 28) only starts after the Worker is reached | 10 requests / minute  |
-| `/demo/keys`         | minting sandbox keys                                                                 | 10 requests / minute  |
-| `/runs*`             | creating and listing runs                                                            | 60 requests / minute  |
-| `/webhook`           | GitHub's callbacks; signed, so this only bounds noise                                | 120 requests / minute |
+| Path (host `runs.…`) | Why                                                                            | Starting point        |
+| -------------------- | ------------------------------------------------------------------------------ | --------------------- |
+| `/auth/*`            | making sandboxes and guessing admin keys; the D1 limits start after the Worker | 10 requests / minute  |
+| `/demo/keys`         | minting keys                                                                   | 10 requests / minute  |
+| `/runs*`             | creating and listing runs                                                      | 60 requests / minute  |
+| `/webhook`           | GitHub's callbacks; signed, so this only bounds noise                          | 120 requests / minute |
 
 The static sites (the hub and the dashboard's own pages) are served by
 Cloudflare Pages and need nothing beyond what Cloudflare does by default. A site
@@ -218,48 +195,29 @@ Migrations first, then the Worker, then the UI:
 
 ```bash
 wrangler d1 migrations apply run-dashboard --remote   # 1. schema
-wrangler deploy --var GITHUB_REPO:<owner/api-repo> \
-                --var GITHUB_WORKFLOW:on-demand.yml \
-                --var GITHUB_UI_REPO:<owner/ui-repo> \
-                --var GITHUB_UI_WORKFLOW:on-demand.yml \
-                --var SIMULATE_DISPATCH:false        # 2. the Worker
+wrangler deploy                                       # 2. the Worker
 pnpm --filter @run-dashboard/ui build                 # 3. the UI
 wrangler pages deploy ../ui/dist --project-name <project>
 ```
-
-`GITHUB_UI_REPO` and `GITHUB_UI_WORKFLOW` are the only optional pair. A
-deployment that omits them keeps working for the API suite and refuses a UI
-run with a 502 naming the unconfigured suite — rather than falling back to the
-other repository, which would report green against tests nobody asked for.
-The API suite keeps the original unprefixed names so an existing deploy line
-does not silently break.
 
 Deploying the Worker before its migration gives a **500 on every callback** —
 the new code selects a column the database does not have yet, and the only
 visible symptom is runs that never leave `running`. That is not hypothetical:
 it is what happened when 0004 was added and the Worker was restarted first.
 
-**Pass the vars on the command line, not by editing `wrangler.toml`.** The
-tracked file deliberately holds `SIMULATE_DISPATCH = "true"` and a placeholder
-`GITHUB_REPO` (see [decision 6](docs/decisions.md#6-simulation-is-the-default-and-one-flag-governs-it)),
-so a plain `wrangler deploy` silently reverts a live deployment to simulating —
-the dashboard keeps working, and quietly stops dispatching anything real.
-
-The one thing that **does** belong in `wrangler.toml` is `database_id`: it
-names the D1 database this deployment owns, `wrangler deploy` has no `--var`
-equivalent for a binding, and it is not a credential. Everything else in
-`[vars]` stays on the deploy line.
-
-`SIMULATE_DISPATCH:false` also stops `GET /auth/dev-credentials` returning
-dev/qa/admin's passwords, leaving only `demo`'s for the sign-in button — which
-is not a secret being kept, since demo cannot dispatch anything real and hiding
-it would protect nothing.
+There are no `--var`s any more. The flag that made a plain `wrangler deploy`
+quietly fall back to simulating is gone, and whether a deployment must have its
+secrets is decided by the host a request reaches, which a deploy cannot forget.
 
 The suite side needs `DASHBOARD_WEBHOOK_URL` as a repository variable and
 `DASHBOARD_WEBHOOK_SECRET` as a repository secret, matching
 `WEBHOOK_SECRET_API` here for the API suite's repository and `WEBHOOK_SECRET_UI`
-for the UI suite's (decision 50). A single `WEBHOOK_SECRET` shared by both still
-works. Without them its callback step is skipped and runs stay `running`.
+for the UI suite's (decision 50). A callback for a run this dashboard has not
+seen is recorded as a new real run when it says what ran — `suite`,
+`service`, `tags`, `ref` — which is how a suite's scheduled CI reports here
+(decision 52). **The suites' workflows do not send those yet**: until they do,
+the real runs shown are the ones recorded before the dashboard stopped
+dispatching.
 
 For a real run's **report** to appear as well, it also needs
 `CLOUDFLARE_API_TOKEN` (scoped to object-write on the reports bucket, nothing
@@ -270,7 +228,7 @@ Without them the run still reports its numbers; it just has no report link.
 
 ## The companion repositories
 
-This dashboard triggers two suites, and both are published:
+This dashboard shows the results of two suites, and both are published:
 
 **[`playwright-api-automation-patterns`](https://github.com/surakiartysk/playwright-api-automation-patterns)** —
 the same API suite built twice, functional-style and class-first, against one
@@ -280,23 +238,18 @@ OpenAPI contract.
 the same twenty UI journeys built twice, locator-first and page-first, against
 a public demo storefront.
 
-Each meets this dashboard at the same three points: it dispatches that repo's
-`on-demand.yml`, that workflow uploads its Allure report into this deployment's
-R2 bucket, and then posts its result back to `/webhook` here.
+Each meets this dashboard at two points: its workflow uploads its Allure report
+into this deployment's R2 bucket, and then posts its result back to `/webhook`
+here. There used to be a third, the workflow inputs this dashboard dispatched
+with, and that is where the repositories had drifted once — a service name sent
+in an input that only took package names. Nothing is dispatched now
+([decision 52](docs/decisions.md#52-a-demo-throughout-a-sandbox-for-each-visitor)).
 
-Which repository a run reaches is decided by its `suite` — `api` or `ui`, a
-column on every run since migration 0008 (see
-[decision 24](docs/decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)). The two workflows deliberately
-declare the **same inputs**, because GitHub rejects a dispatch carrying
-an input the workflow does not declare, so a body that branched per suite would
-be a second thing to keep in step. What differs is what the inputs mean: the
-API suite slices by tag, the UI suite by spec file.
-
-`packages/api/test/integration-contract.test.ts` holds both workflows'
-accepted values, copied by hand, and fails when this dashboard could offer a
-slice a workflow would refuse. That mismatch has happened once already — a
-service name sent in an input that only took package names, which neither repo
-could see on its own.
+Which suite a run belongs to is its `suite` — `api` or `ui`, a column on every
+run since migration 0008 (see
+[decision 24](docs/decisions.md#24-a-second-suite-and-why-it-is-a-column-rather-than-a-naming-convention)).
+`packages/api/test/integration-contract.test.ts` holds the callback's shape and
+the report path, copied by hand, and fails when either side changes.
 
 ## Docs
 

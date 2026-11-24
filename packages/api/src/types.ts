@@ -3,16 +3,14 @@
  *
  * Every secret has a development default. That is a deliberate trade: a repo
  * that cannot start without a handful of secrets is a repo nobody starts. The
- * defaults are obviously fake, and `assertDeployable` refuses to serve a
- * deployment that sets `SIMULATE_DISPATCH` to `false` while still on them. The
- * gap is the deployment that forgets the flag: it simulates, and quietly keeps
- * any default it was not given — the trap github.ts describes.
+ * defaults are obviously fake, and `assertDeployable` refuses to serve them on
+ * any host but a local one (decision 52).
  */
 
-export type Role = 'demo' | 'dev' | 'qa' | 'admin'
+export type Role = 'dev' | 'qa' | 'admin'
 
 /**
- * Which suite a run belongs to, and so which repository it is dispatched to.
+ * Which suite a run belongs to: which repository's tests it is, or would be.
  *
  * A closed union rather than a free string: these are the two repositories
  * this deployment knows how to reach, and a third would need its own
@@ -44,33 +42,12 @@ export interface Bindings {
   DB: D1Database
   REPORTS: R2Bucket
 
-  GITHUB_REPO: string
-  GITHUB_WORKFLOW: string
-  /**
-   * The UI suite's repository and workflow.
-   *
-   * Optional, and the reason is compatibility: a deployment that predates the
-   * second suite has neither var set, and must keep working rather than
-   * failing at startup for a suite nobody has asked it for. `resolveTarget`
-   * returns null, which `POST /runs` reports as a 502 naming the unconfigured
-   * suite — the dispatch really did fail upstream — on the one request that
-   * needs it, rather than a 503 on every route.
-   */
-  GITHUB_UI_REPO?: string
-  GITHUB_UI_WORKFLOW?: string
-  SIMULATE_DISPATCH?: string
-
-  GITHUB_TOKEN?: string
   WEBHOOK_SECRET?: string
   /** Signs the result callback of the `api` suite only. See decision 50. */
   WEBHOOK_SECRET_API?: string
   /** Signs the result callback of the `ui` suite only. See decision 50. */
   WEBHOOK_SECRET_UI?: string
   TOKEN_SECRET?: string
-  DEMO_PASSWORD?: string
-  DEV_PASSWORD?: string
-  QA_PASSWORD?: string
-  ADMIN_PASSWORD?: string
 }
 
 export type HonoEnv = { Bindings: Bindings }
@@ -122,7 +99,7 @@ export interface RunRow {
   tags: string
   workers: number | null
   triggered_by: string
-  /** What the person said their name was. Null for a key, and for older runs. */
+  /** The account that started it. Null for a key, for a CI run, and for older runs. */
   started_by: string | null
   /** The key that started it, or null for a signed-in session — see 0006. */
   api_key_id: string | null
@@ -145,6 +122,8 @@ export interface RunRow {
   simulated: number
   /** JSON of the failures the callback named — see migration 0011 and details.ts. */
   details: string | null
+  /** The sandbox it was started in, or null for a real run from a suite's CI — see 0014. */
+  sandbox_id: string | null
 }
 
 /** A run as the UI sees it — camelCase, with the report link resolved. */
@@ -228,6 +207,15 @@ export interface WebhookPayload {
    */
   failures?: unknown
   failuresOmitted?: unknown
+  /**
+   * What ran, for a run the dashboard did not start. A suite's scheduled CI
+   * sends these so its result can be recorded as a new real run (decision 52);
+   * a callback for a run that already exists leaves them out.
+   */
+  suite?: string
+  service?: string
+  tags?: string
+  ref?: string
 }
 
 export const toView = (row: RunRow, reportUrl: string | null): RunView => ({

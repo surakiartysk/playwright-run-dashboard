@@ -40,8 +40,8 @@ describe('the request wrapper', () => {
     )
 
   it('returns the parsed body on success', async () => {
-    respondWith(200, { role: 'qa', expiresAt: 123 })
-    await expect(api.login('qa')).resolves.toEqual({ role: 'qa', expiresAt: 123 })
+    respondWith(200, { email: 'you@demo.testbydesign.dev' })
+    await expect(api.demo()).resolves.toEqual({ email: 'you@demo.testbydesign.dev' })
   })
 
   it('throws an ApiError carrying the status, so callers can branch on 401', async () => {
@@ -84,17 +84,29 @@ describe('the request wrapper', () => {
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ credentials: 'include' })
   })
 
-  it('sends the role as JSON when previewing', async () => {
-    const fetchMock = vi.fn<typeof fetch>(
-      async () => new Response('{"previewing":"admin"}', { status: 200 }),
-    )
+  it('sends the chosen account as JSON', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await api.previewRole('admin')
+    await api.account('qa.lead@demo.testbydesign.dev')
 
     const [path, init] = fetchMock.mock.calls[0] ?? []
-    expect(path).toBe('/demo/preview-role')
-    expect(init).toMatchObject({ method: 'POST', body: '{"role":"admin"}' })
+    expect(path).toBe('/auth/account')
+    expect(init).toMatchObject({
+      method: 'POST',
+      body: '{"email":"qa.lead@demo.testbydesign.dev"}',
+    })
+  })
+
+  it('names a member in the path, escaped', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.removeMember('a+b@x.co')
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/demo/admin/members/a%2Bb%40x.co')
+    expect(init).toMatchObject({ method: 'DELETE' })
   })
 })
 

@@ -67,6 +67,18 @@
         padding: 0;
       }
 
+      /*
+       * The reset above takes the browser's own centring off a modal dialog
+       * (it is done with margin: auto), so it is given back here, with a dimmed
+       * page behind it. The one dialog is the concept account chooser.
+       */
+      dialog[open] {
+        margin: auto;
+      }
+      dialog::backdrop {
+        background: rgb(0 0 0 / 0.45);
+      }
+
       body {
         /*
          * Manrope for anything a person wrote, JetBrains Mono for anything the

@@ -1,98 +1,35 @@
 import { Hono } from 'hono'
 import type { HonoEnv, Role } from '../types'
-import {
-  ROLES,
-  refuseKeys,
-  requireSession,
-  signPreviewRole,
-  previewRoleCookie,
-  clearPreviewRoleCookie,
-  isHttps,
-} from '../auth'
-import { DEV_TOKEN_SECRET } from '../config'
+import { ROLES, requireSession } from '../auth'
 import { POLICIES } from '../policy'
-import { simulates } from '../github'
-import { issueSandboxKey } from '../sandbox'
+import { issueVisitorKey } from '../visitorKeys'
+import { liveSandbox } from '../sandboxes'
 
 export const demoRoutes = new Hono<HonoEnv>()
 
 /**
- * Previewing another role's read views, for a genuinely authenticated `demo`
- * session.
+ * A key a member mints for themselves, to try the API from a terminal.
  *
- * This used to be `/switch-role`: any caller, authenticated or not, could ask
- * for a session token for any role — including `admin` — gated only by
- * `SIMULATE_DISPATCH`, a deployment-wide flag. That made it unusable on a real
- * deployment (the flag is off there, so it 403s for everyone) and, had the
- * flag ever been misconfigured, a free admin token for anyone who asked.
- *
- * This version mints no session token at all. It requires a real, verified
- * `demo` session (`requireSession` below, plus the `role === 'demo'` check in
- * the handler), and on success sets a *separate* cookie naming a role to
- * preview. That cookie is never passed to `verifyToken`, never changes
- * `c.get('role')`, and is consulted only by the read paths in routes/runs.ts —
- * `POST /runs`, `DELETE /runs/:id`, and dispatchWorkflow all keep reading the
- * real, authenticated role directly, untouched by anything here. See
- * decision 12 in docs/decisions.md for why that boundary matters, and the new
- * entry there for why this is a second cookie rather than a second claim on
- * the session token.
+ * Only a person may mint one — a key cannot mint a key (decision 25) — and the
+ * key carries the member's own role, never admin: an admin-level key is issued
+ * from the admin page, with a label chosen on purpose. See visitorKeys.ts for
+ * the limits. The plaintext is returned once.
  */
-demoRoutes.use('*', requireSession)
-
-// Refused to keys as well as to every role but `demo`. A sandbox key carries
-// the `demo` role, and a key's request has no session expiry to bind the
-// preview to (it is 0), so the cookie it got back was signed for "a session
-// that expires at 0" — a value every key request shares.
-demoRoutes.post('/preview-role', refuseKeys('preview another role'), async (c) => {
+demoRoutes.post('/keys', requireSession, async (c) => {
+  if (c.get('apiKey')) {
+    return c.json({ error: 'Keys may not mint keys — sign in to do that' }, 403)
+  }
   const role = c.get('role')
-  if (role !== 'demo') {
-    return c.json({ error: 'Only the demo role may preview another role' }, 403)
+  if (role === 'admin') {
+    return c.json({ error: 'An admin key is issued from the admin page, with a label' }, 403)
   }
-
-  const body = (await c.req.json().catch(() => null)) as { role?: string } | null
-  const requested = body?.role
-
-  if (!requested || !(ROLES as readonly string[]).includes(requested)) {
-    return c.json({ error: `role must be one of: ${ROLES.join(', ')}` }, 422)
-  }
-
-  const previewed = requested as Role
-  const sessionExpiresAt = c.get('sessionExpiresAt')
-  const token = await signPreviewRole(
-    c.env.TOKEN_SECRET ?? DEV_TOKEN_SECRET,
-    previewed,
-    sessionExpiresAt,
-  )
-  const maxAge = sessionExpiresAt - Math.floor(Date.now() / 1000)
-
-  c.header('Set-Cookie', previewRoleCookie(token, maxAge, isHttps(c.req.url)))
-  return c.json({ previewing: previewed })
-})
-
-/**
- * A key a visitor can mint for themselves, to try the API from a terminal.
- *
- * Only for the demo role, and only a real session: a key cannot mint a key
- * (decision 25), and the other roles have the admin panel. What comes back is
- * the demo role's own key, so it can only ever simulate; see sandbox.ts for the
- * limits that keep it from costing anything. The plaintext is returned once.
- */
-demoRoutes.post('/keys', async (c) => {
-  if (c.get('role') !== 'demo' || c.get('apiKey')) {
-    return c.json({ error: 'Only a demo session may mint a sandbox key' }, 403)
-  }
-
-  const issued = await issueSandboxKey(c.env)
+  const sandbox = await liveSandbox(c.env.DB, c.get('sandboxId'))
+  if (!sandbox) return c.json({ error: 'This sandbox has expired' }, 401)
+  const issued = await issueVisitorKey(c.env, sandbox, role)
   if (!issued.ok) {
     return c.json({ error: issued.error }, 429, { 'Retry-After': String(issued.retryAfter) })
   }
-
   return c.json({ key: issued.plaintext, expiresAt: issued.expiresAt, limits: issued.limits }, 201)
-})
-
-demoRoutes.post('/stop-preview', (c) => {
-  c.header('Set-Cookie', clearPreviewRoleCookie(isHttps(c.req.url)))
-  return c.json({ ok: true })
 })
 
 /**
@@ -103,29 +40,15 @@ demoRoutes.post('/stop-preview', (c) => {
  * from the behaviour.
  */
 const SEES: Record<Role, string> = {
-  // Every visitor's, not one's own: `triggered_by` holds the role, and every
-  // visitor signs in as the same one. It said "only the runs it started
-  // itself", and a visitor watching saw runs they had not started.
-  demo: 'runs started from the demo sign-in, by any visitor',
-  dev: 'runs on main only',
-  qa: 'every run, on any branch',
-  admin: 'every run, on any branch',
+  dev: 'runs on main only — the CI runs and this sandbox’s',
+  qa: 'every run, on any branch — the CI runs and this sandbox’s',
+  admin: 'every run, on any branch — the CI runs and this sandbox’s',
 }
 
-demoRoutes.get('/roles', (c) =>
+demoRoutes.get('/roles', requireSession, (c) =>
   c.json({
-    // A real, authenticated demo session may always preview — this no
-    // longer depends on the deployment's SIMULATE_DISPATCH flag, since the
-    // preview cookie can never reach a write or dispatch path regardless of
-    // that flag's value.
-    canPreview: c.get('role') === 'demo',
-    // Whether the runs *this* session starts are simulated — the real role's,
-    // never a previewed one's. Lets the run form say so before Run is pressed.
-    simulates: simulates(c.env, c.get('role')),
-    roles: ROLES.map((role) => ({
-      role,
-      ...POLICIES[role],
-      sees: SEES[role],
-    })),
+    role: c.get('role'),
+    simulates: true,
+    roles: ROLES.map((role) => ({ role, ...POLICIES[role], sees: SEES[role] })),
   }),
 )

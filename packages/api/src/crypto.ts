@@ -142,3 +142,16 @@ async function verifiedPayload(secret: string, token: string): Promise<TokenPayl
     return null
   }
 }
+
+/**
+ * Whether two strings are equal, in time that does not depend on where they
+ * differ or how long they are.
+ *
+ * Compares HMACs of the inputs rather than the inputs: equal length is then
+ * guaranteed, so the comparison cannot leak length, and the key is per call so
+ * the digests are of no use anywhere else.
+ */
+export async function constantTimeEquals(a: string, b: string): Promise<boolean> {
+  const key = crypto.randomUUID()
+  return (await hmacHex(key, a)) === (await hmacHex(key, b))
+}

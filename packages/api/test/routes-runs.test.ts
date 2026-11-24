@@ -1,6 +1,15 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { env } from 'cloudflare:test'
-import { migrate, as, seedRun, uniqueService, createdRun, runCount } from './helpers'
+import {
+  migrate,
+  as,
+  seedRun,
+  uniqueService,
+  createdRun,
+  runCount,
+  sharedSandbox,
+  makeTestSandbox,
+} from './helpers'
 import type { RunView } from '../src/types'
 
 beforeAll(migrate)
@@ -164,7 +173,7 @@ describe('POST /runs — policy enforcement', () => {
   })
 
   it('gives a run that names no workers the default, lowered to what the caller may use', async () => {
-    // It used to dispatch 4 whatever the caller's limit: demo may use 2.
+    // It used to dispatch 4 whatever the caller's limit.
     const workersOf = async (response: Response) => {
       const { runId } = (await response.json()) as { runId: string }
       return (
@@ -174,14 +183,21 @@ describe('POST /runs — policy enforcement', () => {
       )?.workers
     }
 
-    // `demo` is not in this file's Role, which the policy tests above keep to the three that dispatch.
-    const asDemo = await as('demo', '/runs', {
+    expect(await workersOf(await create('qa', { service: 'items', tags: 'all' }))).toBe(4)
+    // A key limited to two workers, which may not take the default of four.
+    const issued = (await (
+      await as('admin', '/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'two workers', role: 'qa', maxWorkers: 2 }),
+      })
+    ).json()) as { plaintext: string }
+    const viaKey = await as('admin', '/runs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${issued.plaintext}` },
       body: JSON.stringify({ service: 'items', tags: 'all' }),
     })
-    expect(await workersOf(asDemo)).toBe(2)
-    expect(await workersOf(await create('qa', { service: 'items', tags: 'all' }))).toBe(4)
+    expect(await workersOf(viaKey)).toBe(2)
   })
 
   it('allows qa the worker count it refuses dev', async () => {
@@ -304,110 +320,58 @@ describe('POST /runs — policy enforcement', () => {
 })
 
 describe('DELETE /runs/:id', () => {
-  it('removes the row and the report objects together', async () => {
-    const id = await seedRun({ reportPath: 'x' })
-    await env.REPORTS.put(`runs/${id}/index.html`, '<html></html>')
-    await env.REPORTS.put(`runs/${id}/assets/app.js`, 'console.log(1)')
+  const exists = async (id: string) =>
+    (await env.DB.prepare('SELECT id FROM runs WHERE id = ?1').bind(id).first()) !== null
 
+  it('removes a run of the admin’s own sandbox', async () => {
+    const id = await seedRun({ sandboxId: (await sharedSandbox()).id })
     const response = await as('admin', `/runs/${id}`, { method: 'DELETE' })
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ deletedObjects: 2 })
-
-    expect(await env.DB.prepare('SELECT id FROM runs WHERE id = ?1').bind(id).first()).toBeNull()
-    expect((await env.REPORTS.list({ prefix: `runs/${id}/` })).objects).toHaveLength(0)
+    expect(await exists(id)).toBe(false)
   })
 
   /*
-   * Deleting a simulated run must not take the shared report with it.
-   *
-   * Every simulated run points `report_path` at one real Allure report under
-   * `demo-report/`, because writing a copy per run would store megabytes of
-   * duplicate. So the row of a simulated run names a prefix that dozens of
-   * other rows also name.
-   *
-   * The delete is keyed on `runs/{id}/` — the run's own prefix — not on the
-   * directory of `report_path`. That is what makes this safe, and it is the
-   * less obvious of the two: deleting "the report this row points at" reads
-   * like the more correct thing, and would wipe the shared report for every
-   * other simulated run the first time an admin tidied one away. The failure
-   * would surface later, somewhere else, as a demo report that 404s.
-   *
-   * Nothing tested it. The two tests either side of this one both seed a
-   * report under the run's own prefix, so they pass under either rule.
+   * A real run has no sandbox, so no visitor — admin included — may delete it.
+   * It is the same "no such run" as a missing one: there is nothing about a
+   * real run that a visitor's admin is responsible for.
    */
-  it('leaves the shared demo report alone when a simulated run is deleted', async () => {
+  it('does not delete a real run from a suite’s CI', async () => {
+    const id = await seedRun()
+    expect((await as('admin', `/runs/${id}`, { method: 'DELETE' })).status).toBe(404)
+    expect(await exists(id)).toBe(true)
+  })
+
+  it('does not delete another sandbox’s run', async () => {
+    const other = await makeTestSandbox()
+    const id = await seedRun({ sandboxId: other.id })
+    expect((await as('admin', `/runs/${id}`, { method: 'DELETE' })).status).toBe(404)
+    expect(await exists(id)).toBe(true)
+  })
+
+  /*
+   * Every sandbox run points `report_path` at the one shared demo report.
+   * Deleting a run must not take the report every other run shows.
+   */
+  it('leaves the shared demo report alone', async () => {
     const shared = 'demo-report/index.html'
     await env.REPORTS.put(shared, '<html>sample</html>')
+    const id = await seedRun({ sandboxId: (await sharedSandbox()).id, reportPath: shared })
 
-    const id = await seedRun({ triggeredBy: 'demo', reportPath: shared })
-
-    const response = await as('admin', `/runs/${id}`, { method: 'DELETE' })
-
-    expect(response.status).toBe(200)
-    // Nothing lives under this run's own prefix, so nothing should be removed.
-    expect(await response.json()).toMatchObject({ deletedObjects: 0 })
-
-    expect(await env.DB.prepare('SELECT id FROM runs WHERE id = ?1').bind(id).first()).toBeNull()
+    expect((await as('admin', `/runs/${id}`, { method: 'DELETE' })).status).toBe(200)
     expect(await env.REPORTS.get(shared)).not.toBeNull()
   })
 
-  /*
-   * Deliberately a size no report in this system currently reaches.
-   *
-   * Both suites build Allure with `--single-file` and upload exactly one
-   * object, so a real `runs/{id}/` prefix holds one key and a single `list`
-   * would pass this test's smaller sibling above forever. That is the point:
-   * the one-object shape is a choice made in *other repositories*, by a flag
-   * (`SINGLE_FILE`) this repo cannot see, and the multi-file form is ~450
-   * objects. This pins the delete to being correct without that assumption.
-   *
-   * 1000 is R2's page boundary, so the fixture has to cross it — below it,
-   * a truncated list and a complete one are indistinguishable.
-   */
-  it('removes every report object, past the page R2 returns in one list', async () => {
-    const id = await seedRun({ reportPath: 'x' })
-
-    const keys = Array.from({ length: 1050 }, (_, i) => `runs/${id}/data/test-${i}.json`)
-    await Promise.all(keys.map((key) => env.REPORTS.put(key, '{}')))
-
-    const response = await as('admin', `/runs/${id}`, { method: 'DELETE' })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ deletedObjects: keys.length })
-
-    // Walked with a cursor, because a single list would not see a leftover
-    // past 1000 either — the assertion would inherit the bug it is checking.
-    let remaining = 0
-    let cursor: string | undefined
-    for (let guard = 0; guard < 20; guard++) {
-      const page = await env.REPORTS.list({ prefix: `runs/${id}/`, cursor })
-      remaining += page.objects.length
-      if (!page.truncated) break
-      cursor = page.cursor
-    }
-
-    expect(remaining).toBe(0)
-    // 1050 puts and 1050 deletes through R2, which takes 4.3–4.5s on an idle
-    // machine — 86% of the default five-second budget, and past it on a busy
-    // one. Reproduced by pinning all four cores and running this file: `Error:
-    // Test timed out in 5000ms` at 5448ms, with nothing asserted wrong.
-    //
-    // The count cannot come down: the bug this guards is a delete that stops
-    // at R2's 1000-key page, so the fixture has to exceed 1000. So the budget
-    // goes up instead. It is not asserting speed, and a test that fails for
-    // the machine it ran on teaches people to re-run rather than to read.
-  }, 20_000)
-
-  it('does not touch another run’s report', async () => {
-    const doomed = await seedRun()
-    const keep = await seedRun()
-    await env.REPORTS.put(`runs/${doomed}/index.html`, 'gone')
-    await env.REPORTS.put(`runs/${keep}/index.html`, 'kept')
-
-    await as('admin', `/runs/${doomed}`, { method: 'DELETE' })
-
-    expect(await env.REPORTS.get(`runs/${keep}/index.html`)).not.toBeNull()
+  it('records the deletion in the sandbox’s activity', async () => {
+    const sandbox = await sharedSandbox()
+    const id = await seedRun({ sandboxId: sandbox.id })
+    await as('admin', `/runs/${id}`, { method: 'DELETE' })
+    const row = await env.DB.prepare(
+      `SELECT detail FROM audit_log WHERE sandbox_id = ?1 AND action = 'run-deleted' AND detail = ?2`,
+    )
+      .bind(sandbox.id, id)
+      .first()
+    expect(row).not.toBeNull()
   })
 
   it('404s a run that does not exist', async () => {

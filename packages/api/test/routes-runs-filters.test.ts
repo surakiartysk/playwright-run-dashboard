@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { as, migrate, seedRun, uniqueService } from './helpers'
+import { as, makeTestSandbox, migrate, seedRun, sharedSandbox, uniqueService } from './helpers'
 import { readListFilters } from '../src/routes/runs'
 import type { Role } from '../src/types'
 
@@ -32,7 +32,9 @@ async function seed(
     triggeredBy: Role
     startedAt: string
     suite: 'api' | 'ui'
+    /** 1 puts it in the file's sandbox: simulated runs are always some sandbox's. */
     simulated: 0 | 1
+    sandboxId: string
   }> = {},
 ) {
   const id = await seedRun({
@@ -40,10 +42,11 @@ async function seed(
     tags: over.tags ?? 'all',
     ref: over.ref ?? 'main',
     triggeredBy: over.triggeredBy ?? 'qa',
+    sandboxId: over.sandboxId ?? (over.simulated ? (await sharedSandbox()).id : null),
     ...(over.startedAt ? { startedAt: over.startedAt } : {}),
   })
-  await env.DB.prepare(`UPDATE runs SET suite = ?2, simulated = ?3 WHERE id = ?1`)
-    .bind(id, over.suite ?? 'api', over.simulated ?? 0)
+  await env.DB.prepare(`UPDATE runs SET suite = ?2 WHERE id = ?1`)
+    .bind(id, over.suite ?? 'api')
     .run()
   return id
 }
@@ -158,12 +161,13 @@ describe('GET /runs — a filter never widens what a role may see', () => {
     expect(ids(await list('dev', `service=${service}&ref=develop`))).toEqual([])
   })
 
-  it('leaves demo on its own runs, whoever it asks about', async () => {
+  it('leaves a caller on its own sandbox, whatever it asks for', async () => {
     const service = uniqueService()
-    const mine = await seed(service, { triggeredBy: 'demo' })
-    await seed(service, { triggeredBy: 'admin' })
-    expect(ids(await list('demo', `service=${service}`))).toEqual([mine])
-    expect(ids(await list('demo', `service=${service}&triggeredBy=admin`))).toEqual([])
+    const other = await makeTestSandbox()
+    const real = await seed(service, {})
+    await seed(service, { sandboxId: other.id, triggeredBy: 'admin' })
+    expect(ids(await list('admin', `service=${service}`))).toEqual([real])
+    expect(ids(await list('admin', `service=${service}&triggeredBy=admin`))).toEqual([])
   })
 })
 

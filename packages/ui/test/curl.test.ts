@@ -165,40 +165,33 @@ describe('ApiSnippet', () => {
     renderToStaticMarkup(createElement(ApiSnippet, { form: f, role, origin: ORIGIN }))
 
   it('is shut until asked for, under a plain heading', () => {
-    const out = html('demo')
+    const out = html('dev')
     expect(out).toContain('<details')
     expect(out).toContain('Run this from a script')
     expect(out).not.toMatch(/<details[^>]*\sopen/)
   })
 
-  it('offers a demo visitor a key of their own, and says what it is', () => {
-    const out = html('demo')
-    expect(out).toContain('Get a sandbox key')
+  it('offers a member a key of their own, and says what it is', () => {
+    const out = html('dev')
+    expect(out).toContain('Get a key')
     expect(out).toContain('simulated runs only')
     expect(out).not.toContain('rdk_')
   })
 
-  it('does not offer the other roles one: they use a key an admin issued', () => {
-    const out = html('qa')
-    expect(out).not.toContain('Get a sandbox key')
-    expect(out).toContain('Ask an admin')
+  it('offers qa a key of its own too', () => {
+    expect(html('qa')).toContain('Get a key')
   })
 
   /*
-   * Only admin can open the panel the note used to send everyone to, and the
-   * variable the commands read was never shown being set — so a pasted
-   * command sent an empty key. Found by the real-user review.
+   * Admin issues keys with a label, on the admin page (decision 25), so it is
+   * sent there — and shown setting the variable the commands read, because a
+   * pasted command without it sent an empty key. Found by the real-user review.
    */
-  it('tells admin where keys are issued, and the others to ask for one', () => {
-    expect(html('admin')).toContain('admin panel')
-    expect(html('dev')).not.toContain('admin panel')
-    expect(html('dev')).toContain('Ask an admin')
-  })
-
-  it('shows setting the variable the commands read, for every role that needs one', () => {
-    for (const role of ['dev', 'qa', 'admin'] as const) {
-      expect(html(role)).toContain('export RUN_KEY=')
-    }
+  it('sends admin to the admin page for a key, and shows setting the variable', () => {
+    const out = html('admin')
+    expect(out).not.toContain('Get a key')
+    expect(out).toContain('admin page')
+    expect(out).toContain('export RUN_KEY=')
   })
 
   it('shows the request the form would send, and the way to see the options', () => {
@@ -238,7 +231,7 @@ describe('SnippetView once a key has been made', () => {
     renderToStaticMarkup(
       createElement(SnippetView, {
         form,
-        role: 'demo',
+        role: 'dev',
         origin: ORIGIN,
         sandbox,
         busy: false,
@@ -274,7 +267,7 @@ describe('SnippetView once a key has been made', () => {
 
   it('never shows a key before there is one', () => {
     expect(html({ sandbox: null })).not.toContain('rdk_')
-    expect(html({ sandbox: null })).toContain('Get a sandbox key')
+    expect(html({ sandbox: null })).toContain('Get a key')
   })
 
   it('says it is working while the key is being made, and disables the button', () => {

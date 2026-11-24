@@ -1,7 +1,6 @@
 import { describe, expect, it, beforeAll, vi, afterEach } from 'vitest'
 import { env, createExecutionContext } from 'cloudflare:test'
 import { migrate, sessionFor, settle } from './helpers'
-import { DEV_TOKEN_SECRET } from '../src/config'
 import { outcome } from '../src/simulate'
 import worker from '../src/index'
 import type { Role, RunView } from '../src/types'
@@ -14,37 +13,20 @@ beforeAll(migrate)
  * The simulator failed one run in five at random, which is how the red path was
  * reachable at all, and also why someone who came to see the failures panel had
  * to click Run until the dice agreed. `outcome` lets them ask: `random` is the
- * old behaviour, `pass` and `fail` are outright. A real run takes none of it.
+ * old behaviour, `pass` and `fail` are outright. Every run started here is
+ * simulated (decision 52), so every role may ask.
  */
 
-const REAL_DEPLOYMENT = {
-  SIMULATE_DISPATCH: 'false',
-  WEBHOOK_SECRET: 'w',
-  // Equal to what sessionFor() signs with, so the session still verifies.
-  TOKEN_SECRET: DEV_TOKEN_SECRET,
-  ADMIN_PASSWORD: 'a',
-  QA_PASSWORD: 'q',
-  DEV_PASSWORD: 'd',
-  GITHUB_TOKEN: 'a-real-looking-token',
-}
-
-async function post(role: Role, body: object, real: boolean) {
-  const previous = globalThis.fetch
-  // GitHub answering a real dispatch the way it does.
-  globalThis.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch
-  try {
-    return await worker.fetch(
-      new Request('http://api.test/runs', {
-        method: 'POST',
-        body: JSON.stringify({ service: 'items', tags: 'all', ...body }),
-        headers: { 'Content-Type': 'application/json', Cookie: await sessionFor(role) },
-      }),
-      real ? { ...env, ...REAL_DEPLOYMENT } : env,
-      createExecutionContext(),
-    )
-  } finally {
-    globalThis.fetch = previous
-  }
+async function post(role: Role, body: object) {
+  return worker.fetch(
+    new Request('http://api.test/runs', {
+      method: 'POST',
+      body: JSON.stringify({ service: 'items', tags: 'all', ...body }),
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionFor(role) },
+    }),
+    env,
+    createExecutionContext(),
+  )
 }
 
 /**
@@ -84,34 +66,25 @@ describe('outcome', () => {
 
 describe('POST /runs outcome', () => {
   it('refuses a mode it does not know, naming the ones it does', async () => {
-    const response = await post('demo', { outcome: 'flaky' }, false)
+    const response = await post('dev', { outcome: 'flaky' })
     expect(response.status).toBe(422)
     expect(((await response.json()) as { error: string }).error).toBe(
       'outcome must be one of: random, pass, fail',
     )
   })
 
-  /** Ignoring it would answer a request for a failure with a green run. */
-  it('refuses `fail` for a real run rather than ignoring it', async () => {
-    const response = await post('qa', { outcome: 'fail' }, true)
-    expect(response.status).toBe(422)
-    expect(((await response.json()) as { error: string }).error).toContain('only to simulated')
-  })
+  it.each(['dev', 'qa', 'admin'] as const)(
+    'takes `fail` from %s, whose run is simulated',
+    async (role) => {
+      const response = await post(role, { outcome: 'fail' })
+      expect(response.status).toBe(201)
+      expect(((await response.json()) as { simulated: boolean }).simulated).toBe(true)
+    },
+  )
 
-  it('refuses `pass` for a real run too', async () => {
-    expect((await post('admin', { outcome: 'pass' }, true)).status).toBe(422)
-  })
-
-  /** The form sends `random` whenever the field is shown or not. */
-  it('takes `random`, or nothing, for a real run', async () => {
-    expect((await post('qa', { outcome: 'random' }, true)).status).toBe(201)
-    expect((await post('qa', {}, true)).status).toBe(201)
-  })
-
-  it('takes `fail` from demo, which always simulates, even on a real deployment', async () => {
-    const response = await post('demo', { outcome: 'fail' }, true)
-    expect(response.status).toBe(201)
-    expect(((await response.json()) as { simulated: boolean }).simulated).toBe(true)
+  it('takes `random`, or nothing', async () => {
+    expect((await post('qa', { outcome: 'random' })).status).toBe(201)
+    expect((await post('qa', {})).status).toBe(201)
   })
 })
 
@@ -141,7 +114,7 @@ describe('a requested failure', { timeout: 30_000 }, () => {
     const created = await settle('/runs', {
       method: 'POST',
       body: JSON.stringify({ service: 'items', tags: 'all', outcome: mode }),
-      headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('demo') },
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionFor('dev') },
     })
     expect(created.status).toBe(201)
     const { runId } = (await created.json()) as { runId: string }

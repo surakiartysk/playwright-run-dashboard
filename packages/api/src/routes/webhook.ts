@@ -4,6 +4,8 @@ import { REPORTABLE_STATUSES, isReportableStatus } from '../types'
 import { verifyHmac } from '../crypto'
 import { DEV_WEBHOOK_SECRET } from '../config'
 import { sanitizeFailures } from '../details'
+import { isSuite } from '../types'
+import type { Context } from 'hono'
 
 export const webhookRoutes = new Hono<HonoEnv>()
 
@@ -129,7 +131,7 @@ webhookRoutes.post('/', async (c) => {
             suite_version = COALESCE(?10, suite_version),
             suite_sha = COALESCE(?11, suite_sha),
             details = COALESCE(?12, details)
-      WHERE id = ?1 AND (?13 IS NULL OR suite = ?13)`,
+      WHERE id = ?1 AND sandbox_id IS NULL AND (?13 IS NULL OR suite = ?13)`,
   )
     .bind(
       payload.runId,
@@ -158,11 +160,18 @@ webhookRoutes.post('/', async (c) => {
     .run()
 
   if (result.meta.changes === 0) {
+    // A run that is not there yet, from a suite's own CI: recorded as a new
+    // real run when the callback says what ran (decision 52).
+    if (payload.service !== undefined || payload.suite !== undefined) {
+      return recordCiRun(c, payload, status, allowedSuite)
+    }
     // A run of the other suite is a different answer from no run at all: the
     // signature was good, and the secret that made it is not that suite's.
     // Worth saying, because it is what a secret put in the wrong repository
     // looks like.
-    const other = await c.env.DB.prepare(`SELECT suite FROM runs WHERE id = ?1`)
+    const other = await c.env.DB.prepare(
+      `SELECT suite FROM runs WHERE id = ?1 AND sandbox_id IS NULL`,
+    )
       .bind(payload.runId)
       .first<{ suite: string }>()
     if (other) {
@@ -178,3 +187,78 @@ webhookRoutes.post('/', async (c) => {
 
   return c.json({ ok: true })
 })
+
+const NAME_RE = /^[a-z][a-z0-9-]{0,39}$/
+const REF_RE = /^[A-Za-z0-9._\-/]{1,100}$/
+
+/**
+ * A real run the dashboard did not start: a suite's scheduled CI reporting
+ * what it ran (decision 52). The dashboard no longer dispatches anything, so
+ * this is how real results keep arriving.
+ *
+ * The row has no sandbox, so every visitor sees it and none can change or
+ * delete it. The suite must be the one the signing secret is for — a leak from
+ * one repository still cannot write the other's results — and the names are
+ * checked by shape, not against the run form's list: a suite may add a service
+ * before this dashboard's list knows it, and its result is still true.
+ *
+ * An id that exists already, in a sandbox, is refused rather than overwritten:
+ * a CI run id is the workflow's, and a clash means two writers disagree.
+ */
+async function recordCiRun(
+  c: Context<HonoEnv>,
+  payload: WebhookPayload,
+  status: WebhookPayload['status'],
+  allowedSuite: Suite | null,
+) {
+  const suite = payload.suite ?? allowedSuite
+  if (!isSuite(suite)) return c.json({ error: 'suite must be one of: api, ui' }, 422)
+  if (allowedSuite !== null && suite !== allowedSuite) {
+    return c.json({ error: `This secret may not report for runs of the ${suite} suite` }, 403)
+  }
+  const service = payload.service ?? ''
+  const tags = payload.tags ?? 'all'
+  const ref = payload.ref ?? 'main'
+  if (!NAME_RE.test(service) || !NAME_RE.test(tags)) {
+    return c.json({ error: 'service and tags must be lower-case names' }, 422)
+  }
+  if (!REF_RE.test(ref)) return c.json({ error: 'ref is not a valid git ref' }, 422)
+  if (!/^[A-Za-z0-9-]{1,80}$/.test(payload.runId)) {
+    return c.json({ error: 'runId must be letters, digits and dashes' }, 422)
+  }
+
+  const finished = new Date()
+  const started = new Date(finished.getTime() - (payload.durationMs ?? 0))
+  const details = sanitizeFailures(payload.failures, payload.failuresOmitted)
+  const inserted = await c.env.DB.prepare(
+    `INSERT INTO runs (id, suite, service, tags, triggered_by, status, ref, started_at, finished_at,
+                       total, passed, failed, duration_ms, report_path, workflow_url,
+                       suite_version, suite_sha, details, simulated, sandbox_id)
+     VALUES (?1, ?2, ?3, ?4, 'ci', ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, 0, NULL)
+     ON CONFLICT (id) DO NOTHING`,
+  )
+    .bind(
+      payload.runId,
+      suite,
+      service,
+      tags,
+      status,
+      ref,
+      started.toISOString(),
+      finished.toISOString(),
+      payload.total ?? null,
+      payload.passed ?? null,
+      payload.failed ?? null,
+      payload.durationMs ?? null,
+      payload.reportPath ?? null,
+      payload.workflowUrl ?? null,
+      payload.suiteVersion ?? null,
+      payload.suiteSha ?? null,
+      details ? JSON.stringify(details) : null,
+    )
+    .run()
+  if (inserted.meta.changes === 0) {
+    return c.json({ error: `A run with id ${payload.runId} already exists` }, 409)
+  }
+  return c.json({ ok: true, created: true }, 201)
+}

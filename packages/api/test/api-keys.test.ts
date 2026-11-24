@@ -25,6 +25,7 @@ const row = (over: Partial<ApiKeyRow> = {}): ApiKeyRow => ({
   revoked_at: null,
   expires_at: null,
   sandbox: 0,
+  sandbox_id: '0123456789abcdef0123456789abcdef',
   ...over,
 })
 
