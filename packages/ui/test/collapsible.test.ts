@@ -191,15 +191,18 @@ describe('failureSummary', () => {
     expect(trendHint(points('passed', 'failed', 'passed'))).toBe('Last 3 · 1 failed')
   })
 
-  it('puts the line on the open card, in the danger colour only when something failed', () => {
+  /*
+   * Shut, the card still says it in its hint (above). Open, it does not: the
+   * summary beside it states the Failing count, over every run, and this line
+   * counted only the charted ones — two different numbers for one question.
+   */
+  it('stays off the open card, where the summary already gives the count', () => {
     const red = renderToStaticMarkup(createElement(RunTrend, { runs }))
-    expect(red).toContain('1 of the last 4 runs did not pass')
-    expect(red).toContain('color:var(--c-danger)">1 of the last 4')
+    expect(red).not.toContain('did not pass')
     const green = renderToStaticMarkup(
       createElement(RunTrend, { runs: [runs[0]!, runs[2]!, runs[3]!] }),
     )
-    expect(green).toContain('All 3 runs passed')
-    expect(green).not.toContain('color:var(--c-danger)">All')
+    expect(green).not.toContain('runs passed')
   })
 })
 

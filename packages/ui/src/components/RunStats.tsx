@@ -254,12 +254,13 @@ const s: Record<string, CSSProperties> = {
     color: c.t1,
   },
   ringTitle: { fontSize: 15, fontWeight: 600, color: c.t1, marginBottom: 4 },
-  tiles: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  // Ruled, not boxed. The tiles were cards inside the card — a fill and a
+  // border each — and four of them under the ring made the panel the heaviest
+  // thing on the page. A line above each keeps the 2×2 reading order.
+  tiles: { display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 18, rowGap: 4 },
   stat: {
-    padding: '10px 12px',
-    borderRadius: 10,
-    background: c.bg,
-    border: `1px solid ${c.divider}`,
+    padding: '10px 0 8px',
+    borderTop: `1px solid ${c.divider}`,
   },
   label: {
     fontSize: 11,

@@ -8,9 +8,9 @@ here with nothing downstream of it.
 derived — it records work done at a keyboard", so it was checked only for
 _agreement between documents_, never for truth.
 
-This file is what that number can actually show. **323 mutations are
+This file is what that number can actually show. **328 mutations are
 recorded here**, each recovered from the commit that ran it, with what was
-changed and what went red. The gap between 323 and 379 is
+changed and what went red. The gap between 328 and 384 is
 explained at the bottom, because it is the part worth reading.
 
 Nothing here was reconstructed from the code. Every row comes from the commit
@@ -349,6 +349,11 @@ figure the prose states, so the two cannot drift apart.
 | 321 | `313d34f` · 24 Nov | Admin offered a self-serve key in the snippet                                 | "sends admin to the admin page for a key, and shows setting the variable"                                                 |
 | 322 | `313d34f` · 24 Nov | The concept label dropped from the Google button                              | "leads with the demo button, before the concept sign-in"                                                                  |
 | 323 | `313d34f` · 24 Nov | qa not offered a key of its own                                               | "offers qa a key of its own too"                                                                                          |
+| 324 | `a57f397` · 24 Nov | The failure line put back on the open trend card                              | "stays off the open card, where the summary already gives the count"                                                      |
+| 325 | `a57f397` · 24 Nov | The newest-run figure put back on the trend card                              | "leave the card without a headline percentage of its own"                                                                 |
+| 326 | `a57f397` · 24 Nov | `runOrigin` ignoring the simulated flag                                       | "calls a simulated run simulated, whoever started it"                                                                     |
+| 327 | `a57f397` · 24 Nov | A CI run labelled plain "real"                                                | "calls a suite's own CI run real, and says it was CI"                                                                     |
+| 328 | `a57f397` · 24 Nov | The real-run chip drawn dashed, like a simulated one                          | "marks each run real or simulated, the real one solid and green"                                                          |
 
 ---
 
@@ -361,13 +366,13 @@ Two commits stated a total without naming every mutation in it:
 - `82db061` — "Four mutations, all caught." Two are rows 10–11; two are not
   described.
 
-So the commit history accounts for **329**: 323 described, four
+So the commit history accounts for **334**: 328 described, four
 counted, and two equivalent mutations described in decisions 45 and 46 rather than here
 (a colour that still cleared the threshold, so nothing should have gone red).
 
 ## The gap, and why it is stated rather than closed
 
-379 mutations have been run. 329 are in the history. The other fifty
+384 mutations have been run. 334 are in the history. The other fifty
 were run at a keyboard during development — break it, watch the right test go
 red, put it back — and never written down, because for most of that period the
 convention was to record the ones worth repeating rather than all of them.

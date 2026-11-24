@@ -22,6 +22,7 @@ import {
   linkNotice,
   runFromHash,
   runHash,
+  runOrigin,
   toggleRow,
   type RowState,
 } from '../run-rows'
@@ -532,14 +533,17 @@ export function RunHistory({
                           <span style={s.runRef} title={run.suiteSha ?? undefined}>
                             {refLabel(run)}
                           </span>
-                          {run.simulated && (
-                            <span
-                              style={s.runSimulated}
-                              title="No workflow ran: these numbers come from the simulator, and Report opens a shared sample."
-                            >
-                              simulated
-                            </span>
-                          )}
+                          {(() => {
+                            const origin = runOrigin(run)
+                            return (
+                              <span
+                                style={origin.real ? s.runReal : s.runSimulated}
+                                title={origin.title}
+                              >
+                                {origin.label}
+                              </span>
+                            )
+                          })()}
                           {run.viaKey && (
                             <span
                               style={s.runSimulated}
@@ -868,6 +872,15 @@ const s: Record<string, CSSProperties> = {
   runService: { color: c.t1, fontWeight: 600, fontSize: 14 },
   runTags: { ...mono, fontSize: 12, color: c.t4 },
   runRef: { ...mono, fontSize: 12, color: c.t5 },
+  // Solid and green-edged: the real runs are the evidence on this page, so
+  // they are the ones that stand out, and the simulated ones step back.
+  runReal: {
+    fontSize: 11,
+    color: c.pass,
+    border: `1px solid ${c.pass}`,
+    borderRadius: 5,
+    padding: '0 5px',
+  },
   // Dashed rather than filled: it qualifies the row, it is not a status.
   runSimulated: {
     fontSize: 11,

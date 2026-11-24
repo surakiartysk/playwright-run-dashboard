@@ -318,9 +318,10 @@ describe('mode and accent', () => {
 })
 
 /**
- * The two results written as text rather than drawn as marks: the trend's
- * newest-run figure was the status green on white, 2.27:1. Both themed colours
- * have to be read on every background the page puts them on.
+ * The two results written as text rather than drawn as marks — now the "real"
+ * chip on a run row, and before it the trend's newest-run figure, which was the
+ * status green on white, 2.27:1. Both themed colours have to be read on every
+ * background the page puts them on.
  */
 describe('results as text', () => {
   for (const mode of MODES) {

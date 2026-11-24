@@ -61,6 +61,7 @@ interviewer should press on hardest.
 50. [Each suite signs with a secret of its own](#50-each-suite-signs-with-a-secret-of-its-own)
 51. [The UI asks for https and for no device access](#51-the-ui-asks-for-https-and-for-no-device-access)
 52. [A demo throughout: a sandbox for each visitor](#52-a-demo-throughout-a-sandbox-for-each-visitor)
+53. [Each run says whether it is real, and one card states the figures](#53-each-run-says-whether-it-is-real-and-one-card-states-the-figures)
 
 ---
 
@@ -307,13 +308,13 @@ Found only by testing a _correctly signed_ callback; every test up to that point
 had checked that bad signatures were rejected, which is the easy half. Fixed
 with `WHERE status IN ('queued', 'running')`.
 
-**Every test here was proven able to fail.** In all, 379 mutations were introduced
+**Every test here was proven able to fail.** In all, 384 mutations were introduced
 one at a time — deleting the escalation guard, signing the body without the
 timestamp, dropping the visibility clause, widening `dev` to every branch — and
 each produced a failure naming the right behaviour. A green suite that has never
 been watched go red is a suite with unknown coverage.
 
-323 of those are recorded individually in
+328 of those are recorded individually in
 [`mutations.md`](mutations.md). The rest were run without being written down,
 and that file says so rather than reconstructing them — a claim about work done
 is worth exactly what can be checked, and the checkable part is now separated
@@ -2813,6 +2814,37 @@ Twenty-six mutations (rows 298 to 323), each failing its own test.
 - **The decisions this one retires stay in this file.** 6, 12 and 22 describe a deployment that dispatched for real and
   a role that no longer exists. They are left as they were written, because a record of why the dashboard was once
   shaped that way is worth more than a tidy file.
+
+---
+
+## 53. Each run says whether it is real, and one card states the figures
+
+**Context.** After decision 52 the run list mixes two kinds of run: a visitor's simulated ones and the suites' real
+ones, which now arrive from each suite's daily CI run (their decisions 12 and 13). Only the simulated rows were marked,
+so a page of real runs looked exactly like a page of invented ones, and the real ones are the evidence the demo exists
+to show. Beside the list, the summary said "Pass rate 70%" and "Failing 6" over every run, while the trend card said
+"Newest run 100%" and "4 of the last 18 runs did not pass" over the runs it could draw: four figures, two sets of runs,
+and a reader left to work out why both were true.
+
+**Decision.**
+
+- **Every row names its origin:** "real · CI" for a suite's own run, "real" for one dispatched before the demo, and the
+  dashed "simulated" as before. The real chip is solid and in the pass colour, so it is the one that stands out.
+- **The trend card is the chart and nothing else.** It keeps its range and its "Last N finished runs" line, and the
+  summary is the only place a pass rate or a failure count is stated. Shut, the card still says "Last 18 · 4 failed"
+  in its hint, where nothing sits beside it.
+- **The summary's tiles are ruled, not boxed.** They were cards inside a card.
+
+Five mutations (rows 324 to 328), each failing its own test.
+
+**Trade-off.**
+
+- **The newest run's result is no longer a figure.** It is the last bar of the chart and the top row of the list; a
+  reader who wanted it as a number now reads it from the row.
+- **"Real" is a claim the row makes on the server's word.** The chip reads `simulated` and `triggered_by` as stored; a
+  run recorded wrongly would be labelled wrongly, and nothing on the page can check it.
+- **The open trend card no longer says what failed in words.** The red bars and the Failing tile carry it; someone
+  who reads a chart poorly loses the sentence that said it outright.
 
 ---
 

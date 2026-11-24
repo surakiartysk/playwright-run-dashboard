@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  runOrigin,
   CLOSED,
   askDelete,
   cancelDelete,
@@ -127,5 +128,28 @@ describe('linkNotice', () => {
     expect(linkNotice({ service: 'items', ref: 'main' }, false)).toBe(
       'The linked run (items on main) is further down the list than has been loaded.',
     )
+  })
+})
+
+describe('runOrigin', () => {
+  it('calls a simulated run simulated, whoever started it', () => {
+    expect(runOrigin({ simulated: true, triggeredBy: 'ci' })).toMatchObject({
+      label: 'simulated',
+      real: false,
+    })
+  })
+
+  it("calls a suite's own CI run real, and says it was CI", () => {
+    expect(runOrigin({ simulated: false, triggeredBy: 'ci' })).toMatchObject({
+      label: 'real · CI',
+      real: true,
+    })
+  })
+
+  it('calls any other real run just real', () => {
+    expect(runOrigin({ simulated: false, triggeredBy: 'qa' })).toMatchObject({
+      label: 'real',
+      real: true,
+    })
   })
 })
